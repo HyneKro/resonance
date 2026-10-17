@@ -33,7 +33,7 @@ app.whenReady().then(async()=>{
     win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(service.url+'/'))event.preventDefault();});
     installDesktopAudio({ipcMain,win,url:service.url});
     installAudioOutput({ipcMain,win,url:service.url});
-    installPortableUpdate({app,ipcMain,dialog,win,root,url:service.url});
+    installPortableUpdate({app,ipcMain,dialog,win,root,url:service.url,exitForUpdate:()=>{service?.sync.cancel();service?.server.close();app.exit(0);}});
     installSonaWindow({BrowserWindow,ipcMain,win,url:service.url,screen,lib:service.lib});
     let allowClose=false;
     win.on('close',event=>{

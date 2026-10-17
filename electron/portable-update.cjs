@@ -1,6 +1,6 @@
-const fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=require('node:crypto'),{execFile,spawn}=require('node:child_process'),{promisify}=require('node:util');
+const fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=require('node:crypto'),{execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {OnlineUpdate,RELEASES_URL}=require('./online-update.cjs');
-function installPortableUpdate({app,ipcMain,dialog,win,root,url}){
+function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()=>app.quit()}){
  let busy=false;
  const portableRoot=path.dirname(process.execPath);
  const canInstall=app.isPackaged&&require('node:fs').existsSync(path.join(portableRoot,'portable.flag'));
@@ -48,8 +48,10 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url}){
    const choice=await dialog.showMessageBox(win,{type:'info',title:'Resonance update is ready',message:'Install Resonance '+info.version+'?',detail:'Your music, playlists and settings stay in this folder. Resonance will restart. A backup of replaced app files will be kept in .updates.',buttons:['Restart & update','Cancel'],defaultId:0,cancelId:1});if(choice.response!==0)return {cancelled:true};
    await Promise.race([win.webContents.executeJavaScript('window.resonancePrepareClose?.()'),new Promise(resolve=>setTimeout(resolve,2500))]);
    const helper=path.join(run,'apply-update.ps1');await fs.copyFile(path.join(root,'electron','apply-update.ps1'),helper);
-   const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',helper,'-Destination',portableRoot,'-Stage',stage,'-WaitFor',String(process.pid)],{windowsHide:true,detached:true,stdio:'ignore'});
-   await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});child.unref();setTimeout(()=>app.quit(),150);return {restarting:true};
+   await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','launch-update.ps1'),'-Helper',helper,'-Destination',portableRoot,'-Stage',stage,'-WaitFor',String(process.pid)],{windowsHide:true,timeout:25000,maxBuffer:100000});
+   // The independent helper has acknowledged startup and is waiting for this PID.
+   // The playback checkpoint above is complete, so do not re-enter window close hooks.
+   setTimeout(exitForUpdate,150);return {restarting:true};
   }catch(error){return {error:'The update could not be installed. Your current app is still available. '+String(error.stderr||error.message).slice(0,700)};}finally{busy=false;}
  }
  win.on('closed',()=>{clearTimeout(checkTimer);clearInterval(periodic);updater.close();ipcMain.removeHandler('resonance:update');ipcMain.removeHandler('resonance:online-update');});

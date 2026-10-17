@@ -255,7 +255,7 @@ const syncReview=installSyncReview({entries:()=>state.syncPreview?.entries||[],g
 const sourceUI=installSourceUI({state,api,esc,icon,showDialog,closeDialog,refresh,navigate,closeRoom,toast});
 const immersive=installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,queueDialog,soundDialog,openRoom,closeRoom,closeDialog,savePlayer,details});
 installBrand();installPortableUpdateUI({toast,state});
-const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast});
+const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast,getSongProfile:id=>listening.track?.id===id?listening.profile:null});
 installSonaDesktop({state,reactor,audio,togglePlay,nextTrack,setPreferences,toast});
 installWindowUI({button:$('#fullscreen'),onError:e=>toast('Fullscreen unavailable: '+e.message)});
 const desktopAudio=new DesktopAudio({reactor,audio,bridge:window.resonanceDesktop,mediaDevices:navigator.mediaDevices,beforeStart:async()=>{if(state.prefs.musicOnly)await setPreferences({musicOnly:false});},onChange:status=>{

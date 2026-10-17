@@ -42,6 +42,8 @@ try {
   try{$source.CopyTo($output)}finally{$source.Dispose();$output.Dispose()}
   if((FileHash $target) -ne $file.sha256){throw "Update checksum mismatch: $($file.path)"}
  }
+ $package=Get-Content -LiteralPath (Join-Path $stageRoot 'resources/app/package.json') -Raw | ConvertFrom-Json
+ if($package.version -ne $manifest.version){throw 'The app version does not match the update manifest.'}
  $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stageRoot 'resonance-update.json') -Encoding UTF8
  @{version=$manifest.version;files=$files.Count;bytes=$total} | ConvertTo-Json -Compress
 } finally {$zip.Dispose()}

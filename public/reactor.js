@@ -53,13 +53,19 @@ export class Reactor {
     else{if(gain.cancelAndHoldAtTime)gain.cancelAndHoldAtTime(now);else{const value=gain.value;gain.cancelScheduledValues(now);gain.setValueAtTime(value,now);}gain.setTargetAtTime(target,now,.35);}
   }
   setTransitionGain(value,seconds=0){this.transitionValue=value;if(!this.context?.createGain)return;this.fadeGain??=this.context.createGain();const now=this.context.currentTime;this.fadeGain.gain.cancelScheduledValues(now);this.fadeGain.gain.setValueAtTime(this.fadeGain.gain.value,now);if(seconds)this.fadeGain.gain.linearRampToValueAtTime(value,now+seconds);else this.fadeGain.gain.setValueAtTime(value,now);}
+  selectVisualTrack({id,profile,character,session}){
+    this.songId=id;this.songProfile=profile;this.character.select(character,session);
+    this.songDirector??=new SongDirector();this.songDirector.select(profile,this.audio.currentTime||0);
+    this.visualPending=false;this.needsFrame=true;
+  }
+  updateSongProfile(id,profile){if(id===this.songId&&!this.visualPending)this.songProfile=profile;}
   visualState(dt){
     const d=this.dynamics.output;
     if(!this.paletteMixer)this.paletteMixer=new PaletteMixer(d.colors);
     if(!this.formMotion)this.formMotion=[d.shape,d.spread,d.flow,d.bloom,this.intensity].map(x=>new Inertia(x,1.1));
     const values=[d.shape,d.spread,d.flow,d.bloom,this.intensity];this.formMotion.forEach(s=>s.seconds=1.1/(this.responsiveness||1));
     const form=this.formMotion.map((spring,i)=>this.frozen?spring.value:spring.update(i<4&&(!this.dynamicVisuals||this.reduced)?spring.value:values[i],dt));
-    this.songDirector??=new SongDirector();const direction=this.songDirector.update(this.songProfile,Math.max(0,(this.audio.currentTime||0)-(this.visualSync.delayMs||0)/1000),dt,{enabled:this.autoDirection!==false&&!this.desktopSource,active:this.reactiveActive,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
+    this.songDirector??=new SongDirector();const direction=this.songDirector.update(this.songProfile,Math.max(0,(this.audio.currentTime||0)-(this.visualSync.delayMs||0)/1000),dt,{enabled:this.autoDirection!==false&&!this.desktopSource,active:this.reactiveActive,frozen:this.visualPending||this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     const identity=this.character?.update(dt,{direction,amount:this.appearance?.variation,theme:this.visualTheme,enabled:this.autoDirection!==false&&!this.desktopSource,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     if(!this.frozen&&!this.reduced)this.backgroundClock=(this.backgroundClock||0)+dt*this.speedMotion.update((this.appearance?.bgSpeed||1)*(.35+(identity?.character[0]||.5)),dt);
     const colors=this.paletteMixer.update(!this.desktopSource&&this.coverPalette!==false&&this.coverColors?this.coverColors:d.colors,dt,this.frozen);this.atmosphereTransition??=new AtmosphereTransition();const background=this.atmosphereTransition.update(identity,colors,dt,{frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});

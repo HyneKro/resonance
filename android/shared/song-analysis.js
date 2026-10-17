@@ -65,19 +65,29 @@ export function songChapters(profile){
 }
 export class SongDirector {
  constructor(){this.values=[.5,.5,.3,0];this.springs=this.values.map(v=>new Inertia(v,4));this.blend=new Inertia(0,2.4);this.chapter=null;}
+ select(profile,time=0){
+  this.profile=profile;this.chapters=songChapters(profile);this.chapter=this.chapterAt(time);
+  this.candidateKey=this.chapterKey(this.chapter);this.initialChapterKey=null;this.dwell=0;this.initialized=true;this.awaitingProfile=!this.chapters.length;
+ }
+ chapterAt(time){return this.chapters?.find(c=>time>=c.start&&time<c.end)||this.chapters?.at(-1)||null;}
+ chapterKey(chapter){return chapter?chapter.kind+':'+chapter.start:'';}
  update(profile,time,dt,{enabled=true,active=true,frozen=false,reduced=false}={}){
+  if(!this.initialized)this.select(profile,time);
   if(this.profile!==profile){this.profile=profile;this.chapters=songChapters(profile);}
   const now=enabled?sampleProfile(profile,time):null,next=now?sampleProfile(profile,time+5):null;
   const target=now?[now.energy,now.texture,now.attack,clamp((next.energy-now.energy)*2,-1,1)]:[.5,.5,.3,0];
   if(!frozen&&!reduced){
    this.blend.update(now?1:0,dt);
    if(active)this.values=this.springs.map((s,i)=>s.update(target[i],dt));
-   // Scrubbing can cross many chapters in a few frames. Wait for a stable target,
-   // keeping the last form while a new song's cached analysis is in flight.
-   const candidate=now&&active?(this.chapters.find(c=>time>=c.start&&time<c.end)||this.chapters.at(-1)):null;
-   const key=candidate?candidate.kind+':'+candidate.start:'';
-   if(key!==this.candidateKey){this.candidateKey=key;this.dwell=0;}else this.dwell=(this.dwell||0)+clamp(dt,0,.1);
-   if(candidate&&this.dwell>=.5)this.chapter=candidate;
+   // Cached chapters are selected with their song, not half a second later.
+   // Late analysis blends texture/energy now, but keeps the initial silhouette
+   // until an actual chapter boundary. Scrubbing only commits a settled target.
+   const candidate=now&&active?this.chapterAt(time):null,key=this.chapterKey(candidate);
+   if(candidate){
+    if(this.awaitingProfile){this.awaitingProfile=false;this.initialChapterKey=key;this.candidateKey=key;this.dwell=0;}
+    if(key!==this.candidateKey){this.candidateKey=key;this.dwell=0;}else this.dwell=(this.dwell||0)+clamp(dt,0,.1);
+    if(key!==this.initialChapterKey&&this.dwell>=.5){this.chapter=candidate;this.initialChapterKey=null;}
+   }
   }
   return {available:!!now,mix:reduced?0:this.blend.value,chapter:this.chapter,energy:this.values[0],texture:this.values[1],attack:this.values[2],anticipation:this.values[3]};
  }

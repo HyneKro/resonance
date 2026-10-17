@@ -23,6 +23,27 @@ test('portable update preserves personal data/config and saves replaced files',a
  const read=p=>fs.readFile(path.join(f.dest,p),'utf8');assert.equal(await read('Resonance.exe'),'new app');assert.equal(await read('data/personal.txt'),'music, settings, playlists');assert.equal(await read('resources/app/config.json'),'personal config');assert.equal(await read('.updates/test/backup/Resonance.exe'),'old app');
  assert.equal(JSON.parse((await read('.updates/test/result.json')).replace(/^\uFEFF/,'' )).ok,true);
 });
+
+test('hidden helper acknowledges startup, survives parent exit and completes the update',async()=>{
+ const f=await fixture(),executable=path.join(f.source,'Resonance.exe');await fs.unlink(executable);
+ const code='public class Probe { public static void Main(){string root=System.AppDomain.CurrentDomain.BaseDirectory;System.IO.File.WriteAllText(System.IO.Path.Combine(root,"relaunched.txt"),System.IO.File.ReadAllText(System.IO.Path.Combine(root,"resources/app/package.json")));}}';
+ await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Add-Type -TypeDefinition ${quote(code)} -OutputAssembly ${quote(executable)} -OutputType WindowsApplication`],{windowsHide:true});
+ const binary=await fs.readFile(executable);Object.assign(f.manifest.files.find(x=>x.path==='Resonance.exe'),{bytes:binary.length,sha256:createHash('sha256').update(binary).digest('hex')});
+ await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const parent=path.join(f.dir,'launcher.cjs');await fs.writeFile(parent,`const {execFile}=require('node:child_process');execFile('powershell.exe',${JSON.stringify(['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','launch-update.ps1'),'-Helper',path.join(root,'electron','apply-update.ps1'),'-Destination',f.dest,'-Stage',f.stage])}.concat('-WaitFor',String(process.pid)),{windowsHide:true},(error,stdout)=>{if(error){console.error(error);process.exit(1)}const ready=JSON.parse(stdout.trim());if(!ready.pid)process.exit(2);process.exit(0)});`);
+ await run(process.execPath,[parent],{windowsHide:true,timeout:10000});
+ let report;for(let i=0;i<100;i++){try{report=JSON.parse((await fs.readFile(path.join(f.dest,'.updates/test/result.json'),'utf8')).replace(/^\uFEFF/,''));break;}catch{}await new Promise(r=>setTimeout(r,100));}
+ assert.ok(report,'helper wrote a result');assert.equal(report.ok,true,report.error);
+ let launched;for(let i=0;i<50;i++){try{launched=JSON.parse(await fs.readFile(path.join(f.dest,'relaunched.txt'),'utf8'));break;}catch{}await new Promise(r=>setTimeout(r,100));}
+ assert.equal(launched?.version,'1.1.0','the helper automatically launched the newly installed executable');
+ assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
+});
+
+test('helper startup failure is reported before the caller closes',async()=>{
+ const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);await fs.unlink(path.join(f.dest,'portable.flag'));
+ await assert.rejects(ps('launch-update.ps1',['-Helper',path.join(root,'electron','apply-update.ps1'),'-Destination',f.dest,'-Stage',f.stage,'-WaitFor',String(process.pid),'-NoLaunch']),/stopped before it was ready/);
+ assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');
+});
 test('a changed staged file rolls back earlier replacements',async()=>{
  const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);await fs.writeFile(path.join(f.stage,'resources/app/public/app.js'),'corrupt');
  await ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);

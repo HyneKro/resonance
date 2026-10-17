@@ -2,6 +2,10 @@
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
 
+## Windows 1.2.2 / Android 0.2.2 · stable track handoffs
+
+Saved visual identity and the opening audio chapter are selected together. Metadata/artwork refreshes retain the current session's character, and first-time analysis no longer introduces another opening silhouette. Windows also repairs the hidden updater helper's startup and automatic relaunch. See the new platform release notes for upgrade recovery and validation details.
+
 ## Windows 1.2.1 / Android 0.2.1 · playback and transition fixes
 
 Loudness leveling now latches each track’s saved gain, avoids mid-play analysis changes, and leaves spectral analysis unaffected. Track Character uses continuous blending through seeks and analysis handoffs, with smaller fluid deformations. The timeline shows hatched skipped edges and exact times. Desktop EQ resets keep the current scroll position. See the platform release notes for validation and limits.

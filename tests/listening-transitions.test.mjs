@@ -4,7 +4,7 @@ import {TrackLevel,SongDirector,directedAppearance} from '../public/song-analysi
 import {skippedEdges} from '../public/listening-timeline.js';
 import {ListeningEnhancements} from '../public/listening-enhancements.js';
 import {Reactor} from '../public/reactor.js';
-import {CharacterMixer,createTrackCharacter} from '../public/track-character.js';
+import {CharacterMixer,createTrackCharacter,VisualTrackSelection} from '../public/track-character.js';
 import {visualDefaults} from '../public/visual-settings.js';
 
 const loud={integratedLufs:-8,truePeakDb:0},quiet={integratedLufs:-21,truePeakDb:-8};
@@ -28,6 +28,40 @@ test('audio gain automation never stacks repeated targets and new tracks start a
  set(0);assert.equal(calls.at(-2)[0],'hold');assert.equal(calls.at(-1)[0],'target');set(5,{immediate:true});assert.deepEqual(calls.at(-1),['set',10**(5/20),8]);
 });
 const map=energy=>({duration:100,step:1,timeline:Array.from({length:100},(_,t)=>[t,-20,energy??(t<40?.05:.95),t<40?.1:.9,t<40?.1:.8])});
+test('one atomic visual identity per listen, including late metadata, stale requests and cached opening chapter',async()=>{
+ const oldMatch=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:false});
+ try{
+  const audio={paused:false,currentTime:80},r=new Reactor(audio),reads=new Map(),commits=[];
+  const selector=new VisualTrackSelection({read:t=>new Promise(resolve=>reads.set(t.id,resolve)),pending:()=>r.visualPending=true,apply:value=>{commits.push(value);r.selectVisualTrack(value);}});
+  const a={id:'a',genre:'Ambient'},b={id:'b',genre:'Metal'};
+  const first=selector.select(a,'one');reads.get('a')({character:createTrackCharacter(a),profile:map()});await first;
+  for(let i=0;i<300;i++)r.visualState(1/60);
+  const before=r.visualState(1/60),pending=selector.select(b,'two');audio.currentTime=0;
+  for(let i=0;i<45;i++){const held=r.visualState(1/60);assert.equal(held.direction.chapter.kind,'Expansive');assert.equal(held.identity.sculpture[1],before.identity.sculpture[1]);}
+  reads.get('b')({character:createTrackCharacter(b),profile:map()});await pending;
+  assert.equal(r.songDirector.chapter.kind,'Suspended','new identity never inherits the old song chapter');
+  const targets=new Set();for(let i=0;i<360;i++)targets.add(r.visualState(1/60).identity.sculpture[1]);
+  assert.equal(targets.size,1,'one intended shape, without a fallback or delayed chapter shape');
+  b.genre='Jazz';b.artwork='arrived.webp';await selector.select(b,'two');assert.equal(commits.length,2,'same-listen metadata refresh never re-rolls the shape');
+  const stale=selector.select(a,'three'),latest=selector.select(b,'four');reads.get('a')({character:createTrackCharacter(a),profile:map()});await stale;assert.equal(commits.length,2);
+  reads.get('b')({character:createTrackCharacter(b),profile:map()});await latest;assert.equal(commits.length,3);
+  r.updateSongProfile('a',map(.9));assert.equal(r.songId,'b');assert.equal(r.songProfile.timeline[0][2],.05);
+ }finally{globalThis.matchMedia=oldMatch;}
+});
+test('late analysis changes continuous controls without a second opening silhouette; seeks still change chapters',()=>{
+ const director=new SongDirector(),profile=map();director.select(null,0);
+ for(let i=0;i<120;i++)director.update(null,2,1/60);
+ for(let i=0;i<240;i++){const frame=director.update(profile,2,1/60);assert.equal(frame.chapter,null);}
+ assert.ok(director.blend.value>.98);
+ for(let i=0;i<60;i++)director.update(profile,85,1/60);
+ assert.equal(director.chapter.kind,'Expansive');
+ director.select(map(.05),0);assert.equal(director.chapter.kind,'Suspended');assert.equal(director.initialChapterKey,null);
+});
+test('optional visual lookup failure settles once and a late timed-out response cannot morph again',async()=>{
+ let finish;const commits=[],selector=new VisualTrackSelection({timeout:10,read:()=>new Promise(r=>finish=r),apply:v=>commits.push(v)});
+ await selector.select({id:'a'},'one');assert.equal(commits.length,1);finish({character:createTrackCharacter({id:'other'})});await Promise.resolve();
+ await selector.select({id:'a',genre:'new metadata'},'one');assert.equal(commits.length,1);assert.equal(commits[0].character.seed,createTrackCharacter({id:'a'}).seed);
+});
 test('analysis arrival, absence, toggles and seeks blend all visual controls without a discontinuity',()=>{
  for(const fps of [30,60,165]){
   const director=new SongDirector(),profile=map(),base=visualDefaults();let previous=directedAppearance(base,director.update(null,0,0)),lastMix=0;

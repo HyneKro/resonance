@@ -62,3 +62,20 @@ export class CharacterMixer{
   return {backgroundTarget:{signature,character,themes,recipe},sculpture:this.sculpture.update(sculpture,dt,{frozen,reduced,signature}),shapeFrom:this.sculpture.fromSignature,shapeTo:this.sculpture.toSignature,signature:values.slice(0,4),character:values.slice(4,8),themes:values.slice(8,14),recipe:values.slice(14,22),label:p.label,dominant:index<0?p.dominant:theme,basis:p.basis};
  }
 }
+
+// A listening session gets one identity, after its cached details have arrived.
+// Metadata/artwork refreshes must not send it through a second fallback shape.
+export class VisualTrackSelection {
+ constructor({read,apply,pending=()=>{},timeout=1500}){Object.assign(this,{read,apply,pending,timeout});this.generation=0;}
+ select(track,session=''){
+  const key=JSON.stringify([track?.id||'',session]);if(key===this.key)return this.request;
+  this.key=key;const generation=++this.generation,snapshot={...track};this.pending();
+  this.request=(async()=>{
+   let timer,value;
+   try{value=track?await Promise.race([this.read(snapshot),new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('Identity lookup timed out')),this.timeout))]):null;}catch{/* A local identity is sufficient when optional metadata is unavailable. */}
+   finally{clearTimeout(timer);}
+   if(generation!==this.generation)return;
+   this.apply({id:track?.id||'',key,session,...value,character:value?.character||createTrackCharacter(snapshot)});
+  })();return this.request;
+ }
+}

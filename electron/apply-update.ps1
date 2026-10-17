@@ -19,6 +19,9 @@ function SafePath([string]$base,[string]$relative){
  return $value
 }
 try {
+ $ready=Join-Path $run 'ready.json'
+ @{pid=$PID;waitingFor=$WaitFor} | ConvertTo-Json -Compress | Set-Content -LiteralPath ($ready+'.tmp') -Encoding UTF8
+ Move-Item -LiteralPath ($ready+'.tmp') -Destination $ready -Force
  if($WaitFor -gt 0){$process=Get-Process -Id $WaitFor -ErrorAction SilentlyContinue;if($process){Wait-Process -Id $WaitFor -Timeout 60 -ErrorAction Stop}}
  $manifest=Get-Content -LiteralPath (Join-Path $stageRoot 'resonance-update.json') -Raw | ConvertFrom-Json
  if($manifest.product -ne 'resonance-portable' -or $manifest.schema -ne 1){throw 'Invalid staged update.'}
@@ -33,6 +36,8 @@ try {
   [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))|Out-Null
   Copy-Item -LiteralPath $source -Destination $target -Force
  }
+ $installed=Get-Content -LiteralPath (Join-Path $root 'resources/app/package.json') -Raw | ConvertFrom-Json
+ if($installed.version -ne $manifest.version){throw 'Installed app version does not match the update.'}
  Copy-Item -LiteralPath (Join-Path $stageRoot 'resonance-update.json') -Destination (Join-Path $root 'resonance-update.json') -Force
  @{ok=$true;version=$manifest.version;backup=$backup} | ConvertTo-Json | Set-Content -LiteralPath $status -Encoding UTF8
 } catch {
