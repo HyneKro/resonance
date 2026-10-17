@@ -8,9 +8,19 @@ For development, install Node 24 and run `npm ci`, then `npm start` (desktop) or
 
 Existing Windows workspace installations can still use **Launch Resonance.cmd**. Portable releases keep their `data` folder alongside the executable and support installing a newer ZIP from Settings → App updates.
 
-**App updates · Windows 1.1.5 / Android 0.1.13.** Download the app from [GitHub Releases](https://github.com/HyneKro/resonance/releases), without a GitHub account. These versions check for and download newer app builds from Settings → App updates. Windows waits for Restart & update; Android downloads automatically on unmetered Wi-Fi and asks for system installation confirmation. Older installations need this ZIP/APK installed once to gain online updates. Music, playlists and settings are retained. [Update and publishing guide](docs/SHARING.md).
+**App updates · Windows 1.2.0 / Android 0.2.0.** Download the app from [GitHub Releases](https://github.com/HyneKro/resonance/releases), without a GitHub account. These versions check for and download newer app builds from Settings → App updates. Windows waits for Restart & update; Android downloads automatically on unmetered Wi-Fi and asks for system installation confirmation. Older installations need this ZIP/APK installed once to gain online updates. Music, playlists and settings are retained. [Update and publishing guide](docs/SHARING.md).
 
 **Approved major checkpoint · 15 October 2026.** The user-approved baseline is preserved in `checkpoints/2026-10-15-major-baseline/`, including a source snapshot, a clean portable build, checksums and restore notes. Use it as the reference for subsequent changes; keep this checkpoint intact. See `CHECKPOINT.json` and the checkpoint's `RESTORE.txt` for exact paths and scope.
+
+## Windows 1.2.0 / Android 0.2.0 · song maps and a smoother listen
+
+- **Track character** now combines existing genre/theme cues and live frequencies with a compact, locally measured map of each file. Energy/texture chapters morph related particle forms, with gradual anticipation, changing density, glow and fluid detail. Background travel, camera motion, Sona timing and the live beat estimator remain unchanged. These are audio measurements and stylistic estimates, not instrument recognition or guaranteed verse/chorus labels.
+- **A smoother listen**, in Sound or Settings, offers optional loudness leveling toward −16 LUFS with measured true-peak headroom and a +6 dB boost cap. It applies steady gain and retains dynamics. Skip silent edges removes only measured leading/trailing silence from playback. Both are off initially; existing settings are preserved.
+- **Behind the sound → Listening edit & song analysis** displays the saved energy map and loudness. Analyze/refresh a song, preview and save start/end markers, or reset to the whole file. Mark spoken video intros/outros manually; automatic speech-versus-singing removal is not included. Original audio files are never modified.
+- **PC experimental crossfade** overlaps queued songs by 1–8 seconds (off by default). Repeat-one, long mixes and consecutive songs with the same album label retain their original transitions. Seeking, pausing or manually changing songs cancels an overlap. Android keeps native playback transitions.
+- **Library review** collects missing or uncertain details. Recording searches compare current/proposed values; choose fields individually, preserve manual choices, and undo the last metadata edit without reverting favorites or listening history.
+
+Analysis runs one file at a time and is cached on the device. Music only avoids new decoding unless leveling or silence skipping needs it; explicit Analyze remains available. On Android, linked files may need a temporary copy (up to 512 MB, subject to free space), removed after analysis. No audio is uploaded. Install updates over existing copies to keep music and settings.
 
 ## Windows 1.1.5 · first-start repair
 

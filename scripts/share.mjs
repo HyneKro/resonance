@@ -12,7 +12,7 @@ await fs.mkdir(appDir,{recursive:true});
 // music, cookies, thumbnail cache, download archive, debug log, or source configuration.
 for(const name of ['locales','chrome_100_percent.pak','chrome_200_percent.pak','d3dcompiler_47.dll','dxcompiler.dll','dxil.dll','ffmpeg.dll','icudtl.dat','LICENSE','LICENSES.chromium.html','Resonance.exe','resources.pak','snapshot_blob.bin','v8_context_snapshot.bin','version','vk_swiftshader_icd.json','vk_swiftshader.dll','vulkan-1.dll'])await fs.cp(path.join(runtime,name),path.join(destination,name),{recursive:true});
 await resedit(path.join(destination,'Resonance.exe'),{iconPath:path.join(root,'public','icon.ico')});
-for(const name of ['storage.mjs','genre-research.mjs','spotify.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
+for(const name of ['audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
 await fs.cp(path.join(runtime,'resources','app','node_modules'),path.join(appDir,'node_modules'),{recursive:true});
 const pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));delete pkg.devDependencies;delete pkg.scripts;
 await fs.writeFile(path.join(appDir,'package.json'),JSON.stringify(pkg,null,2));
@@ -66,7 +66,10 @@ Settings & library includes a refreshable storage estimate for music, artwork, l
 
 Visual delay adjusts without emptying the buffered signal. Sona preserves her pose sequence through rendering stalls.
 
-Beat motion uses the live rhythm estimate. No background BPM research or file decoding runs.
+Beat motion still uses the live rhythm estimate. Track character now uses a compact local audio map, decoded once and cached.
+Sound settings offer optional loudness leveling, silent-edge skipping and experimental PC crossfade.
+Behind the sound > Listening edit shows the energy map and lets you save start/end markers for spoken intros or outros. Original files stay untouched.
+Settings > Library review collects uncertain metadata, with field-by-field recording choices and undo.
 When returning from Music only, the static artwork stays visible until the full scene is ready, then fades away.
 Genre and character research is gradual; all results stay local.
 Click the volume percentage for precise adjustment, down to 0.1%.

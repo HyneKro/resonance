@@ -1,3 +1,4 @@
+import {SongDirector} from './song-analysis.js';
 import {KaleidoscopeBlend} from './kaleidoscope.js';
 import {SceneCamera} from './scene-camera.js';
 import {SceneReveal} from './scene-reveal.js';
@@ -44,13 +45,16 @@ export class Reactor {
       this.filters=[['lowshelf',150],['peaking',1000],['highshelf',5000]].map(([type,frequency])=>{const f=this.context.createBiquadFilter();f.type=type;f.frequency.value=frequency;f.gain.value=0;return f;});this.midAnalyser=this.context.createAnalyser();this.midAnalyser.fftSize=2048;this.midAnalyser.smoothingTimeConstant=0;this.fastAnalyser=this.context.createAnalyser();this.fastAnalyser.fftSize=1024;this.fastAnalyser.smoothingTimeConstant=0;this.midFreq=new Float32Array(1024);this.fastFreq=new Float32Array(512);this.freq=new Float32Array(this.analyser.frequencyBinCount);this.wave=new Float32Array(this.fastAnalyser.fftSize);this.freq.fill(-100);this.eq(this.eqValues||[0,0,0]);
     }if(this.context.state==='suspended')await this.context.resume();this.refreshVisualSync(true);
   }
+  setPlaybackGain(db){this.playbackDb=db;if(!this.context?.createGain)return;this.levelGain??=this.context.createGain();this.levelGain.gain.setTargetAtTime(10**(db/20),this.context.currentTime,.35);}
+  setTransitionGain(value,seconds=0){this.transitionValue=value;if(!this.context?.createGain)return;this.fadeGain??=this.context.createGain();const now=this.context.currentTime;this.fadeGain.gain.cancelScheduledValues(now);this.fadeGain.gain.setValueAtTime(this.fadeGain.gain.value,now);if(seconds)this.fadeGain.gain.linearRampToValueAtTime(value,now+seconds);else this.fadeGain.gain.setValueAtTime(value,now);}
   visualState(dt){
     const d=this.dynamics.output;
     if(!this.paletteMixer)this.paletteMixer=new PaletteMixer(d.colors);
     if(!this.formMotion)this.formMotion=[d.shape,d.spread,d.flow,d.bloom,this.intensity].map(x=>new Inertia(x,1.1));
     const values=[d.shape,d.spread,d.flow,d.bloom,this.intensity];this.formMotion.forEach(s=>s.seconds=1.1/(this.responsiveness||1));
     const form=this.formMotion.map((spring,i)=>this.frozen?spring.value:spring.update(i<4&&(!this.dynamicVisuals||this.reduced)?spring.value:values[i],dt));
-    const identity=this.character?.update(dt,{amount:this.appearance?.variation,theme:this.visualTheme,enabled:this.autoDirection!==false&&!this.desktopSource,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
+    this.songDirector??=new SongDirector();const direction=this.songDirector.update(this.songProfile,Math.max(0,(this.audio.currentTime||0)-(this.visualSync.delayMs||0)/1000),dt,{enabled:this.autoDirection!==false&&!this.desktopSource,active:this.reactiveActive,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
+    const identity=this.character?.update(dt,{direction,amount:this.appearance?.variation,theme:this.visualTheme,enabled:this.autoDirection!==false&&!this.desktopSource,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     if(!this.frozen&&!this.reduced)this.backgroundClock=(this.backgroundClock||0)+dt*this.speedMotion.update((this.appearance?.bgSpeed||1)*(.35+(identity?.character[0]||.5)),dt);
     const colors=this.paletteMixer.update(!this.desktopSource&&this.coverPalette!==false&&this.coverColors?this.coverColors:d.colors,dt,this.frozen);this.atmosphereTransition??=new AtmosphereTransition();const background=this.atmosphereTransition.update(identity,colors,dt,{frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     this.backgroundDrift??=new AtmosphereDrift();const backgroundDriftClock=this.backgroundDrift.update(this.backgroundClock,background.identity.recipe[4]);
@@ -58,15 +62,17 @@ export class Reactor {
     const kaleidoscopeWeights=this.kaleidoscopeBlend.update(dt,{enabled:this.kaleidoscope===true,mode:this.kaleidoscopeMode,reduced:this.reduced});
     if(wasBlending||this.kaleidoscopeBlend.active)this.needsFrame=true;
     this.visualColors=colors;
-    return {...d,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance:this.appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
+    const appearance={...this.appearance};if(direction.available&&!this.reduced){const {energy:e,texture:t,attack:a,anticipation:b}=direction;appearance.particleSpread=Math.min(1.6,appearance.particleSpread*(.78+e*.4-b*.06));appearance.filigree=Math.min(2,appearance.filigree*(.5+t*.8));appearance.glow=Math.min(2,appearance.glow*(.55+e*.8));appearance.bloom=Math.min(2.5,appearance.bloom*(.7+e*.6));appearance.motionAmount*=.65+a*.65+e*.2;appearance.textureDetail=Math.min(1.5,appearance.textureDetail*(.6+t*.6));appearance.turbulence*=.55+e*.7;}
+    return {...d,direction,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
       colors};
   }
   eq(values){
     this.eqValues=[...values];if(!this.context)return;
-    this.source.disconnect();this.desktopSource?.disconnect();this.analysisSink?.disconnect();
+    this.source.disconnect();this.desktopSource?.disconnect();this.analysisSink?.disconnect();this.levelGain?.disconnect();this.fadeGain?.disconnect();
     const analysers=[this.analyser,this.midAnalyser,this.fastAnalyser].filter(Boolean);
     analysers.forEach(a=>a.disconnect());this.filters.forEach(f=>f.disconnect());let previous=this.source;
     if(values.some(x=>x!==0))this.filters.forEach((f,i)=>{f.gain.setTargetAtTime(values[i],this.context.currentTime,.05);previous.connect(f);previous=f;});
+    this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);previous=this.fadeGain;
     if(this.desktopSource){
       previous.connect(this.context.destination);previous=this.desktopSource;
       for(const analyser of analysers){previous.connect(analyser);previous=analyser;}

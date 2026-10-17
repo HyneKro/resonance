@@ -1,0 +1,10 @@
+package music.resonance.mobile;
+import org.json.*;
+import org.junit.Test;
+import static org.junit.Assert.*;
+public class SongProfileTest {
+    @Test public void silenceAndMalformedFramesStayFiniteAndBounded(){SongProfile p=new SongProfile(0);p.line("frame:0 pts:0 pts_time:0");p.line("lavfi.astats.1.RMS_level=-inf");p.line("lavfi.r128.I=-70");p.line("frame:1 pts:0 pts_time:20000");JSONObject out=p.finish();assertEquals(1,out.optJSONArray("timeline").length());assertEquals(20000.1,out.optDouble("duration"),.001);assertTrue(out.isNull("integratedLufs"));assertEquals(0,out.optJSONArray("timeline").optJSONArray(0).optDouble(4),0);}
+    @Test public void integratedGainHonorsPeakHeadroomAndOffIsUnity(){assertEquals(Math.pow(10,6d/20),SongProfile.gain(Json.object("integratedLufs",-23,"truePeakDb",-10),true),1e-8);assertEquals(Math.pow(10,1d/20),SongProfile.gain(Json.object("integratedLufs",-25,"truePeakDb",-2),true),1e-8);assertEquals(1,SongProfile.gain(new JSONObject(),true),0);assertEquals(1,SongProfile.gain(Json.object("integratedLufs",-8,"truePeakDb",0),false),0);}
+    @Test public void onlySilentEdgesAreSuggested(){SongProfile p=new SongProfile(12);for(int i=0;i<120;i++){double t=i/10d;p.line("frame:"+i+" pts:0 pts_time:"+t);p.line("lavfi.astats.1.RMS_level="+(t<2.5||t>=8.5?"-inf":"-20"));p.line("lavfi.astats.1.Peak_level="+(t<2.5||t>=8.5?"-inf":"-17"));p.line("lavfi.r128.I=-21");p.line("lavfi.r128.true_peak=0.125");}JSONObject profile=p.finish(),trim=profile.optJSONObject("trim");assertEquals(-21,profile.optDouble("integratedLufs"),.001);assertTrue(trim.optDouble("start")>0&&trim.optDouble("start")<=2.5);assertTrue(trim.optDouble("end")>=8.5&&trim.optDouble("end")<12);}
+    @Test public void editsMustStayInsideFile(){assertFalse(SongProfile.range(Json.object("enabled",false),100).optBoolean("enabled"));for(JSONObject edit:new JSONObject[]{Json.object("enabled",true,"start",-1,"end",90),Json.object("enabled",true,"start",90,"end",89),Json.object("enabled",true,"start",0,"end",101)}){try{SongProfile.range(edit,100);fail("Invalid edit accepted");}catch(IllegalArgumentException expected){}}}
+}

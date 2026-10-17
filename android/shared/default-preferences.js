@@ -4,6 +4,9 @@ import {kaleidoscopeMode} from './kaleidoscope.js';
 import {companionPosition} from './companion-model.js';
 // The approved listening / visual preset. Contains no sources or library data.
 export const DEFAULT_PREFERENCES=Object.freeze({
+  "leveling": false,
+  "skipSilence": false,
+  "crossfadeSeconds": 0,
   "visualSyncAuto": true,
   "visualSyncDevices": Object.freeze({}),
   "visualSyncOffsetMs": 0,

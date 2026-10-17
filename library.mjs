@@ -1,3 +1,4 @@
+import {metadataSnapshot,selectedMetadata} from './public/metadata-review.js';
 import {repairArtistCredits} from './public/artist-credits.js';
 import {preferencesWithDefaults} from './public/default-preferences.js';
 import fs from 'node:fs';
@@ -136,7 +137,7 @@ export class Library {
     }
     const saved=this.save({...current,...patch});this.genres.seed();return this.tracks.get(saved.id);
   }
-  async applyCandidate(id,candidateId,automatic=false,selected=null) {
+  async applyCandidate(id,candidateId,automatic=false,selected=null,fields) {
     const candidates=JSON.parse(this.db.prepare('SELECT data FROM candidates WHERE track_id=?').get(id)?.data||'[]');const c=selected||candidates.find(x=>x.id===candidateId);if(!c)throw Error('Search for this candidate first');
     const original=this.tracks.get(id);if(!original)throw Error('Track not found');
     if(automatic&&['manual','confirmed'].includes(original.metadataStatus))return original;
@@ -145,6 +146,8 @@ export class Library {
     const current=this.tracks.get(id);if(!current||this.closed)throw Error('Library unavailable');
     if(['title','artist','album','date','metadataStatus'].some(k=>current[k]!==original[k])){if(automatic)return current;throw Error('Song details changed while saving. Search again.');}
     const patch={};for(const key of ['title','artist','album','date'])patch[key]=automatic?current[key]||c[key]||'':c[key]||current[key]||'';
+    if(!automatic){const chosen=selectedMetadata(current,c,fields);const before=metadataSnapshot(current);const updated=this.save({...current,...chosen,artwork:current.artwork||artwork,metadataSource:'MusicBrainz · your choice',metadataStatus:'confirmed',metadataUrl:c.sourceUrl,matchedAt:Date.now()});this.setSetting('metadataUndo:'+id,{before,after:metadataSnapshot(updated)});return updated;}
+    for(const key of Object.keys(patch))if(current.metadataLocks?.[key])delete patch[key];
     return this.save({...current,...patch,genre:current.genreLocked?current.genre:c.genre||current.genre,musicbrainzArtists:c.artistIds||current.musicbrainzArtists,artwork:current.artwork||artwork,metadataSource:'MusicBrainz',metadataStatus:automatic?'matched':'confirmed',metadataUrl:c.sourceUrl,matchedAt:Date.now()});
   }
   async enrich() {

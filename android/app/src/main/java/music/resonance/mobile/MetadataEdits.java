@@ -1,0 +1,9 @@
+package music.resonance.mobile;
+import org.json.*;
+import java.util.*;
+public final class MetadataEdits {
+    static final List<String> FIELDS=List.of("title","artist","album","genre","date","metadataLocks","metadataStatus","metadataSource","genreLocked","genreSource");
+    static JSONObject snapshot(JSONObject t){JSONObject out=new JSONObject();for(String key:FIELDS)Json.put(out,key,t.opt(key)==null?JSONObject.NULL:t.opt(key));return Json.parse(out.toString());}
+    public static JSONObject apply(JSONObject track,JSONObject patch){JSONObject locks=track.optJSONObject("metadataLocks");if(locks==null)locks=new JSONObject();for(String key:List.of("title","artist","album","genre","date"))if(patch.has(key)&&!Objects.equals(track.opt(key),patch.opt(key))){Json.put(locks,key,true);if(key.equals("genre")){Json.put(track,"genreLocked",true);Json.put(track,"genreSource","Your choice");}}for(String key:List.of("title","artist","album","genre","date","favorite","lyrics","lyricsSource"))if(patch.has(key))Json.put(track,key,patch.opt(key));Json.put(track,"metadataLocks",locks);if(patch.has("title")||patch.has("artist")||patch.has("album")||patch.has("genre")||patch.has("date")){Json.put(track,"metadataSource","Your choices");Json.put(track,"metadataStatus","confirmed");}return track;}
+    public static JSONObject choose(JSONObject candidate,JSONArray fields){if(fields==null||fields.length()==0)throw new IllegalArgumentException("Select at least one detail to use.");JSONObject out=new JSONObject();for(int i=0;i<fields.length();i++){String field=fields.optString(i);if(!List.of("title","artist","album","genre","date").contains(field))throw new IllegalArgumentException("Unknown metadata field");if(!candidate.optString(field).isBlank())Json.put(out,field,candidate.optString(field));}if(out.length()==0)throw new IllegalArgumentException("Selected fields have no supplied values");return out;}
+}

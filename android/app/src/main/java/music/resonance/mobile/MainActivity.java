@@ -96,8 +96,13 @@ public final class MainActivity extends Activity {
             case "playlist":return lib.savePlaylist(data);
             case "deletePlaylist":lib.deletePlaylist(data.optString("id"));return Json.object("ok",true);
             case "history":return lib.setting("history");
+            case "songProfile":return app.songAnalysis.status(data.optString("id"));
+            case "analyzeSong":return app.songAnalysis.request(data.optString("id"),data.optBoolean("force"));
+            case "listeningEdit":return app.songAnalysis.edit(data.optString("id"),data);
             case "research":return app.research.discover(data.optString("id"),data.optBoolean("force"));
-            case "search":return app.research.search(lib.track(data.optString("id")));
+            case "search":{String id=data.optString("id");JSONObject original=lib.track(id),query=Json.parse(original.toString());for(String field:List.of("artist","title"))if(data.has(field))Json.put(query,field,data.optString(field));JSONArray candidates=app.research.search(query);lib.setting("recordingSearch:"+id,Json.object("candidates",candidates,"stamp",MetadataEdits.snapshot(original)));return candidates;}
+            case "recordingApply":{String id=data.optString("id");JSONObject saved=lib.setting("recordingSearch:"+id);if(saved.optJSONObject("stamp")==null||!MetadataEdits.snapshot(lib.track(id)).toString().equals(saved.optJSONObject("stamp").toString()))throw new IOException("Details changed. Search again.");JSONObject candidate=saved.getJSONArray("candidates").getJSONObject(data.getInt("index")),patch=MetadataEdits.choose(candidate,data.optJSONArray("fields"));Json.put(patch,"id",id);return lib.edit(patch);}
+            case "metadataUndo":return lib.undoMetadata(data.optString("id"));
             case "lyricsSearch":return app.research.lyricsSearch(lib.track(data.optString("id")));
             case "syncCheck":return startDownloadJob("check",data);
             case "syncPreview":return app.downloads.preview;

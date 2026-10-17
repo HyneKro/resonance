@@ -47,7 +47,7 @@ export function createTrackCharacter(track={},lyrics={cues:[],source:''},notes='
 export class CharacterMixer{
  constructor(){this.sculpture=new SculptureMorph();this.profile=createTrackCharacter();this.session='';this.springs=null;this.variation=[];}
  select(profile,session=''){this.profile=profile;this.session=session;const r=random(hashText(profile.seed+'|'+session));this.variation=Array.from({length:8},()=>r()*2-1);}
- update(dt,{amount=.35,theme='auto',enabled=true,frozen=false,reduced=false}={}){
+ update(dt,{amount=.35,theme='auto',enabled=true,frozen=false,reduced=false,direction=null}={}){
   const p=enabled?this.profile:createTrackCharacter(),v=enabled?amount:0,r=this.variation.length?this.variation:Array(8).fill(0);
   const index=THEME_NAMES.indexOf(theme),themes=characterThemes(p,enabled,theme);
   const signature=p.signature.map((x,i)=>clamp(x+r[i]*v*.14));
@@ -57,6 +57,8 @@ export class CharacterMixer{
   const values=this.springs.map((s,i)=>frozen?s.value:s.update(targets[i],reduced?0:dt));
   // Reduced motion can select a static identity without leaving a transition running.
   if(reduced&&!frozen)this.springs.forEach((s,i)=>{s.value=targets[i];s.velocity=0;values[i]=targets[i];});
-  return {backgroundTarget:{signature,character,themes,recipe},sculpture:this.sculpture.update(enabled?sculptureFor(p):-1,dt,{frozen,reduced,signature}),shapeFrom:this.sculpture.fromSignature,shapeTo:this.sculpture.toSignature,signature:values.slice(0,4),character:values.slice(4,8),themes:values.slice(8,14),recipe:values.slice(14,22),label:p.label,dominant:index<0?p.dominant:theme,basis:p.basis};
+  let sculpture=enabled?sculptureFor(p):-1;
+  if(enabled&&direction?.available&&direction.chapter&&!reduced){const family=sculpture<6?sculpture:Math.floor((sculpture-6)/3),variant=hashText(p.seed+'|'+direction.chapter.kind+'|'+direction.chapter.start)%4;sculpture=variant===0?family:6+family*3+variant-1;}
+  return {backgroundTarget:{signature,character,themes,recipe},sculpture:this.sculpture.update(sculpture,dt,{frozen,reduced,signature}),shapeFrom:this.sculpture.fromSignature,shapeTo:this.sculpture.toSignature,signature:values.slice(0,4),character:values.slice(4,8),themes:values.slice(8,14),recipe:values.slice(14,22),label:p.label,dominant:index<0?p.dominant:theme,basis:p.basis};
  }
 }

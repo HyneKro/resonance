@@ -1,10 +1,20 @@
-# Resonance for Android — 0.1.13 preview
+# Resonance for Android — 0.2.0 preview
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
 
+## Windows 1.2.0 / Android 0.2.0 · song maps and a smoother listen
+
+- **Track character** now combines existing genre/theme cues and live frequencies with a compact, locally measured map of each file. Energy/texture chapters morph related particle forms, with gradual anticipation, changing density, glow and fluid detail. Background travel, camera motion, Sona timing and the live beat estimator remain unchanged. These are audio measurements and stylistic estimates, not instrument recognition or guaranteed verse/chorus labels.
+- **A smoother listen**, in Sound or Settings, offers optional loudness leveling toward −16 LUFS with measured true-peak headroom and a +6 dB boost cap. It applies steady gain and retains dynamics. Skip silent edges removes only measured leading/trailing silence from playback. Both are off initially; existing settings are preserved.
+- **Behind the sound → Listening edit & song analysis** displays the saved energy map and loudness. Analyze/refresh a song, preview and save start/end markers, or reset to the whole file. Mark spoken video intros/outros manually; automatic speech-versus-singing removal is not included. Original audio files are never modified.
+- **PC experimental crossfade** overlaps queued songs by 1–8 seconds (off by default). Repeat-one, long mixes and consecutive songs with the same album label retain their original transitions. Seeking, pausing or manually changing songs cancels an overlap. Android keeps native playback transitions.
+- **Library review** collects missing or uncertain details. Recording searches compare current/proposed values; choose fields individually, preserve manual choices, and undo the last metadata edit without reverting favorites or listening history.
+
+Analysis runs one file at a time and is cached on the device. Music only avoids new decoding unless leveling or silence skipping needs it; explicit Analyze remains available. On Android, linked files may need a temporary copy (up to 512 MB, subject to free space), removed after analysis. No audio is uploaded. Install updates over existing copies to keep music and settings.
+
 ## Install on the S22+
 
-1. Transfer `releases/Resonance-Android-0.1.13-preview.apk` to the phone and open it in My Files. Android may ask you to allow installation from that file app. Install it over the existing version, then open Library and tap any song cover or title to play. In Downloads, Listen now takes you directly to saved songs; Resume / Download continues your remaining downloads. Existing songs, sources and destination choices are retained. If you still have the old 101-song preview, expand Playlist & download options → Check playlists once.
+1. Transfer `releases/Resonance-Android-0.2.0-preview.apk` to the phone and open it in My Files. Android may ask you to allow installation from that file app. Install it over the existing version, then open Library and tap any song cover or title to play. In Downloads, Listen now takes you directly to saved songs; Resume / Download continues your remaining downloads. Existing songs, sources and destination choices are retained. If you still have the old 101-song preview, expand Playlist & download options → Check playlists once.
 2. **For an empty download folder:** open Library → Add music → Download a playlist. Paste the playlist link and tap Find playlist songs. Then Choose folder, select or create your music folder, and tap Download songs. Songs appear in Library as they finish. Existing linked playlists are under Add music → Downloads & playlist updates.
 3. **For music already on the phone:** use Add existing music. This scans the chosen folder; it does not download songs into it. Old folders linked in 0.1.0 need to be selected again through Choose folder to grant permission to save downloads.
 4. Start with a small collection and the default graphics settings. The full player works independently of the PC.
