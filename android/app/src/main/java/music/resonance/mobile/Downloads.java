@@ -119,7 +119,7 @@ public final class Downloads {
                 // Only discard our staging copy after the destination was read back and the library saved.
                 file.delete();
             }else track=app.library.readAudio(Uri.fromFile(file),file.getName(),file.length(),file.lastModified(),item.optString("sourceId"),item.optInt("playlistIndex"),supplied);
-            try{String thumbnail=info.optString("thumbnail");java.net.URI thumb=java.net.URI.create(thumbnail);if(Objects.toString(thumb.getHost(),"").endsWith(".ytimg.com")){app.library.cacheCover(track.optString("id"),Research.get(thumbnail,5_000_000));Json.put(track,"artwork",track.optString("id")+".jpg");app.library.save(track);}}catch(Exception ignored){}
+            try{String thumbnail=info.optString("thumbnail");java.net.URI thumb=java.net.URI.create(thumbnail);if(Objects.toString(thumb.getHost(),"").endsWith(".ytimg.com")){Json.put(track,"artworkSource",thumbnail);app.library.save(track);app.library.cacheCover(track.optString("id"),Research.get(thumbnail,5_000_000));Json.put(track,"artwork",track.optString("id")+".jpg");app.library.save(track);}}catch(Exception ignored){}
             if(infoFile.isFile())infoFile.delete();completed(item,track.optString("id"));
     }
     public void updateEngine() throws Exception {try{network();init();tools.refresh(true,()->cancelled);publish(false,"complete","Downloader ready · yt-dlp "+app.library.setting("downloadTools").optString("version")+". Check playlists to reload the full lists, or retry your selected songs.",0,0,100);}catch(Exception e){fail(e);throw e;}}

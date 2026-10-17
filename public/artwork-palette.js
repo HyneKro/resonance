@@ -44,6 +44,7 @@ export class PaletteMixer {
 // Generation checking prevents a slow previous cover from recoloring the current song.
 export class ArtworkPalette {
   constructor({read,write,decode,onChange}){Object.assign(this,{read,write,decode,onChange});this.cache=new Map();this.key=undefined;this.generation=0;}
+  retry(){const key=this.key;this.key=undefined;return this.select(key);}
   async select(artwork){
     if(artwork===this.key)return;this.key=artwork;const generation=++this.generation;
     if(!artwork){this.onChange(null,'No cover · music colors');return;}

@@ -118,8 +118,27 @@ public final class LibraryStore extends SQLiteOpenHelper {
         if(supplied!=null)for(Iterator<String> i=supplied.keys();i.hasNext();){String k=i.next();if(!List.of("id","path","favorite","plays").contains(k))Json.put(t,k,supplied.opt(k));}
         Json.put(t,"kind",t.optDouble("duration")>=1200?"mix":"track");save(t);link(key,sourceId,order);return track(key);
     }
-    public void cacheCover(String key,byte[] data) throws IOException {
-        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,options);options.inSampleSize=1;while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>1024)options.inSampleSize*=2;options.inJustDecodeBounds=false;Bitmap b=BitmapFactory.decodeByteArray(data,0,data.length,options);if(b==null)return;Bitmap scaled=b;if(Math.max(b.getWidth(),b.getHeight())>640){float f=640f/Math.max(b.getWidth(),b.getHeight());scaled=Bitmap.createScaledBitmap(b,Math.max(1,Math.round(b.getWidth()*f)),Math.max(1,Math.round(b.getHeight()*f)),true);}File destination=new File(artwork,key+".jpg"),tmp=new File(artwork,key+".tmp");try(FileOutputStream out=new FileOutputStream(tmp)){scaled.compress(Bitmap.CompressFormat.JPEG,88,out);}if(!tmp.renameTo(destination))throw new IOException("Could not save cover");if(scaled!=b)scaled.recycle();b.recycle();trimArtwork();
+    public synchronized void cacheCover(String key,byte[] data) throws IOException {
+        if(!key.matches("[a-f0-9]{24}"))throw new IOException("Invalid cover key");
+        if(!artwork.isDirectory()&&!artwork.mkdirs())throw new IOException("Cover storage is unavailable");
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,options);options.inSampleSize=1;while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>1024)options.inSampleSize*=2;options.inJustDecodeBounds=false;Bitmap b=BitmapFactory.decodeByteArray(data,0,data.length,options);if(b==null)throw new IOException("Cover image could not be decoded");Bitmap scaled=b;if(Math.max(b.getWidth(),b.getHeight())>640){float f=640f/Math.max(b.getWidth(),b.getHeight());scaled=Bitmap.createScaledBitmap(b,Math.max(1,Math.round(b.getWidth()*f)),Math.max(1,Math.round(b.getHeight()*f)),true);}File destination=new File(artwork,key+".jpg"),tmp=new File(artwork,key+".tmp");try(FileOutputStream out=new FileOutputStream(tmp)){scaled.compress(Bitmap.CompressFormat.JPEG,88,out);}if(!tmp.renameTo(destination))throw new IOException("Could not save cover");if(scaled!=b)scaled.recycle();b.recycle();trimArtwork();
+    }
+    void recoverCover(String id) throws Exception {
+        JSONObject t=track(id);if(t.length()==0)return;
+        // Embedded images work offline and keep the user's original choice.
+        try(MediaMetadataRetriever metadata=new MediaMetadataRetriever()){
+            metadata.setDataSource(context,playbackUri(id,Uri.parse(t.optString("path"))));
+            byte[] picture=metadata.getEmbeddedPicture();if(picture!=null){cacheCover(id,picture);return;}
+        }catch(Exception ignored){}
+        String url=coverSource(t);
+        if(!url.isEmpty())cacheCover(id,Research.get(url,6_000_000));
+    }
+    static String coverSource(JSONObject track){
+        String saved=track.optString("artworkSource");
+        try{java.net.URI uri=java.net.URI.create(saved);String host=Objects.toString(uri.getHost(),"").toLowerCase(Locale.ROOT);
+            if("https".equals(uri.getScheme())&&uri.getUserInfo()==null&&uri.getPort()==-1&&(host.endsWith(".ytimg.com")||host.endsWith(".mzstatic.com")))return saved;
+        }catch(IllegalArgumentException ignored){}
+        String video=track.optString("youtubeId");return video.matches("[A-Za-z0-9_-]{11}")?"https://i.ytimg.com/vi/"+video+"/hqdefault.jpg":"";
     }
     public void trimArtwork(){long limit=Math.max(32,Math.min(1024,setting("preferences").optInt("cacheMB",128)))*1024L*1024;File[] files=artwork.listFiles();if(files==null)return;Arrays.sort(files,Comparator.comparingLong(File::lastModified));long total=0;for(File f:files)total+=f.length();for(File f:files){if(total<=limit)break;long n=f.length();if(f.delete())total-=n;}}
     public void clearArtwork(){File[] files=artwork.listFiles();if(files!=null)for(File f:files)if(f.isFile())f.delete();}

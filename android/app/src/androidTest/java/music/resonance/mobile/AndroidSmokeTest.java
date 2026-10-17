@@ -35,5 +35,13 @@ public class AndroidSmokeTest {
             scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);Thread.sleep(1200);assertTrue("Playback survives the activity going into the background",app.onMain(()->PlaybackService.instance.player.isPlaying()));assertFalse("Analysis stops when the activity is backgrounded",PlaybackService.instance.spectrum.enabled);
             app.onMain(()->{PlaybackService.instance.player.pause();return null;});
         }
+        // Exercise the shipped engine, including its actual shared-library loader.
+        app.songAnalysis.request(track.optString("id"),true,true);
+        long analysisDeadline=System.currentTimeMillis()+60000;JSONObject measured;
+        do{Thread.sleep(100);measured=app.songAnalysis.status(track.optString("id"));}
+        while(measured.optJSONObject("profile")==null&&measured.optString("error").isEmpty()&&System.currentTimeMillis()<analysisDeadline);
+        assertEquals("Native measurement error", "",measured.optString("error"));
+        assertNotNull("Native engine measures the saved WAV",measured.optJSONObject("profile"));
+        assertTrue(Double.isFinite(measured.getJSONObject("profile").getDouble("integratedLufs")));
     }
 }

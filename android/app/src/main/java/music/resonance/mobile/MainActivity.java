@@ -34,7 +34,7 @@ public final class MainActivity extends Activity {
             view.setPadding(bars.left,bars.top,bars.right,bars.bottom);return androidx.core.view.WindowInsetsCompat.CONSUMED;
         });androidx.core.view.ViewCompat.requestApplyInsets(safeArea);
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);settings.setMediaPlaybackRequiresUserGesture(false);settings.setSupportMultipleWindows(false);CookieManager.getInstance().setAcceptCookie(false);
-        WebViewAssetLoader assets=new WebViewAssetLoader.Builder().addPathHandler("/artwork/",path->{if(!path.matches("[a-f0-9]{24}\\.jpg"))return missing();File f=new File(app.library.artwork,path);try{f.setLastModified(System.currentTimeMillis());return new WebResourceResponse("image/jpeg",null,new FileInputStream(f));}catch(IOException e){return missing();}}).addPathHandler("/",path->{
+        WebViewAssetLoader assets=new WebViewAssetLoader.Builder().addPathHandler("/artwork/",path->{InputStream input=app.artworkRecovery.open(path);if(input==null)return missing();WebResourceResponse response=new WebResourceResponse("image/jpeg",null,input);response.setResponseHeaders(Map.of("Cache-Control","no-store"));return response;}).addPathHandler("/",path->{
             if(path.contains("..")||path.contains("\\"))return missing();String name=path.isEmpty()?"index.html":path;String mime=name.endsWith(".js")?"text/javascript":name.endsWith(".css")?"text/css":name.endsWith(".svg")?"image/svg+xml":name.endsWith(".png")?"image/png":name.endsWith(".webp")?"image/webp":name.endsWith(".txt")?"text/plain":"text/html";
             try{WebResourceResponse r=new WebResourceResponse(mime,"UTF-8",getAssets().open("web/"+name));r.setResponseHeaders(Map.of("Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'","X-Content-Type-Options","nosniff"));return r;}catch(IOException e){return missing();}
         }).build();
@@ -53,7 +53,7 @@ public final class MainActivity extends Activity {
         web.loadUrl(ORIGIN+"/");
     }
     private static boolean trusted(Uri u){return "https".equals(u.getScheme())&&"appassets.androidplatform.net".equals(u.getHost())&&u.getPort()==-1;}
-    private static WebResourceResponse missing(){return new WebResourceResponse("text/plain","UTF-8",404,"Not found",Map.of(),new ByteArrayInputStream(new byte[0]));}
+    private static WebResourceResponse missing(){return new WebResourceResponse("text/plain","UTF-8",404,"Not found",Map.of("Cache-Control","no-store"),new ByteArrayInputStream(new byte[0]));}
     private PlaybackService playback() throws Exception {controller.get(12,TimeUnit.SECONDS);PlaybackService s=PlaybackService.instance;if(s==null)throw new IOException("Player is still starting. Try again.");return s;}
     private Object handle(String action,JSONObject data) throws Exception {
         LibraryStore lib=app.library;
@@ -83,9 +83,10 @@ public final class MainActivity extends Activity {
                 if(action.equals("copyPlaybackDetails"))app.onMain(()->{getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Resonance playback details",report.toString(2)));return null;});
                 return report;
             }
-            case "clearArtwork":lib.clearArtwork();return Json.object("ok",true);
+            case "retryArtwork":app.artworkRecovery.retry();return Json.object("ok",true);
+            case "clearArtwork":lib.clearArtwork();app.artworkRecovery.retry();return Json.object("ok",true);
             case "scan":app.io.execute(lib::scan);return Json.object("ok",true);
-            case "status":return Json.object("libraryRevision",lib.revision.get(),"scan",lib.scanResult,"downloads",app.downloads.progress,"previewRevision",app.downloads.previewRevision,"tools",lib.setting("downloadTools"));
+            case "status":return Json.object("libraryRevision",lib.revision.get(),"artworkRevision",app.artworkRecovery.revision.get(),"scan",lib.scanResult,"downloads",app.downloads.progress,"previewRevision",app.downloads.previewRevision,"tools",lib.setting("downloadTools"));
             case "pickFolder":case "pickDestination":{
                 CompletableFuture<JSONObject> task=new CompletableFuture<>();app.onMain(()->{if(picker!=null)throw new IOException("A folder picker is already open");picker=task;pickingDestination=action.equals("pickDestination");Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION|(pickingDestination?Intent.FLAG_GRANT_WRITE_URI_PERMISSION:0));startActivityForResult(i,42);return null;});return task.get(10,TimeUnit.MINUTES);
             }

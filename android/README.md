@@ -1,6 +1,10 @@
-# Resonance for Android — 0.3.1 preview
+# Resonance for Android — 0.3.2 preview
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
+
+## Windows 1.3.2 / Android 0.3.2 · artwork and measurement recovery
+
+The loudness analyzer now initializes and locates the support libraries shared with the downloader. Previous failed measurements retry automatically when requested or when leveling prepares the library. Missing artwork is recovered on demand with a bounded background queue, using embedded covers or saved thumbnail sources (including older YouTube IDs). The player and palette refresh recovered images without a restart. See [release notes](../docs/release-notes/android-0.3.2.md) for validation and device-testing limits.
 
 ## Windows 1.3.1 / Android 0.3.1 · startup and update repairs
 
