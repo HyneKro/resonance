@@ -28,6 +28,15 @@ Git stores source history. Compiled portable ZIPs and APKs belong in GitHub Rele
 3. Create a release with a platform-specific tag (`pc-v1.1.3`, `android-v0.1.11-preview`), attach the tested ZIP/APK and a SHA-256 checksum file, then write short release notes. Keep releases as drafts until verification is complete.
 4. A source push does not publish a binary or trigger app updates. Publish only a tested build.
 
+The helper below verifies that the repository is private, checks for personal data in Windows archives, writes SHA-256 checksums and uploads a **draft** release using the official GitHub CLI. An existing release is never overwritten automatically. Supply notes for the build being uploaded:
+
+```powershell
+./scripts/publish-release.ps1 -Platform pc -File releases/Resonance-PC-1.1.3-portable.zip -Notes docs/releases/pc-1.1.3.md
+./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.11-preview.apk -Notes docs/releases/android-0.1.11.md
+```
+
+Review the draft on GitHub and publish when ready. `-Publish` publishes after the upload when intentionally requested. For Android, independently verify the package ID, versionCode and signing certificate before using this upload helper.
+
 Signing keys stay outside the repository. This matters even for a private repository. Back up the original Android signing key privately; do not recreate it for every build or move it into Git.
 
 ## Friends without GitHub accounts
