@@ -1,6 +1,6 @@
 export function installSceneGestures({room,reactor,onTransport}){
  let gesture=null;
- const allowed=target=>!room.hidden&&!document.querySelector('dialog[open]')&&!target.closest('button,input,select,textarea,a,summary,.room-dock,.room-top,.dance-companion,#welcome');
+ const allowed=target=>!room.hidden&&!document.querySelector('dialog[open]')&&!target.closest('.constellation,button,input,select,textarea,a,summary,.room-dock,.room-top,.dance-companion,#welcome');
  room.addEventListener('touchstart',e=>{
   if(!Array.from(e.touches).every(t=>allowed(t.target))){gesture=null;return;}
   if(e.touches.length===2){

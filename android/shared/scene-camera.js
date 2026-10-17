@@ -34,7 +34,7 @@ export class SceneCamera {
 }
 export function installCameraControls({reactor}){
  const room=document.querySelector('#listening-room');let drag=null,moved=false;
- const allowed=target=>!room.hidden&&!reactor.musicOnly&&!document.querySelector('dialog[open]')&&!document.body.classList.contains('library-open')&&!target.closest('button,input,select,textarea,a,summary,.visual-tools,.room-dock,.room-top,.app-shell,.dance-companion');
+ const allowed=target=>!room.hidden&&!reactor.musicOnly&&!document.querySelector('dialog[open]')&&!document.body.classList.contains('library-open')&&!target.closest('.constellation,button,input,select,textarea,a,summary,.visual-tools,.room-dock,.room-top,.app-shell,.dance-companion');
  const cancel=()=>{if(!drag)return;const id=drag.id;drag=null;if(room.hasPointerCapture(id))room.releasePointerCapture(id);room.classList.remove('camera-dragging');};
  room.addEventListener('pointerdown',e=>{if(e.button!==0||e.buttons!==1||!allowed(e.target))return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};moved=false;room.setPointerCapture(e.pointerId);});
  room.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;if(e.buttons!==1){cancel();return;}const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!moved&&Math.hypot(dx,dy)<4)return;moved=true;reactor.camera.drag(dx,dy);drag.x=e.clientX;drag.y=e.clientY;room.classList.add('camera-dragging');reactor.needsFrame=true;});

@@ -54,10 +54,11 @@ test('local endpoints save validated maps across reopen, expose compact profiles
  try{
   const t=track('a','Electronic',{path:path.join(dir,'test.wav'),size:10,mtime:1});app.lib.save(t);app.lib.setSetting('audioProfile:a',{...profile,version:1,stamp:audioStamp(t)});
   const data=await(await fetch(app.url+'/api/constellation')).json();assert.equal(data.profiles.a.v.length,4);assert.equal(data.profiles.a.timeline,undefined);assert.equal(data.canPrepare,true);
-  const value={positions:{a:[400,500]},places:[{id:'a',name:'Orbit',zoom:3}]};
+  const value={positions:{a:[400,500]},space:{a:[-200,100,300]},places:[{id:'a',name:'Orbit',zoom:3}]};
   assert.equal((await fetch(app.url+'/api/constellation',{method:'POST',body:JSON.stringify(value)})).status,403);
   assert.equal((await fetch(app.url+'/api/constellation',{method:'POST',headers:{'X-Resonance-Token':app.token},body:JSON.stringify(value)})).status,200);
   await new Promise(r=>app.server.close(r));app.lib.close();app=await startServer({port:0,dataDir:dir,autoScan:false});const saved=(await(await fetch(app.url+'/api/constellation')).json()).saved;assert.deepEqual(saved.positions.a,[400,500]);assert.equal(saved.places[0].name,'Orbit');
-  for(const file of ['constellation.js','constellation-model.js','constellation.css']){assert.equal((await fetch(app.url+'/'+file)).status,200);assert.equal(await fs.readFile('public/'+file,'utf8'),await fs.readFile('android/shared/'+file,'utf8'));}
+  assert.deepEqual(saved.space.a,[-200,100,300]);
+  for(const file of ['constellation.js','constellation-model.js','constellation-space.js','constellation-scene.js','constellation.css']){assert.equal((await fetch(app.url+'/'+file)).status,200);assert.equal(await fs.readFile('public/'+file,'utf8'),await fs.readFile('android/shared/'+file,'utf8'));}
  }finally{await new Promise(r=>app.server.close(r));app.lib.close();}
 });

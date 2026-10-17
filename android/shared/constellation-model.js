@@ -48,11 +48,12 @@ export function positionFor(node){
 }
 export function cleanMapState(value={},ids){
  if(!value||typeof value!=='object')value={};
- const known=new Set(ids),positions={},colors={};
+ const known=new Set(ids),positions={},space={},colors={};
+ for(const [id,p] of Object.entries(value.space||{}).slice(0,20000))if(known.has(id)&&Array.isArray(p)&&p.length===3&&p.every(n=>Number.isFinite(n)&&Math.abs(n)<10000))space[id]=p;
  for(const [id,p] of Object.entries(value.positions||{}).slice(0,20000))if(known.has(id)&&Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&Math.abs(n)<10000))positions[id]=p;
  for(const [id,c] of Object.entries(value.colors||{}).slice(0,20000))if(known.has(id)&&/^#[0-9a-f]{6}$/i.test(c))colors[id]=c;
  const places=(Array.isArray(value.places)?value.places:[]).slice(0,24).filter(p=>p&&typeof p.name==='string'&&known.has(p.id)).map(p=>({id:p.id,name:p.name.slice(0,60),zoom:clamp(p.zoom,1,8)}));
- return {version:1,positions,colors,places,seed:clamp(value.seed,0,1e9)};
+ return {version:2,positions,space,colors,places,seed:clamp(value.seed,0,1e9)};
 }
 export function makeMap(nodes,saved,knownIds=nodes.map(n=>n.id)){const state=cleanMapState(saved,knownIds);for(const n of nodes)state.positions[n.id]??=positionFor(n);return state;}
 export function journey(nodes,{start,end='',stops=[],minutes=30,explore=.5,mood='lift',seed=0}={}){

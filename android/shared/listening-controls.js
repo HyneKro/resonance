@@ -7,7 +7,7 @@ export function wheelVolume(value,{deltaY,deltaMode=0,shiftKey=false},quantize=t
 export function swipeDirection(dx,dy){return Math.abs(dx)>=72&&Math.abs(dx)>Math.abs(dy)*1.5?Math.sign(dx):0;}
 export function gestureAxis(dx,dy){if(Math.hypot(dx,dy)<22)return '';return Math.abs(dx)>Math.abs(dy)*1.35?'x':Math.abs(dy)>Math.abs(dx)*1.35?'y':'';}
 export function seekPosition(start,dy,duration,fine=false){if(!Number.isFinite(duration)||duration<=0||!Number.isFinite(start)||!Number.isFinite(dy))return null;const distance=Math.sign(dy)*Math.max(0,Math.abs(dy)-22);return clamp(start-distance*(fine?.07:.35),0,Math.max(0,duration-.05));}
-export function gestureSurface(target){return !target.closest('button:not(.dance-companion),input,select,textarea,summary,a,dialog,.wallpaper-options,.artwork-credits,.room-dock,.desktop-audio-dock,.room-top,.visual-tools,.app-shell,#desktop-titlebar');}
+export function gestureSurface(target){return !target.closest('.constellation,button:not(.dance-companion),input,select,textarea,summary,a,dialog,.wallpaper-options,.artwork-credits,.room-dock,.desktop-audio-dock,.room-top,.visual-tools,.app-shell,#desktop-titlebar');}
 
 export function installListeningControls({isDesktop=()=>false,audio,savePlayer,nextTrack,safe,libraryOpen,icon}){
   const $=s=>document.querySelector(s),room=$('#listening-room'),popup=$('#volume-panel'),opener=$('#volume-details'),number=$('#volume-exact'),hud=$('#gesture-hud');

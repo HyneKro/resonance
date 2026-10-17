@@ -112,9 +112,15 @@ export class Reactor {
   prepareGraphics(canvas=document.querySelector('#room-gl')){
     if(!this.musicOnly&&!this.gpu&&canvas&&SCENES.some(s=>s.id===this.mode))this.gpu=new GPUScene(canvas);
   }
+  setSceneSuspended(enabled){
+    this.sceneSuspended=!!enabled;
+    if(enabled){this.running=false;cancelAnimationFrame(this.frameRequest);this.frameRequest=null;}
+    else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.start();}
+    document.dispatchEvent(new Event('resonance-scene-visibility'));
+  }
   start(){
-    if(this.running||this.musicOnly||this.deferStart)return;this.running=true;
-    const draw=time=>{if(!this.running||this.musicOnly)return;this.frameRequest=requestAnimationFrame(draw);
+    if(this.running||this.musicOnly||this.deferStart||this.sceneSuspended)return;this.running=true;
+    const draw=time=>{if(!this.running||this.musicOnly||this.sceneSuspended)return;this.frameRequest=requestAnimationFrame(draw);
       // Present the return cue before creating a graphics context or compiling shaders.
       if(this.paintReturnCue){this.paintReturnCue=false;return;}
       this.observeDisplayFrame?.(time);if(document.hidden){this.last=time;this.previousFrame=0;return;}

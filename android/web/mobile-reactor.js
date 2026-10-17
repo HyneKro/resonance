@@ -14,7 +14,8 @@ export class MobileReactor extends Reactor {
   if(this.polling)return;this.polling=true;
   try{while(this.analysisActive&&this.focused&&!this.musicOnly){const started=performance.now();this.latest=await rpc('analysis');if(this.latest.rate&&this.context)this.context.sampleRate=this.latest.rate;await new Promise(r=>setTimeout(r,Math.max(0,33-(performance.now()-started))));}}catch{}finally{this.polling=false;}
  }
- async foreground(active){this.focused=active;this.analysisActive=active&&!this.musicOnly;await rpc('visuals',{enabled:this.analysisActive}).catch(()=>{});if(this.analysisActive){this.previousFrame=0;this.start();void this.pollAnalysis();}else{this.running=false;cancelAnimationFrame(this.frameRequest);}}
+ async foreground(active){this.focused=active;this.analysisActive=active&&!this.musicOnly&&!this.sceneSuspended;await rpc('visuals',{enabled:this.analysisActive}).catch(()=>{});if(this.analysisActive){this.previousFrame=0;this.start();void this.pollAnalysis();}else{this.running=false;cancelAnimationFrame(this.frameRequest);}}
+ setSceneSuspended(enabled){super.setSceneSuspended(enabled);void this.foreground(this.focused);}
  setMusicOnly(enabled){super.setMusicOnly(enabled);void this.foreground(this.focused);}
  updateMeters(){const status=document.querySelector('#hdr-status');if(status)status.textContent=this.gpu?.output?.description()||'Standard display output';}
 }

@@ -14,7 +14,7 @@ export function installDanceCompanion({reactor,audio,savePosition=async()=>{},on
   if(element.hidden)return;const box=room.getBoundingClientRect(),size=Math.max(element.offsetWidth,element.offsetHeight),top=room.querySelector('.room-top')?.getBoundingClientRect(),dock=room.querySelector('.room-dock')?.getBoundingClientRect();
   bounds=companionBounds(box.width,box.height,size,Math.max(12,(top?.bottom||box.top+68)-box.top+8),Math.max(12,box.bottom-(dock?.top||box.bottom-116)+8));place();
  }
- const visible=()=>enabled&&!element.hidden&&!reactor.musicOnly&&!room.hidden&&!document.hidden;
+ const visible=()=>enabled&&!element.hidden&&!reactor.musicOnly&&!reactor.sceneSuspended&&!room.hidden&&!document.hidden;
  function render(dt){
   if(!visible())return;
   const source=followTheme&&!reactor.desktopSource?reactor.coverColors:null;if(source!==paletteSource){paletteSource=source;targetColors=interfaceAccents(source);}
@@ -67,6 +67,7 @@ export function installDanceCompanion({reactor,audio,savePosition=async()=>{},on
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(drag||keyboardOrigin!==undefined)){e.preventDefault();e.stopImmediatePropagation();cancel();}},true);
  window.addEventListener('blur',()=>{if(drag||keyboardOrigin!==undefined)cancel();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();syncClock();});
+ document.addEventListener('resonance-scene-visibility',syncClock);
  new ResizeObserver(resize).observe(room);window.addEventListener('resize',resize);
  new MutationObserver(syncClock).observe(room,{attributes:true,attributeFilter:['hidden']});
  return {apply(p){
