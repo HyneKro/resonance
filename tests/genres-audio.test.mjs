@@ -59,5 +59,5 @@ test('credit-aware fallback finds a featured recording, release genres, and reus
   if(url.includes('/release-group/'))return {tags:[{name:'neurofunk',count:2},{name:'seen live',count:20}]};
   return {genres:[{name:'electronic',count:3}]};
  };
- try{await lib.genres.discoverTrack('a');assert.equal(lib.tracks.get('a').genre,'Neurofunk');assert.equal(lib.tracks.get('a').genreBasis,'track');assert.equal(lib.tracks.get('a').genreResearchVersion,4);await lib.genres.discoverTrack('a');assert.equal(searches,1);}finally{lib.close();}
+ try{await lib.genres.discoverTrack('a');assert.equal(lib.tracks.get('a').genre,'Neurofunk');assert.equal(lib.tracks.get('a').genreBasis,'track');assert.equal(lib.tracks.get('a').genreResearchVersion,5);await lib.genres.discoverTrack('a');assert.equal(searches,1);}finally{lib.close();}
 });

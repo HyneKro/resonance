@@ -13,23 +13,26 @@ export function skyDirection(x,y,yaw,pitch){
 }
 export class ConstellationSky {
  constructor(coarse){
-  this.coarse=coarse;this.w=512;this.h=256;this.texture=new Uint8ClampedArray(this.w*this.h*3);
+  this.coarse=coarse;this.w=coarse?768:1024;this.h=this.w/2;this.ready=false;this.disposed=false;this.texture=new Uint8ClampedArray(this.w*this.h*3);
   // Tilt the galactic plane so the initial view opens on a diagonal dust river.
-  for(let y=0;y<this.h;y++)for(let x=0;x<this.w;x++){
+  let row=0;const bake=()=>{if(this.disposed)return;const until=Math.min(this.h,row+10);for(let y=row;y<until;y++)for(let x=0;x<this.w;x++){
    const a=x/this.w*TAU,b=(y/this.h-.5)*Math.PI,xx=Math.cos(b)*Math.sin(a),yy=Math.sin(b),zz=Math.cos(b)*Math.cos(a);
    const n=noise(xx*4+7,yy*4+2,zz*4+5),fine=noise(xx*19+7,yy*19+2,zz*19+5),filament=noise(xx*46+7,yy*46+2,zz*46+5);
    const latitude=yy*.85+xx*.48+zz*.18,band=Math.exp(-Math.pow((latitude+(n-.5)*.14)/.14,2)),halo=Math.exp(-Math.pow(latitude/.35,2));
    const dust=Math.pow(Math.max(0,n*.65+fine*.35-.29),1.3),lane=1-.82*Math.exp(-Math.pow((latitude+(n-.5)*.22)/.028,2));
-   const light=band*dust*lane,grain=.65+filament*.7,core=Math.exp(-((xx-.25)**2+(zz-.85)**2)*2);
+   const lace=noise(xx*115+7,yy*115+2,zz*115+5),light=band*dust*lane,grain=.35+Math.pow(filament,2)*1.8+lace*.5,core=Math.exp(-((xx-.25)**2+(zz-.85)**2)*2);
    const at=(y*this.w+x)*3;
-   this.texture[at]=4+halo*5+light*(92+core*38)*grain;
-   this.texture[at+1]=7+halo*7+light*(78+core*26)*grain;
-   this.texture[at+2]=16+halo*12+light*143*grain;
-  }
+   this.texture[at]=3+halo*3+light*(145+core*45)*grain;
+   this.texture[at+1]=5+halo*4+light*(122+core*32)*grain;
+   this.texture[at+2]=12+halo*7+light*190*grain;
+  }row=until;if(row<this.h)this.timer=setTimeout(bake,0);else{this.ready=true;this.stamp='';}};this.timer=setTimeout(bake,0);
+  this.blur=document.createElement('canvas');this.blurCtx=this.blur.getContext('2d');
   this.canvas=document.createElement('canvas');this.ctx=this.canvas.getContext('2d',{alpha:false});this.stamp='';
  }
- draw(ctx,width,height,pose,top,viewHeight){
-  const w=this.coarse?224:352,h=Math.min(400,Math.max(100,Math.round(w*height/width))),yaw=pose.yaw,pitch=pose.pitch;
+ draw(ctx,width,height,pose,top,viewHeight,focus=0){
+  if(!this.ready){const g=ctx.createLinearGradient(0,0,width,height);g.addColorStop(0,'#050813');g.addColorStop(.5,'#15172b');g.addColorStop(1,'#050b13');ctx.fillStyle=g;ctx.fillRect(0,0,width,height);return;}
+  const yaw=pose.yaw,pitch=pose.pitch,now=performance.now();if(!this.lastPose||Math.abs(yaw-this.lastPose[0])+Math.abs(pitch-this.lastPose[1])>.0003)this.movedAt=now;this.lastPose=[yaw,pitch];
+  const moving=now-(this.movedAt||0)<160,w=moving?(this.coarse?224:352):(this.coarse?512:896),h=Math.min(820,Math.max(100,Math.round(w*height/width)));
   const stamp=[w,h,Math.round(yaw*2000),Math.round(pitch*2000),Math.round(top),Math.round(viewHeight)].join(':');
   if(stamp!==this.stamp){
    this.stamp=stamp;this.canvas.width=w;this.canvas.height=h;const frame=this.ctx.createImageData(w,h),data=frame.data;
@@ -43,8 +46,9 @@ export class ConstellationSky {
     for(let channel=0;channel<3;channel++){const upper=this.texture[aa+channel]*(1-fx)+this.texture[bb+channel]*fx,lower=this.texture[cc+channel]*(1-fx)+this.texture[dd+channel]*fx;data[out+channel]=(upper*(1-fy)+lower*fy)*1.2;}data[out+3]=255;
    }
    this.ctx.putImageData(frame,0,0);
+   this.blur.width=w;this.blur.height=h;this.blurCtx.filter='blur(4px)';this.blurCtx.drawImage(this.canvas,0,0);
   }
-  ctx.drawImage(this.canvas,0,0,width,height);
+  ctx.drawImage(this.canvas,0,0,width,height);if(focus>.001){ctx.globalAlpha=focus*.92;ctx.drawImage(this.blur,0,0,width,height);ctx.globalAlpha=1;}
  }
- dispose(){this.texture=null;this.canvas.width=this.canvas.height=1;}
+ dispose(){this.disposed=true;clearTimeout(this.timer);this.texture=null;this.canvas.width=this.canvas.height=this.blur.width=this.blur.height=1;}
 }

@@ -20,25 +20,48 @@ export function artistSignature(track){
  const names=artistNames(track),key=fold(names[0]||'artist unknown'),seed=hash(key);
  return {key,names,count:3+Math.floor(seed*5),tilt:hash(key+'tilt')*Math.PI,phase:hash(key+'phase')*Math.PI*2,style:seed<.5?'halo':'twin orbit'};
 }
-export function regionPosition(index){const a=index/GENRE_REGIONS.length*Math.PI*2;return [Math.cos(a)*430,Math.sin(a)*260,Math.sin(a*2+.3)*180];}
+export function regionPosition(index){const a=index/GENRE_REGIONS.length*Math.PI*2;return [Math.cos(a)*1150,Math.sin(a)*760,Math.sin(a*2+.3)*420];}
 export function spacePosition(node){
  const region=genreStyle(node),center=regionPosition(GENRE_REGIONS.indexOf(region)),artist=artistSignature(node);
  const a=hash(artist.key+'azimuth')*Math.PI*2,b=(hash(artist.key+'height')-.5)*2;
- const r=55+hash(artist.key+'radius')*85,spread=45;
+ const r=100+hash(artist.key+'radius')*280,spread=125;
  return center.map((v,i)=>v+([Math.cos(a)*r,b*r,Math.sin(a)*r][i])+ (hash(node.id+'xyz'+i)-.5)*spread*2+((node.v?.[i]??.5)-.5)*70);
 }
-export function buildSpace(nodes,stored={}){
- const points=nodes.map(n=>({...n,position:stored[n.id]||spacePosition(n),region:genreStyle(n),signature:artistSignature(n),flowPhase:[0,1,2].map(i=>hash(n.id+i)*6.28)}));
- const groups=GENRE_REGIONS.map((g,i)=>({...g,position:regionPosition(i),count:points.filter(p=>p.region.id===g.id).length})).filter(g=>g.count);
- // A sparse genre skeleton, not an all-to-all graph. Selection reveals the
-// meaningful artist/sound relationships without burying the map in lines.
- const links=[];for(const g of groups){const group=points.filter(p=>p.region.id===g.id).sort((a,b)=>hash(a.id)-hash(b.id));for(let i=1;i<group.length;i+=3)links.push([group[i-1].id,group[i].id,'genre']);}
- return {points,groups,links};
+// A local spatial grid resolves crowded neighbourhoods once, not every frame.
+export function spacedPositions(nodes,stored={}){
+ const out={...stored},cells=new Map(),spacing=34;
+ const cell=p=>p.map(v=>Math.floor(v/spacing));
+ const put=p=>{const k=cell(p).join(',');if(!cells.has(k))cells.set(k,[]);cells.get(k).push(p);};
+ for(const n of nodes)if(out[n.id])put(out[n.id]);
+ for(const n of [...nodes].sort((a,b)=>a.id.localeCompare(b.id))){if(out[n.id])continue;const base=spacePosition(n);let p=base;
+  for(let attempt=0;attempt<160;attempt++){
+   const at=cell(p);let crowded=false;
+   for(let x=-1;x<=1&&!crowded;x++)for(let y=-1;y<=1&&!crowded;y++)for(let z=-1;z<=1&&!crowded;z++)for(const q of cells.get([at[0]+x,at[1]+y,at[2]+z].join(','))||[])if(Math.hypot(...p.map((v,i)=>v-q[i]))<spacing){crowded=true;break;}
+   if(!crowded)break;
+   const a=(attempt+1)*2.39996+hash(n.id)*6.28,r=spacing*Math.cbrt(attempt+1);p=base.map((v,i)=>v+[Math.cos(a)*r,Math.sin(a*1.7)*r,Math.sin(a)*r][i]);
+  }out[n.id]=p;put(p);
+ }return out;
 }
+export function starAppearance(track){
+ const key=track.id+'star',signature=artistSignature(track);
+ return {type:Math.floor(hash(key)*8),variant:Math.floor(hash(key+'variant')*3),tilt:signature.tilt+hash(key+'tilt')*2,rate:.025+hash(key+'rate')*.035};
+}
+function groupOf(key,name,kind,points,color){
+ const position=[0,1,2].map(i=>points.reduce((sum,p)=>sum+p.position[i],0)/points.length);
+ return {id:key,name,kind,color,position,count:points.length,ids:points.map(p=>p.id)};
+}
+export function buildSpace(nodes,stored={}){
+ const positions=spacedPositions(nodes,stored),points=nodes.map(n=>({...n,position:positions[n.id],region:genreStyle(n),signature:artistSignature(n),appearance:starAppearance(n),flowPhase:[0,1,2].map(i=>hash(n.id+i)*6.28)}));
+ const groups=GENRE_REGIONS.map(g=>{const members=points.filter(p=>p.region.id===g.id);return members.length?groupOf('genre:'+g.id,g.name,'genre',members,g.color):null;}).filter(Boolean);
+ const artists=new Map();for(const p of points)for(const name of p.signature.names){const key=fold(name);if(!artists.has(key))artists.set(key,{name,points:[]});artists.get(key).points.push(p);}
+ const artistGroups=[...artists].map(([key,a])=>groupOf('artist:'+key,a.name,'artist',a.points,a.points[0].region.color));
+ return {points,groups,artistGroups,links:[]};
+}
+export function sameArtistIds(points,id){const node=points.find(p=>p.id===id);if(!node)return new Set();const names=new Set(node.signature.names.map(fold));return new Set(points.filter(p=>p.signature.names.some(n=>names.has(fold(n)))).map(p=>p.id));}
 export function connections(points,id){
  const node=points.find(p=>p.id===id);if(!node)return [];
  const names=new Set(node.signature.names.map(fold));
- const artists=points.filter(p=>p.id!==id&&p.signature.names.some(n=>names.has(fold(n)))).sort((a,b)=>Math.hypot(...a.position.map((v,i)=>v-node.position[i]))-Math.hypot(...b.position.map((v,i)=>v-node.position[i]))).slice(0,8);
+ const artists=points.filter(p=>p.id!==id&&p.signature.names.some(n=>names.has(fold(n)))).sort((a,b)=>Math.hypot(...a.position.map((v,i)=>v-node.position[i]))-Math.hypot(...b.position.map((v,i)=>v-node.position[i]))).slice(0,32);
  const seen=new Set(artists.map(p=>p.id));
  return [...artists.map(p=>[id,p.id,'artist']),...neighbours(points,id,5).filter(p=>!seen.has(p.id)).map(p=>[id,p.id,'sound'])];
 }
@@ -58,7 +81,7 @@ export class OrbitCamera {
   const delta=[cy*x-sy*sp*y,cp*y,-sy*x-cy*sp*y];
   this.center=this.center.map((v,i)=>v+delta[i]);
  }
- scale(value){this.zoom=Math.max(.65,Math.min(8,value));}
+ scale(value){this.zoom=Math.max(.18,Math.min(8,value));}
  focus(point,zoom=2.8){this.focusing=true;this.center=[...point];this.scale(zoom);}
  home(){this.focusing=true;this.center=[0,0,0];this.scale(1);this.yaw=Math.round(this.pose.yaw/(2*Math.PI))*2*Math.PI;this.pitch=Math.round(this.pose.pitch/(2*Math.PI))*2*Math.PI;}
  update(dt,reduced=false){const a=reduced?1:1-Math.exp(-Math.min(.05,Math.max(0,dt))*(this.focusing?3.2:12));for(const k of ['yaw','pitch','zoom'])this.pose[k]+=(this[k]-this.pose[k])*a;this.pose.center=this.pose.center.map((v,i)=>v+(this.center[i]-v)*a);return this.pose;}

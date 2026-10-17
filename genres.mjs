@@ -3,7 +3,7 @@ import {GENRE_RESEARCH_VERSION,trustedRecording,wikidataGenres,readWikidata,cata
 // are suggestions, never presented as a verified classification of a recording.
 import { normalize } from './metadata.mjs';
 import fs from 'node:fs/promises';
-import {genreArtists,genreTitle,genreKey} from './public/genre-identity.js';
+import {genreArtists,genreTitle,genreKey,genreResearchArtists,genreSearchTracks,localGenreCatalogue,localCatalogueEvidence} from './public/genre-identity.js';
 
 const aliases = new Map();
 const families = {
@@ -43,14 +43,14 @@ const families = {
   'Electro House':['electro house'], 'Melodic Dubstep':['melodic dubstep'], 'Chilltrap':['chilltrap'], 'EDM Trap':['trap [edm]'],
   'Folktronica':['folktronica'], 'Indietronica':['indietronica'], 'Dance-pop':['dance pop','dance-pop'],
   'Alternative Hip-Hop':['alternative hip hop','alternative hip-hop'], 'Rap':['rap'],
-  'Instrumental Hip-Hop':['instrumental hip hop','instrumental hip-hop'], 'Cloud Rap':['cloud rap'], 'Psybass':['psybass','psy bass'], 'Psydub':['psydub'], 'Psybient':['psybient','psychedelic ambient'], 'Wave':['wave music','hardwave'], 'Witch House':['witch house'], 'Melodic Techno':['melodic techno'], 'Melodic House':['melodic house'], 'Bass House':['bass house'], 'Future House':['future house'], 'Midtempo':['midtempo','midtempo bass'], 'Speed Garage':['speed garage'], 'Jersey Club':['jersey club'], 'Drift Phonk':['drift phonk'], 'Brazilian Phonk':['brazilian phonk'], 'Nu Metal':['nu metal'], 'Alternative Metal':['alternative metal'], 'J-Pop':['jpop','j-pop'], 'K-Pop':['kpop','k-pop'], 'City Pop':['city pop'], 'Math Rock':['math rock'], 'Post-Hardcore':['post hardcore'], 'Drumstep':['drumstep'], 'Riddim':['riddim dubstep'], 'Complextro':['complextro']
+  'Instrumental Hip-Hop':['instrumental hip hop','instrumental hip-hop'], 'Cloud Rap':['cloud rap'], 'Psybass':['psybass','psy bass'], 'Psydub':['psydub'], 'Psybient':['psybient','psychedelic ambient'], 'Wave':['wave music','hardwave'], 'Witch House':['witch house'], 'Melodic Techno':['melodic techno'], 'Melodic House':['melodic house'], 'Bass House':['bass house'], 'Future House':['future house'], 'Midtempo':['midtempo','midtempo bass'], 'Speed Garage':['speed garage'], 'Jersey Club':['jersey club'], 'Drift Phonk':['drift phonk'], 'Brazilian Phonk':['brazilian phonk'], 'Nu Metal':['nu metal'], 'Alternative Metal':['alternative metal'], 'J-Pop':['jpop','j-pop'], 'K-Pop':['kpop','k-pop'], 'City Pop':['city pop'], 'Math Rock':['math rock'], 'Post-Hardcore':['post hardcore'], 'Drumstep':['drumstep'], 'Riddim':['riddim dubstep'], 'Complextro':['complextro'], 'Chillstep':['chill step'], 'Chillout':['chill music'], 'Synthpop':['synth pop','synth-pop'], 'Jump Up':['jump-up','jump up dnb'], 'Latin':['latin music']
 };
 for(const [name,terms] of Object.entries(families))for(const term of [name,...terms])aliases.set(normalize(term),name);
 export const genreTaxonomy=()=>Object.fromEntries(aliases);
 export function canonicalGenre(value,official=false){
   const s=String(value||'').trim();if(!s||s.length>65)return '';
   if(['music','entertainment','musicvideo','visualizer','officialvideo','officialaudio','audio','video','youtube','unknown','other','none','aggressive'].includes(normalize(s)))return '';
-  return aliases.get(normalize(s))||(official?s.replace(/\b\w/g,c=>c.toUpperCase()):'');
+  return aliases.get(normalize(s))||aliases.get(normalize(s.replace(/\s+(?:music|beats|songs)$/i,'')))||(official?s.replace(/\b\w/g,c=>c.toUpperCase()):'');
 }
 export function providerGenres(entity){
   const values=[...(entity?.genres||[]).map(g=>({...g,official:true})),...(entity?.tags||[])];
@@ -81,10 +81,10 @@ export class GenreDiscovery {
   entity(type,id,inc='genres+tags'){if(!uuid.test(id||''))return Promise.resolve(null);return this.cached(`${type}:${id}:${inc}`,()=>this.lib.mbFetch(`https://musicbrainz.org/ws/2/${type}/${id}?inc=${inc}&fmt=json`));}
   async artistByName(name){
     if(!name||name.length>140)return null;
-    return this.cached(`artist-search:${normalize(name)}`,async()=>{
+    return this.cached(`artist-search-v5:${genreKey(name)}`,async()=>{
       const q=`artist:"${name.replace(/[+\-&|!(){}\[\]^"~*?:\\/]/g,' ')}"`;
       const data=await this.lib.mbFetch(`https://musicbrainz.org/ws/2/artist?query=${encodeURIComponent(q)}&fmt=json&limit=8`);
-      const exact=(data.artists||[]).filter(a=>genreKey(a.name)===genreKey(name)&&Number(a.score)>=95);
+      const exact=(data.artists||[]).filter(a=>[a.name,...(a.aliases||[]).map(x=>x.name)].some(n=>genreKey(n)===genreKey(name))&&Number(a.score)>=95);
       // Homonyms need a confirmed recording, not a guess based on popularity.
       return exact.length===1?{id:exact[0].id,name:exact[0].name}:null;
     },14);
@@ -103,10 +103,12 @@ export class GenreDiscovery {
   seed(){let count=0;for(const t of this.lib.list()){
     if(t.genreLocked)continue;
     let evidence=t.genreEvidence||[];
-    if(t.genre&&!evidence.length){evidence=t.genre.split(/[,;]/).map(s=>({name:canonicalGenre(s,true),scope:t.metadataStatus==='manual'?'manual':t.metadataSource==='Embedded tags'?'embedded':'recording',source:t.metadataSource||'Existing metadata',...(t.metadataUrl?{url:t.metadataUrl}:{}),confidence:'existing'})).filter(e=>e.name);}
+    if(t.genre&&!evidence.length){evidence=t.genre.split(/[,;]/).map(s=>({name:canonicalGenre(s,true),scope:t.metadataStatus==='manual'?'manual':t.genreBasis==='artist'?'artist':t.metadataSource==='Embedded tags'?'embedded':'recording',source:t.metadataSource||'Existing metadata',...(t.metadataUrl?{url:t.metadataUrl}:{}),confidence:'existing'})).filter(e=>e.name);}
     if(t.metadataStatus==='manual'&&t.genre&&!t.genreEvidence){this.lib.save({...t,genreEvidence:evidence,genreLocked:true,genreBasis:'manual'});continue;}
     const all=[...evidence,...localGenreEvidence(t)];if(all.length){const result=this.saveEvidence(t.id,all);if(result.genre!==t.genre)count++;}
-  }return count;}
+  }
+    const catalogue=localGenreCatalogue(this.lib.list());for(const t of this.lib.list())if(!t.genre&&!t.genreLocked){const evidence=localCatalogueEvidence(t,catalogue);if(evidence.length){this.saveEvidence(t.id,evidence);count++;}}
+    return count;}
   async readLocalSources(){for(const t of this.lib.list()){
     if(this.job.stop||this.lib.closed)break;if(t.genreLocalVersion===1)continue;
     let patch={genreLocalVersion:1};try{const side=t.path.replace(/\.[^.]+$/,'.info.json');const stat=await fs.stat(side);if(stat.size<20e6){const info=JSON.parse(await fs.readFile(side,'utf8'));patch={...patch,sourceTags:(info.tags||[]).slice(0,100),description:(info.description||'').slice(0,20000)};}}catch{}
@@ -114,7 +116,7 @@ export class GenreDiscovery {
   }if(!this.lib.closed)this.seed();}
   async artistEvidence(t){
     const ids=t.musicbrainzArtists?.filter(a=>uuid.test(a.id))||[];
-    if(!ids.length)for(const name of genreArtists(t).slice(0,4)){if(genreKey(name)===genreKey(t.channel)&&!t.artistCreditSource&&!t.recordingArtists?.length)continue;const a=await this.artistByName(name);if(a)ids.push(a);}
+    if(!ids.length)for(const name of genreResearchArtists(t).slice(0,4)){if(genreKey(name)===genreKey(t.channel)&&!t.artistCreditSource&&!t.recordingArtists?.length)continue;const a=await this.artistByName(name);if(a)ids.push(a);}
     const evidence=[];for(const artist of ids.slice(0,3)){const data=await this.entity('artist',artist.id,'genres+tags+url-rels');if(data){evidence.push(...this.evidence(providerGenres(data),'artist','artist',artist.id));if(!providerGenres(data).length)evidence.push(...await wikidataGenres(data,id=>this.cached('wikidata:'+id,()=>this.readWikidata(id),90)));}}
     return evidence;
   }
@@ -137,7 +139,7 @@ export class GenreDiscovery {
     if(deep&&t.kind!=='mix'&&!recordingId&&t.artist){
       const candidates=await attempt(()=>this.lib.candidates(id,'',{force:!!this.refreshSince||t.genreResearchVersion!==GENRE_RESEARCH_VERSION}));
       recordingId=trustedRecording(t,candidates||[])?.id;
-      if(!recordingId)recordingId=(await attempt(()=>this.recordingByCredits(t)))?.id;
+      if(!recordingId)for(const query of genreSearchTracks(t)){recordingId=(await attempt(()=>this.recordingByCredits(query)))?.id;if(recordingId)break;}
     }
     if(recordingId){
       const r=await attempt(()=>this.entity('recording',recordingId,'genres+tags+artists+releases'));
@@ -157,25 +159,19 @@ export class GenreDiscovery {
       }
     }
     if(deep&&t.kind!=='mix'&&t.duration>0&&t.artist&&!evidence.some(e=>e.scope!=='artist')){
-      const results=await attempt(()=>this.cached('catalogue-v4:'+genreKey(t.artist)+':'+genreKey(genreTitle(t)),()=>this.searchCatalogue(t)));
-      evidence.push(...catalogueGenre(t,results||[]));
+      for(const query of genreSearchTracks(t)){const results=await attempt(()=>this.cached('catalogue-v5:'+genreKey(query.artist)+':'+genreKey(genreTitle(query)),()=>this.searchCatalogue(query)));const found=catalogueGenre(query,results||[]);evidence.push(...found);if(found.length)break;}
     }
     evidence.push(...await attempt(()=>this.artistEvidence(t))||[]);
     const current=this.lib.tracks.get(id);if(this.lib.closed||!current)return current;
     if([current.title,current.artist,current.duration].join('|')!==identity)return current;
-    const named=evidence.filter(e=>e.scope!=='artist');
-    if(!named.length&&!evidence.length&&t.artist){
-      const peers=this.lib.list().filter(p=>p.id!==id&&normalize(p.artist)===normalize(t.artist)&&p.genreBasis!=='artist');
-      const counts=new Map();for(const p of peers)for(const name of new Set((p.genre||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean)))counts.set(name,(counts.get(name)||0)+1);
-      for(const [name,count]of counts)if(count>=2&&count>=peers.length*.5)evidence.push({name,scope:'artist',source:'Your local artist catalogue',confidence:'suggested'});
-    }
+    if(!evidence.length)evidence.push(...localCatalogueEvidence(t,localGenreCatalogue(this.lib.list())));
     return this.saveEvidence(id,evidence,{genreCheckedAt:Date.now(),genreResearchVersion:GENRE_RESEARCH_VERSION,genreStatus:errors.length?'partial':'checked',genreError:[...new Set(errors)].join(' · ').slice(0,500)});
   }
   async start({retryMissing=false}={}){
     if(this.job.running)return;this.refreshSince=retryMissing?Date.now():0;this.seed();this.job={running:true,done:0,total:0,found:0,errors:0,phase:'artists',message:'Reading local source labels',stop:false};await this.readLocalSources();
     // Shared artists first: one cached lookup can help dozens of recordings.
     const groups=new Map();for(const t of this.lib.list().filter(t=>t.available&&!t.genreLocked&&t.artist&&(!retryMissing||!t.genre||t.genreBasis==='artist'))){
-      const key=normalize(t.artist);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(t);
+      const key=genreResearchArtists(t).map(genreKey).join('|');if(!key)continue;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(t);
     }
     const pending=[...groups.values()].filter(ts=>ts.some(t=>retryMissing||t.genreResearchVersion!==GENRE_RESEARCH_VERSION||!t.genreArtistAt||Date.now()-t.genreArtistAt>30*DAY)).sort((a,b)=>b.length-a.length);
     const deep=this.lib.list().filter(t=>t.available&&!t.genreLocked&&(retryMissing?!t.genre||t.genreBasis==='artist':t.genreResearchVersion!==GENRE_RESEARCH_VERSION||!t.genreCheckedAt||Date.now()-t.genreCheckedAt>(t.genreError?1:30)*DAY));

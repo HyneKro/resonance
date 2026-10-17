@@ -37,6 +37,7 @@
   "breakbeat": "Breakbeat",
   "breakbeats": "Breakbeat",
   "chillout": "Chillout",
+  "chillmusic": "Chillout",
   "synthwave": "Synthwave",
   "retrowave": "Retrowave",
   "darksynth": "Darksynth",
@@ -58,7 +59,7 @@
   "dreampop": "Dream Pop",
   "pop": "Pop",
   "indiepop": "Indie Pop",
-  "synthpop": "Synth-pop",
+  "synthpop": "Synthpop",
   "artpop": "Art Pop",
   "electropop": "Electropop",
   "disco": "Disco",
@@ -151,5 +152,10 @@
   "drumstep": "Drumstep",
   "riddim": "Riddim",
   "riddimdubstep": "Riddim",
-  "complextro": "Complextro"
+  "complextro": "Complextro",
+  "chillstep": "Chillstep",
+  "jumpup": "Jump Up",
+  "jumpupdnb": "Jump Up",
+  "latin": "Latin",
+  "latinmusic": "Latin"
 }

@@ -87,11 +87,11 @@ export class Reactor {
     this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();
     if(this.desktopSource){
       previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);previous=this.desktopSource;
-      for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
+      if(!this.musicOnly&&!this.sceneSuspended)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       this.analysisSink??=this.context.createGain();this.analysisSink.gain.value=0;
       previous.connect(this.analysisSink);this.analysisSink.connect(this.context.destination);
     }else{
-      if(!this.musicOnly)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
+      if(!this.musicOnly&&!this.sceneSuspended)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       // Analyse the same signal regardless of leveling or crossfade gain.
       previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);
     }
@@ -110,13 +110,17 @@ export class Reactor {
     if(!enabled){this.resetAnalysis();this.last=0;this.frameAverage=1000/(resolvedFrameRate(this.targetFPS,this.displayRefreshRate));this.needsFrame=true;this.start();}
   }
   prepareGraphics(canvas=document.querySelector('#room-gl')){
-    if(!this.musicOnly&&!this.gpu&&canvas&&SCENES.some(s=>s.id===this.mode))this.gpu=new GPUScene(canvas);
+    if(!this.musicOnly&&!this.sceneSuspended&&!this.gpu&&canvas&&SCENES.some(s=>s.id===this.mode))this.gpu=new GPUScene(canvas);
   }
   setSceneSuspended(enabled){
-    this.sceneSuspended=!!enabled;
-    if(enabled){this.running=false;cancelAnimationFrame(this.frameRequest);this.frameRequest=null;}
-    else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.start();}
-    document.dispatchEvent(new Event('resonance-scene-visibility'));
+    enabled=!!enabled;if(this.sceneSuspended===enabled)return;this.sceneSuspended=enabled;
+    if(enabled){
+      this.running=false;cancelAnimationFrame(this.frameRequest);this.frameRequest=null;this.sceneReveal?.cancel();
+      this.gpu?.dispose();this.gpu=null;this.hadFrame=false;this.previousFrame=0;
+      this.visualSync.clear();this.visualWave=null;
+      for(const canvas of document.querySelectorAll('#room-gl,#room-canvas,[data-reactor]')){const empty=canvas.cloneNode(false);empty.width=empty.height=1;canvas.replaceWith(empty);}
+    }else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.resetAnalysis();if(!this.musicOnly){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin();this.paintReturnCue=true;}this.start();}
+    this.eq(this.eqValues||[0,0,0]);document.dispatchEvent(new Event('resonance-scene-visibility'));
   }
   start(){
     if(this.running||this.musicOnly||this.deferStart||this.sceneSuspended)return;this.running=true;

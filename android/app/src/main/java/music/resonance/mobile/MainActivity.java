@@ -72,7 +72,7 @@ public final class MainActivity extends Activity {
                 }
                 return app.updates.snapshot();
             }
-            case "library":return Json.put(Json.put(lib.snapshot(),"openDownloads",getIntent().getBooleanExtra("openDownloads",false)),"displayHz",app.onMain(()->getWindowManager().getDefaultDisplay().getRefreshRate()));
+            case "library":app.research.seedLocal();return Json.put(Json.put(lib.snapshot(),"openDownloads",getIntent().getBooleanExtra("openDownloads",false)),"displayHz",app.onMain(()->getWindowManager().getDefaultDisplay().getRefreshRate()));
             case "preferences":{JSONObject p=lib.updatePreferences(data);app.songAnalysis.setLeveling(p.optBoolean("leveling"));return p;}
             case "storage":return lib.storage();
             case "playbackDetails":case "copyPlaybackDetails":{

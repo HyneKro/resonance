@@ -41,7 +41,7 @@ public final class Research {
     private long lastCatalogue,mbBlockedUntil,catalogueBlockedUntil;
     private final Object requestLock=new Object();
     private JSONObject cachedGenreRead(String url) throws Exception {
-        String key="genre-v4:"+LibraryStore.id(url);LibraryStore lib=app.library;
+        String key="genre-v5:"+LibraryStore.id(url);LibraryStore lib=app.library;
         synchronized(requestLock){
             JSONObject cache=lib.setting(key);if(cache.optJSONObject("data")!=null&&System.currentTimeMillis()-cache.optLong("at")<30L*86400000)return cache.optJSONObject("data");
             boolean mb=url.startsWith("https://musicbrainz.org/");if(System.currentTimeMillis()<(mb?mbBlockedUntil:catalogueBlockedUntil))throw new IOException("Metadata service is resting after a connection error. Try again shortly.");long delay=(mb?1100:3200)-(System.currentTimeMillis()-(mb?lastMusicBrainz:lastCatalogue));if(delay>0)Thread.sleep(delay);
@@ -56,9 +56,12 @@ public final class Research {
             lib.setting(key,Json.object("at",System.currentTimeMillis(),"data",value));lib.setting("genre-cache-index",Json.object("items",new JSONArray(entries)));return value;
         }
     }
+    private long genreSeedRevision=-1;
+    private JSONObject taxonomy() throws Exception {try(InputStream in=app.getAssets().open("web/genre-taxonomy.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);return new JSONObject(out.toString("UTF-8"));}}
+    public synchronized void seedLocal() throws Exception {LibraryStore lib=app.library;if(genreSeedRevision==lib.revision.get())return;synchronized(lib){JSONArray changed=new GenreResearch(this::cachedGenreRead,taxonomy()).seed(lib.tracks());for(int i=0;i<changed.length();i++)lib.save(changed.getJSONObject(i));genreSeedRevision=lib.revision.get();}}
     public JSONObject genres(String id) throws Exception {
         LibraryStore lib=app.library;JSONObject before=lib.track(id);if(before.length()==0)throw new IOException("Track unavailable");if(before.optBoolean("genreLocked"))return before;
-        JSONObject taxonomy;try(InputStream in=app.getAssets().open("web/genre-taxonomy.json");ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);taxonomy=new JSONObject(out.toString("UTF-8"));}
+        JSONObject taxonomy=taxonomy();
         JSONObject result=new GenreResearch(this::cachedGenreRead,taxonomy).discover(Json.parse(before.toString()));
         synchronized(lib){JSONObject latest=lib.track(id);if(latest.length()==0||latest.optBoolean("genreLocked"))return latest;
             for(String key:List.of("title","artist","duration","genre"))if(!Objects.equals(before.opt(key),latest.opt(key)))return latest;

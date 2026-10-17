@@ -62,3 +62,10 @@ export function youtubeOrder(a,b,sources=[]){
   const position=t=>Number.isInteger(t.playlistIndex)&&t.playlistIndex>0?t.playlistIndex:Infinity;
   return rank(a.sourceId)-rank(b.sourceId)||position(a)-position(b)||a.title.localeCompare(b.title)||a.id.localeCompare(b.id);
 }
+
+// One timeline of actual listening starts, the playing row, and editable future.
+export function queueTimeline(queue,session){
+ const past=queue.history.filter(e=>e.session!==session).slice(-200).map(e=>({...e,kind:'history',key:'history:'+e.session}));
+ const next=queue.items.slice(queue.cursor,queue.cursor+81).map((id,offset)=>({id,kind:offset?'next':'current',index:queue.cursor+offset,key:offset?'next:'+(queue.cursor+offset)+':'+id:'current:'+id}));
+ return [...past,...next];
+}
