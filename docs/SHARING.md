@@ -17,8 +17,10 @@ Personal music, library databases, cache, local configuration, signing keys, dow
 
 ## Publishing a new version
 
-1. Increase the platform version. For Android also increase versionCode and preserve the original signing key. Update `android/tools/build.ps1`'s output name.
-2. Test and build. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename.
+**Standing owner instruction:** every new application release includes both Windows and Android builds published here, unless the owner explicitly requests a narrower release. Publication of tested releases is already authorized. See [AGENTS.md](../AGENTS.md). Documentation-only changes do not need an app version bump or binary release.
+
+1. Increase both platform versions beyond their latest published versions; their numbering remains independent. For Android also increase versionCode and preserve the original signing key. Update `android/tools/build.ps1`'s output name.
+2. Test and build both platforms. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename. If the running desktop app locks its runtime files, leave playback running and use the successfully built staging runtime via `RESONANCE_RUNTIME_DIR` when sharing.
 3. Commit and push the reviewed source. A source push alone does not create an app update.
 4. Upload a draft release with the helper, using platform-specific tags and tested artifacts:
 
@@ -27,7 +29,12 @@ Personal music, library databases, cache, local configuration, signing keys, dow
 ./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.12-preview.apk -Notes docs/release-notes/android-0.1.12.md
 ```
 
-The helper confirms the destination repository, checks the clean Windows configuration and archive, writes `SHA256SUMS.txt`, and uploads the artifact and checksum. It refuses to overwrite an existing release. Independently confirm Android's signing certificate and versionCode. Compare GitHub's uploaded asset digest with the local artifact before publishing. Drafts are ignored by app update checks; publish only after verification. `-Publish` publishes immediately after uploading when that is intentional. New Windows releases should be stable; Android preview releases are supported by the Android updater. Keep exact platform tag and asset filename conventions shown above.
+The helper confirms the destination repository, checks the clean Windows configuration and archive, writes `SHA256SUMS.txt`, and uploads the artifact and checksum. It refuses to overwrite an existing release. Independently confirm Android's signing certificate and versionCode. Compare GitHub's uploaded asset size and SHA-256 digest with the local artifact before publishing. For this verification workflow, leave `-Publish` off: that switch publishes immediately after uploading, without the separate remote digest review.
+
+5. After both uploads pass verification, publish both drafts. Set Windows as a stable release and Latest; keep Android preview as a prerelease with Latest disabled. Drafts are ignored by app update checks, so leaving drafts is not a completed release.
+6. Verify public download access and platform-specific updater discovery without credentials. An older installed version should find the corresponding new release; the current version should not offer itself again. Return both published release links. Report any remaining build or publication blocker explicitly.
+
+Keep the exact platform tag and asset filename conventions shown above. Do not overwrite a published artifact with changed contents; ship a new version instead.
 
 Never upload a used portable folder or its `data` directory. Send only the original clean ZIP. Do not include an owner's GitHub token, password or signing key in an app, repository or release.
 
