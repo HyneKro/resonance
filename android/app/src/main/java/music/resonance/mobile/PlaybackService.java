@@ -17,6 +17,7 @@ public final class PlaybackService extends MediaSessionService {
     public final SpectrumProcessor spectrum=new SpectrumProcessor();
     public final LevelingProcessor leveling=new LevelingProcessor();
     private final SongProfile.TrackLevel trackLevel=new SongProfile.TrackLevel();
+    private final LoudnessGate levelGate=new LoudnessGate();private boolean internalLevelPause,hasStartedTrack;private String levelError="",prefetchedId="";
     private String analysisId="";private JSONObject songProfile=new JSONObject(),listeningEdit=new JSONObject(),listeningPrefs=new JSONObject();private long profileCheck;
     private final Runnable listening=new Runnable(){public void run(){updateListening();handler.postDelayed(this,150);}};
     private MediaSession session;
@@ -47,6 +48,7 @@ public final class PlaybackService extends MediaSessionService {
                 }
                 return com.google.common.util.concurrent.Futures.immediateFuture(new SessionResult(SessionError.ERROR_NOT_SUPPORTED));
             }
+            @Override public int onPlayerCommandRequest(MediaSession session,MediaSession.ControllerInfo controller,int command){if(command==Player.COMMAND_PLAY_PAUSE&&levelGate.waiting)pause();return SessionResult.RESULT_SUCCESS;}
             @Override public com.google.common.util.concurrent.ListenableFuture<MediaSession.MediaItemsWithStartPosition> onPlaybackResumption(MediaSession session,MediaSession.ControllerInfo controller){
                 List<MediaItem> items=new ArrayList<>();for(int i=0;i<player.getMediaItemCount();i++)items.add(player.getMediaItemAt(i));
                 if(items.isEmpty())return com.google.common.util.concurrent.Futures.immediateFailedFuture(new IllegalStateException("Choose music in Resonance first"));
@@ -59,7 +61,8 @@ public final class PlaybackService extends MediaSessionService {
         player.addListener(new Player.Listener(){
             @Override public void onAudioSessionIdChanged(int audioSessionId){if(equalizer!=null){equalizer.release();equalizer=null;}if(audioSessionId!=C.AUDIO_SESSION_ID_UNSET)try{JSONObject p=ResonanceApp.instance.library.setting("preferences");equalize(new JSONArray().put(p.optDouble("eqLow",0)).put(p.optDouble("eqMid",0)).put(p.optDouble("eqHigh",0)));}catch(Exception ignored){}}
             @Override public void onMediaItemTransition(MediaItem item,int reason){if(item==null)return;updateListening(true);account();clearError();elapsed=0;counted=false;countedId=item.mediaId;LibraryStore lib=ResonanceApp.instance.library;JSONObject history=lib.setting("history");JSONArray old=history.optJSONArray("items"),next=new JSONArray();if(old!=null)for(int i=Math.max(0,old.length()-199);i<old.length();i++)next.put(old.opt(i));next.put(Json.object("id",item.mediaId,"at",System.currentTimeMillis()));ResonanceApp.instance.io.execute(()->lib.setting("history",Json.object("items",next)));}
-            @Override public void onIsPlayingChanged(boolean playing){account();}
+            @Override public void onIsPlayingChanged(boolean playing){if(playing)hasStartedTrack=true;account();}
+            @Override public void onPlayWhenReadyChanged(boolean ready,int reason){if(ready)updateListening();else if(internalLevelPause)internalLevelPause=false;else levelGate.cancel();}
             @Override public void onPlaybackStateChanged(int state){if(state==Player.STATE_READY)clearError();}
             @Override public void onPlayerError(PlaybackException e){
                 MediaItem item=player.getCurrentMediaItem();boolean linked=item!=null&&item.localConfiguration!=null&&"content".equals(item.localConfiguration.uri.getScheme());
@@ -73,8 +76,13 @@ public final class PlaybackService extends MediaSessionService {
     private void updateListening(){updateListening(false);}
     private void updateListening(boolean boundary){
         if(player==null||player.getCurrentMediaItem()==null)return;String id=player.getCurrentMediaItem().mediaId;long now=SystemClock.elapsedRealtime();
-        boundary|=!id.equals(analysisId);analysisId=id;
-        if(boundary||now-profileCheck>1500){profileCheck=now;ResonanceApp app=ResonanceApp.instance;songProfile=app.songAnalysis.profile(id);listeningEdit=app.library.setting("playbackEdit:"+id);listeningPrefs=app.library.setting("preferences");boolean enabled=listeningPrefs.optBoolean("leveling");if(boundary)leveling.selectTrack(trackLevel.select(songProfile,enabled));else leveling.setGain(trackLevel.update(songProfile,enabled));if(player.isPlaying()&&songProfile.length()==0&&(enabled||listeningPrefs.optBoolean("skipSilence")||listeningPrefs.optBoolean("autoDirection",true)&&!listeningPrefs.optBoolean("musicOnly")))try{app.songAnalysis.request(id,false);}catch(IllegalArgumentException ignored){}}
+        boundary|=!id.equals(analysisId);analysisId=id;boolean resume=boundary&&levelGate.wantsPlayback();if(boundary){levelGate.select();hasStartedTrack=false;}
+        if(boundary||now-profileCheck>1500){profileCheck=now;ResonanceApp app=ResonanceApp.instance;songProfile=app.songAnalysis.profile(id);listeningEdit=app.library.setting("playbackEdit:"+id);listeningPrefs=app.library.setting("preferences");levelError=app.songAnalysis.status(id).optString("error");boolean enabled=listeningPrefs.optBoolean("leveling");if(boundary||!hasStartedTrack)leveling.selectTrack(trackLevel.select(levelGate.bypassed()?new JSONObject():songProfile,enabled));else leveling.setGain(trackLevel.update(songProfile,enabled));if(player.isPlaying()&&songProfile.length()==0&&(enabled||listeningPrefs.optBoolean("skipSilence")||listeningPrefs.optBoolean("autoDirection",true)&&!listeningPrefs.optBoolean("musicOnly")))try{app.songAnalysis.request(id,false);}catch(IllegalArgumentException ignored){}}
+        boolean missing=listeningPrefs.optBoolean("leveling")&&songProfile.length()==0&&!hasStartedTrack;
+        if(levelGate.waiting&&!missing){leveling.selectTrack(trackLevel.select(songProfile,listeningPrefs.optBoolean("leveling")));if(levelGate.ready())player.play();}
+        if((player.getPlayWhenReady()||resume)&&levelGate.request(missing)){leveling.selectTrack(0);if(player.getPlayWhenReady()){internalLevelPause=true;player.pause();}try{ResonanceApp.instance.songAnalysis.request(id,false,true);}catch(IllegalArgumentException ignored){}}
+        else if(resume&&!missing)player.play();
+        if(player.getNextMediaItemIndex()!=C.INDEX_UNSET&&listeningPrefs.optBoolean("leveling")){String upcoming=player.getMediaItemAt(player.getNextMediaItemIndex()).mediaId;if(!upcoming.equals(id)&&!upcoming.equals(prefetchedId))try{ResonanceApp.instance.songAnalysis.request(upcoming,false);prefetchedId=upcoming;}catch(IllegalArgumentException ignored){}}
         if(!player.isPlaying()||player.getDuration()<=0)return;JSONObject range=listeningEdit.optBoolean("enabled")?listeningEdit:listeningPrefs.optBoolean("skipSilence")?songProfile.optJSONObject("trim"):null;if(range==null)return;
         long duration=player.getDuration(),start=Math.max(0,Math.min(duration-1000,(long)(range.optDouble("start")*1000))),end=Math.max(start+1000,Math.min(duration,(long)(range.optDouble("end",duration/1000d)*1000)));
         if(player.getCurrentPosition()<start-150)player.seekTo(start);else if(end<duration-100&&player.getCurrentPosition()>=end-50){if(player.getRepeatMode()==Player.REPEAT_MODE_ONE)player.seekTo(start);else if(player.hasNextMediaItem())player.seekToNextMediaItem();else player.seekTo(0,0);}
@@ -82,7 +90,7 @@ public final class PlaybackService extends MediaSessionService {
     public void load(JSONArray ids,int index,long position,boolean autoplay){
         List<MediaItem> items=new ArrayList<>();String selected=ids.optString(Math.max(0,index));int actual=0;LibraryStore lib=ResonanceApp.instance.library;
         for(int i=0;i<ids.length();i++){JSONObject t=lib.track(ids.optString(i));if(t.length()==0)continue;if(t.optString("id").equals(selected))actual=items.size();MediaMetadata.Builder metadata=new MediaMetadata.Builder().setTitle(t.optString("title")).setArtist(t.optString("artist")).setAlbumTitle(t.optString("album"));java.io.File art=new java.io.File(lib.artwork,t.optString("artwork"));if(art.isFile())metadata.setArtworkUri(android.net.Uri.fromFile(art));items.add(new MediaItem.Builder().setMediaId(t.optString("id")).setUri(t.optString("path")).setCustomCacheKey("resonance:"+t.optString("id")).setMediaMetadata(metadata.build()).build());}
-        if(items.isEmpty())return;clearError();player.setMediaItems(items,Math.min(actual,items.size()-1),Math.max(0,position));if(player.getShuffleModeEnabled())PlaybackQueue.randomize(player,shuffleRandom);player.prepare();player.setPlayWhenReady(autoplay);save();
+        if(items.isEmpty())return;clearError();player.setMediaItems(items,Math.min(actual,items.size()-1),Math.max(0,position));if(player.getShuffleModeEnabled())PlaybackQueue.randomize(player,shuffleRandom);player.prepare();if(autoplay)resume();else player.pause();save();
     }
     public void shuffle(boolean enabled){PlaybackQueue.setShuffle(player,enabled,shuffleRandom);save();}
     public void playQueued(String id,long position){
@@ -90,9 +98,11 @@ public final class PlaybackService extends MediaSessionService {
         throw new IllegalArgumentException("This song is no longer in the queue. Choose it in Library.");
     }
     private void clearError(){error=errorCode=errorDetails="";}
-    public void resume(){clearError();if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0)player.prepare();player.play();}
+    public void resume(){clearError();if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0)player.prepare();updateListening();boolean missing=listeningPrefs.optBoolean("leveling")&&songProfile.length()==0&&!hasStartedTrack;if(levelGate.request(missing)){leveling.selectTrack(0);ResonanceApp.instance.songAnalysis.request(analysisId,false,true);}else player.play();}
+    public void pause(){levelGate.cancel();player.pause();}
+    public void playOriginal(){if(levelGate.original()){leveling.selectTrack(trackLevel.select(new JSONObject(),listeningPrefs.optBoolean("leveling")));player.play();}}
     public void prepareAfterNavigation(){if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0){clearError();player.prepare();}}
-    public JSONObject state(){JSONArray queue=new JSONArray();for(int i=0;i<player.getMediaItemCount();i++)queue.put(player.getMediaItemAt(i).mediaId);MediaItem item=player.getCurrentMediaItem();return Json.object("id",item==null?"":item.mediaId,"queue",queue,"playbackOrder",PlaybackQueue.order(player),"index",Math.max(0,player.getCurrentMediaItemIndex()),"position",player.getCurrentPosition(),"duration",Math.max(0,player.getDuration()),"playing",player.isPlaying(),"buffering",player.getPlaybackState()==Player.STATE_BUFFERING,"volume",player.getVolume(),"shuffle",player.getShuffleModeEnabled(),"repeat",player.getRepeatMode(),"error",error,"errorCode",errorCode,"errorDetails",errorDetails);}
+    public JSONObject state(){JSONArray queue=new JSONArray();for(int i=0;i<player.getMediaItemCount();i++)queue.put(player.getMediaItemAt(i).mediaId);MediaItem item=player.getCurrentMediaItem();return Json.object("id",item==null?"":item.mediaId,"queue",queue,"playbackOrder",PlaybackQueue.order(player),"index",Math.max(0,player.getCurrentMediaItemIndex()),"position",player.getCurrentPosition(),"duration",Math.max(0,player.getDuration()),"playing",player.isPlaying(),"buffering",player.getPlaybackState()==Player.STATE_BUFFERING,"levelPreparing",levelGate.waiting,"levelProgress",ResonanceApp.instance.songAnalysis.progress(),"levelError",levelError,"volume",player.getVolume(),"shuffle",player.getShuffleModeEnabled(),"repeat",player.getRepeatMode(),"error",error,"errorCode",errorCode,"errorDetails",errorDetails);}
     public void equalize(JSONArray values){
         ResonanceApp.instance.library.updatePreferences(Json.object("eqLow",values.optDouble(0,0),"eqMid",values.optDouble(1,0),"eqHigh",values.optDouble(2,0)));
         if(player.getAudioSessionId()==C.AUDIO_SESSION_ID_UNSET)return;

@@ -9,7 +9,7 @@ import {analyzeFile,AudioResearch,audioStamp} from '../audio-research.mjs';
 import {ListeningEnhancements,needsSongAnalysis} from '../public/listening-enhancements.js';
 
 test('leveling preserves dynamics, limits boosts and leaves headroom for measured true peaks',()=>{
- assert.equal(levelingDb({integratedLufs:-23,truePeakDb:-10},true),6);
+ assert.equal(levelingDb({integratedLufs:-23,truePeakDb:-10},true),7);
  assert.equal(levelingDb({integratedLufs:-8,truePeakDb:0},true),-8);
  assert.equal(levelingDb({integratedLufs:-25,truePeakDb:-2},true),1);
  for(const p of [null,{}, {integratedLufs:null,truePeakDb:-100},{integratedLufs:-70,truePeakDb:-100}])assert.equal(levelingDb(p,true),0);
@@ -36,6 +36,18 @@ test('real FFmpeg analysis measures loudness differences and keeps audible edges
  for(const amplitude of [.1,.5]){const file=path.join(dir,'tone-'+amplitude+'.wav'),data=wave(amplitude);await fs.writeFile(file,data);const before=createHash('sha256').update(data).digest('hex');const p=await analyzeFile(file,{duration:12,executable:path.resolve('tools/ffmpeg.exe')});profiles.push(p);assert.ok(p.trim.start>0&&p.trim.start<=2.5);assert.ok(p.trim.end>=8.5&&p.trim.end<12);assert.ok(p.timeline.length<=13);assert.equal(createHash('sha256').update(await fs.readFile(file)).digest('hex'),before);}
  assert.ok(Math.abs((profiles[1].integratedLufs-profiles[0].integratedLufs)-20*Math.log10(5))<.2);
  assert.ok(Math.abs(profiles[1].truePeakDb-20*Math.log10(.5))<.15);
+});
+
+test('whole-file normalization matches independently measured outputs, including a very quiet master',async()=>{
+ const dir=await fs.mkdtemp(path.resolve('test-output/normalized-audio-')),results=[];
+ for(const amplitude of [.02,.65]){
+  const input=path.join(dir,'input-'+amplitude+'.wav'),data=wave(amplitude);await fs.writeFile(input,data);
+  const original=await analyzeFile(input,{duration:12,executable:path.resolve('tools/ffmpeg.exe')}),gain=10**(levelingDb(original,true)/20),adjusted=Buffer.from(data);
+  for(let i=44;i<adjusted.length;i+=2){const value=Math.round(data.readInt16LE(i)*gain);assert.ok(Math.abs(value)<32768);adjusted.writeInt16LE(value,i);}
+  const output=path.join(dir,'matched-'+amplitude+'.wav');await fs.writeFile(output,adjusted);
+  const measured=await analyzeFile(output,{duration:12,executable:path.resolve('tools/ffmpeg.exe')});results.push(measured.integratedLufs);assert.ok(Math.abs(measured.integratedLufs+16)<.12);assert.ok(measured.truePeakDb<=-1);
+ }
+ assert.ok(Math.abs(results[0]-results[1])<.12);
 });
 
 test('song chapters drive related forms smoothly and never move the background identity',()=>{

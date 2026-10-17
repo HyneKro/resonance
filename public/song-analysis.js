@@ -30,7 +30,7 @@ export class ProfileReader {
 export function levelingDb(profile,enabled,target=-16){
  if(!enabled||!Number.isFinite(profile?.integratedLufs)||!Number.isFinite(profile?.truePeakDb)||profile.integratedLufs<-60)return 0;
  // Preserve dynamics; fixed track gain with one dB of measured true-peak headroom.
- return clamp(Math.min(target-profile.integratedLufs,-1-profile.truePeakDb),-24,6);
+ return clamp(Math.min(target-profile.integratedLufs,-1-profile.truePeakDb),-24,24);
 }
 // Latch the measurement at a track boundary. Finishing analysis must not change
 // the volume halfway through a song. An explicit toggle can apply it immediately.

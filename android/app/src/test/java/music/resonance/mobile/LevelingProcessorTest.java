@@ -6,6 +6,7 @@ import java.nio.*;
 import org.junit.Test;
 import static org.junit.Assert.*;
 public class LevelingProcessorTest {
+    @Test public void quietMasterBoostIsNotCappedAtSixDecibels()throws Exception{LevelingProcessor p=new LevelingProcessor();p.configure(new AudioProcessor.AudioFormat(48000,2,C.ENCODING_PCM_16BIT));p.selectTrack(8);p.flush();ByteBuffer input=ByteBuffer.allocateDirect(8).order(ByteOrder.LITTLE_ENDIAN);input.putShort((short)1000).putShort((short)-1000).putShort((short)2000).putShort((short)-2000).flip();p.queueInput(input);ByteBuffer output=p.getOutput().order(ByteOrder.LITTLE_ENDIAN);assertEquals(8000,output.getShort());assertEquals(-8000,output.getShort());assertEquals(16000,output.getShort());assertEquals(-16000,output.getShort());}
     @Test public void nativePipelinePollsEmptyBuffersAndPassesUnityExactly()throws Exception{
         LevelingProcessor gain=new LevelingProcessor();SpectrumProcessor spectrum=new SpectrumProcessor();
         AudioProcessingPipeline pipeline=new AudioProcessingPipeline(ImmutableList.of(spectrum,gain));pipeline.configure(new AudioProcessor.AudioFormat(48000,2,C.ENCODING_PCM_16BIT));pipeline.flush();assertFalse(pipeline.getOutput().hasRemaining());
