@@ -35,6 +35,10 @@ export class Reactor {
     this.features=this.visualSync.process(this.rawFeatures,this.audioActive,time,this.wave);
     this.visualWave=this.visualSync.delayMs?this.features.wave:this.wave;
   }
+  setMicrophoneStream(stream){
+    this.microphoneSource?.disconnect();this.microphoneSource=stream&&this.desktopSource?this.context.createMediaStreamSource(stream):null;
+    this.eq(this.eqValues||[0,0,0]);this.resetAnalysis();
+  }
   setDesktopStream(stream){
     if(!stream&&!this.desktopSource)return;
     this.desktopSource?.disconnect();this.desktopSource=stream?this.context.createMediaStreamSource(stream):null;
@@ -80,12 +84,13 @@ export class Reactor {
   }
   eq(values){
     this.eqValues=[...values];if(!this.context)return;
-    this.source.disconnect();this.desktopSource?.disconnect();this.analysisSink?.disconnect();this.levelGain?.disconnect();this.fadeGain?.disconnect();
+    this.source.disconnect();this.desktopSource?.disconnect();this.microphoneSource?.disconnect();this.analysisSink?.disconnect();this.levelGain?.disconnect();this.fadeGain?.disconnect();
     const analysers=[this.analyser,this.midAnalyser,this.fastAnalyser].filter(Boolean);
     analysers.forEach(a=>a.disconnect());this.filters.forEach(f=>f.disconnect());let previous=this.source;
     if(values.some(x=>x!==0))this.filters.forEach((f,i)=>{f.gain.setTargetAtTime(values[i],this.context.currentTime,.05);previous.connect(f);previous=f;});
     this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();
     if(this.desktopSource){
+      if(this.microphoneSource&&!this.musicOnly&&!this.sceneSuspended)this.microphoneSource.connect(this.analyser);
       previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);previous=this.desktopSource;
       if(!this.musicOnly&&!this.sceneSuspended)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       this.analysisSink??=this.context.createGain();this.analysisSink.gain.value=0;

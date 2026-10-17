@@ -1,5 +1,5 @@
 import {sameGenreRecording,genreTitle,genreArtists,genreKey} from './public/genre-identity.js';
-export const GENRE_RESEARCH_VERSION=6;
+export const GENRE_RESEARCH_VERSION=7;
 export function trustedRecording(track,candidates=[]){
  const matches=candidates.filter(c=>sameGenreRecording(track,c));
  if(!matches.length)return null;

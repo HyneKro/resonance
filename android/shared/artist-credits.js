@@ -2,7 +2,7 @@ const key=s=>String(s||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+-\s
 const unique=names=>[...new Map(names.map(x=>String(x?.name||x||'').trim()).filter(Boolean).map(x=>[key(x),x])).values()];
 export function splitArtistCredit(credit){
  return unique(String(credit||'').replace(/\s+-\s+Topic$/i,'').split(/\s*[([]?\b(?:feat\.?|ft\.?|featuring)\s+|\s+[x×]\s+|\s*;\s*/i).flatMap(part=>{
-  part=part.replace(/[)\]]\s*$/,'').trim();
+  part=part.trim();if(part.endsWith(')')&&!part.includes('(')||part.endsWith(']')&&!part.includes('['))part=part.slice(0,-1).trim();
   // Ampersands and commas may be part of a band's name. Structured provider
   // credits take precedence; don't split Earth, Wind & Fire or AC/DC blindly.
   return part.includes('&')?[part]:part.split(/,\s+/);

@@ -1,7 +1,7 @@
 import {artistNames,splitArtistCredit} from './artist-credits.js';
 export const genreKey=s=>String(s||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
 export function genreTitle(track){
- let title=String(track.title||'').replace(/\s*\[[\w-]{11}\]$/,'').replace(/\s*[\[(](?:(?:4k|hd)\s+)?(?:official(?:\s+(?:music|audio|video|lyrics?|visuali[sz]er))*|music video|lyrics?(?: video)?|audio|visuali[sz]er|[^)\]]{1,35} release)[\])]/gi,'').replace(/\s+official (?:music video|lyric video|audio|visuali[sz]er)$/i,'').trim();
+ let title=String(track.title||'').replace(/\s*\[[\w-]{11}\]$/,'').replace(/\s*[\[(](?:(?:4k|hd)\s+)?(?:official(?:\s+(?:music|audio|video|lyrics?|visuali[sz]er))*|music\s*video|clip officiel|official m\.?v\.?|lyrics?(?: video)?|audio|visuali[sz]er|[^)\]]{1,35} release)[\])]/gi,'').replace(/\s+official (?:music video|lyric video|audio|visuali[sz]er)$/i,'').trim();
  const parts=title.split(/\s+[-–—]\s+/);if(parts.length>1&&[track.artist,...artistNames(track)].some(a=>genreKey(a)===genreKey(parts[0])))title=parts.slice(1).join(' - ');
  return title.replace(/\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s*[^)\]]+[)\]]/gi,'').replace(/\s+(?:feat\.?|ft\.?|featuring)\s*.*$/i,'').trim();
 }
@@ -32,6 +32,13 @@ export function genreSearchTracks(track){
  if(!genreArtists(track).length&&track.channel){const artist=track.channel.replace(/\s+-\s+Topic$/i,'').replace(/\s+official$/i,'').trim();if(artist)variants.push({...track,artist,artists:undefined,artistIds:undefined,channelCandidate:true});}
  const parts=String(track.rawTitle||'').split(/\s+[-–—]\s+/);
  if(parts.length===2&&track.duration>0&&genreKey(parts[0])===genreKey(track.artist)&&genreKey(parts[1])===genreKey(track.title))variants.push({...track,title:parts[0],artist:parts[1],artists:undefined,artistIds:undefined,rawTitle:parts[0]});
+ for(const candidate of [...variants]){
+  const names=genreArtists(candidate);if(names.length!==1||!(candidate.duration>0))continue;
+  const m=names[0].match(/^([^()[\]]+)\s*[([]([^()[\]]+)[)\]]$/);if(!m)continue;
+  const left=m[1].trim(),right=m[2].trim(),latin=s=>/^[\p{Script=Latin}\p{N}\p{P}\p{Zs}]+$/u.test(s);
+  if(latin(left)===latin(right))continue;
+  for(const artist of [left,right])variants.push({...candidate,artist,artists:undefined,artistIds:undefined});
+ }
  return variants;
 }
 export function localGenreCatalogue(tracks){

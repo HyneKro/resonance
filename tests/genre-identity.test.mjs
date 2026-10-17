@@ -1,11 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {genreArtists,genreTitle,sameGenreRecording} from '../public/genre-identity.js';
-import {genreTaxonomy} from '../genres.mjs';
+import {genreArtists,genreTitle,sameGenreRecording,genreSearchTracks} from '../public/genre-identity.js';
+import {genreTaxonomy,localGenreEvidence} from '../genres.mjs';
 import {genreStyle,flowingPosition,OrbitCamera,projectPoint,buildSpace} from '../public/constellation-space.js';
 import {skyDirection} from '../public/constellation-sky.js';
 const t={title:'Café (feat. Guest) [Official Audio]',artist:'Aster - Topic',duration:180};
+test('decorated source labels and bilingual recording queries recover evidence without guessing genres',()=>{
+ assert.deepEqual(localGenreEvidence({description:'🎵 Genre: Future Bounce\n• Styles：Artcore / Colour Bass\nI love House music'}).map(x=>x.name),['Future Bounce','Artcore','Colour Bass']);
+ assert.deepEqual(localGenreEvidence({sourceTags:['ElectronicMusic','FutureBounceMusic','MusicVideo']}).map(e=>e.name),['Electronic','Future Bounce']);
+ assert.deepEqual(localGenreEvidence({description:'My favourite genre: pop\nOur house is lovely'}),[]);
+ assert.equal(genreTitle({title:'Eclipse (MusicVideo) (Clip Officiel)'}),'Eclipse');
+ const song={artist:'KARDI(카디)',title:'WatchOut',duration:180};assert.deepEqual(genreSearchTracks(song).map(x=>x.artist),['KARDI(카디)','KARDI','카디']);
+ assert.equal(genreSearchTracks({...song,artist:'Aster (Official)'}).length,1);
+ assert.equal(genreSearchTracks({...song,metadataLocks:{artist:true}}).length,1);
+});
 test('genre identity handles featured credits, accents, reordered structured credits and upload suffixes',()=>{
  assert.equal(genreTitle(t),'Café');assert.deepEqual(genreArtists(t),['Aster','Guest']);
  assert.ok(sameGenreRecording(t,{title:'Cafe',artist:'Aster feat. Guest',duration:182}));

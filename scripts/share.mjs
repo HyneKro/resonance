@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {resedit} from '../node_modules/@electron/packager/dist/resedit.js';
+import {embedSkybox} from './skybox-assets.mjs';
 const root=process.cwd(),runtime=path.resolve(process.env.RESONANCE_RUNTIME_DIR||path.join(root,'desktop-build','Resonance-win32-x64'));
 const stamp=new Date().toISOString().replace(/[:.]/g,'-');
 const destination=path.join(root,'releases','Resonance-Portable-'+stamp),appDir=path.join(destination,'resources','app');
@@ -13,6 +14,7 @@ await fs.mkdir(appDir,{recursive:true});
 for(const name of ['locales','chrome_100_percent.pak','chrome_200_percent.pak','d3dcompiler_47.dll','dxcompiler.dll','dxil.dll','ffmpeg.dll','icudtl.dat','LICENSE','LICENSES.chromium.html','Resonance.exe','resources.pak','snapshot_blob.bin','v8_context_snapshot.bin','version','vk_swiftshader_icd.json','vk_swiftshader.dll','vulkan-1.dll'])await fs.cp(path.join(runtime,name),path.join(destination,name),{recursive:true});
 await resedit(path.join(destination,'Resonance.exe'),{iconPath:path.join(root,'public','icon.ico')});
 for(const name of ['audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
+await embedSkybox(root,path.join(appDir,'public'));
 await fs.cp(path.join(runtime,'resources','app','node_modules'),path.join(appDir,'node_modules'),{recursive:true});
 const pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));delete pkg.devDependencies;delete pkg.scripts;
 await fs.writeFile(path.join(appDir,'package.json'),JSON.stringify(pkg,null,2));
@@ -21,6 +23,8 @@ await fs.mkdir(path.join(appDir,'tools'));
 for(const name of ['yt-dlp.exe','ffmpeg.exe','ffprobe.exe','node.exe','yt-dlp-sha256.txt'])await fs.copyFile(path.join(root,'tools',name),path.join(appDir,'tools',name));
 await fs.writeFile(path.join(destination,'portable.flag'),'Resonance portable library\n');
 await fs.writeFile(path.join(destination,'START HERE.txt'),`RESONANCE
+
+Constellation sky: an optimized panorama from Space Skybox Collection 4 by Makemake, licensed through Fab for use within Resonance only. The purchased artwork is not part of the open source licence or available for standalone redistribution.
 
 Extract the whole folder to a writable location on your Windows computer.
 Open Resonance.exe. App updates are checked and downloaded automatically from github.com/HyneKro/resonance. Go to Settings → App updates to restart and install when ready. You can disable automatic checks/downloads there, or install a new portable ZIP manually. Your data folder stays intact. Keep it when updating; do not send your used data folder to anyone.
@@ -35,7 +39,7 @@ Update playlists checks connected online playlists. Spotify imports metadata, ne
 Music files play from their original locations. Artwork, metadata, listening history and
 settings are saved locally in the data folder next to Resonance.exe.
 
-Desktop audio listens live to sound from other Windows apps. Stop listening returns to your paused local queue; Resume music continues it.
+Desktop audio listens live to sound from other Windows apps. The top Stop listening button returns to your paused local queue. Include microphone adds your voice to the visual response without speaker monitoring.
 No audio is recorded or uploaded. Control desktop playback and volume in its source app or Windows.
 
 Settings → Playback & sound → Audio sync detects the current Windows output. Bluetooth uses the reported estimate; wired/USB outputs use zero automatic delay. Fine offsets and connection overrides are saved separately for each output.

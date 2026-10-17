@@ -5,7 +5,7 @@ import {artistNames} from './artist-credits.js';
 // a genre from their cover or sound measurements.
 export const GENRE_REGIONS=[
  {id:'ambient',name:'Ambient & slow',color:'#83e4d0',test:/ambient|drone|meditation|new age|chill|downtempo|lo.?fi/},
- {id:'electronic',name:'Electronic',color:'#b19aff',test:/electro|techno|trance|house|dance|edm|dubstep|drum.?and.?bass|drum.?&.?bass|dnb|jungle|breakcore|hardstyle|synthwave|neurofunk|garage|breakbeat|bass music|future bass|glitch|idm|chiptune|drumstep|riddim|complextro|hardwave|darksynth|retrowave|future funk/},
+ {id:'electronic',name:'Electronic',color:'#b19aff',test:/electro|techno|trance|house|dance|edm|dubstep|drum.?and.?bass|drum.?&.?bass|dnb|jungle|breakcore|hardstyle|synthwave|neurofunk|garage|breakbeat|bass music|future bass|glitch|idm|chiptune|drumstep|riddim|complextro|hardwave|darksynth|retrowave|future funk|future bounce|artcore|colour bass|color bass|melodic bass|futurecore/},
  {id:'rock',name:'Rock & metal',color:'#ff9a8e',test:/rock|metal|punk|industrial|grunge/},
  {id:'jazz',name:'Jazz & soul',color:'#efc778',test:/jazz|soul|r&b|blues|funk/},
  {id:'hiphop',name:'Hip-hop',color:'#f29bc5',test:/hip.?hop|\brap\b|\btrap\b|phonk/},
@@ -92,6 +92,18 @@ export function projectPoint(point,pose,width,height){
  if(depth<35)return null;
  const scale=Math.min(width,height*1.55)*1.12/depth;
  return {x:width/2+xx*scale,y:height/2+yy*scale,depth,scale};
+}
+// Clip a whole world-space connection, not its endpoint sprites. A route can
+// cross the view even when both stars are offscreen or one is behind the camera.
+export function projectSegment(a,b,pose,width,height){
+ const cy=Math.cos(pose.yaw),sy=Math.sin(pose.yaw),cp=Math.cos(pose.pitch),sp=Math.sin(pose.pitch);
+ const camera=p=>{const [x,y,z]=p.map((v,i)=>v-pose.center[i]),xx=x*cy-z*sy,zz=x*sy+z*cy;return [xx,y*cp-zz*sp,y*sp+zz*cp+1250/pose.zoom];};
+ let p=camera(a),q=camera(b);if(p[2]<35&&q[2]<35)return null;
+ if(p[2]<35||q[2]<35){const t=(35-p[2])/(q[2]-p[2]),cut=p.map((v,i)=>v+(q[i]-v)*t);if(p[2]<35)p=cut;else q=cut;}
+ const f=Math.min(width,height*1.55)*1.12,screen=v=>({x:width/2+v[0]*f/v[2],y:height/2+v[1]*f/v[2]});
+ p=screen(p);q=screen(q);const dx=q.x-p.x,dy=q.y-p.y;let lo=0,hi=1;
+ for(const [d,n] of [[-dx,p.x],[dx,width-p.x],[-dy,p.y],[dy,height-p.y]]){if(Math.abs(d)<1e-9){if(n<0)return null;continue;}const t=n/d;if(d<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);if(lo>hi)return null;}
+ return {a:{x:p.x+dx*lo,y:p.y+dy*lo},b:{x:p.x+dx*hi,y:p.y+dy*hi},start:lo,end:hi};
 }
 export function pickSphere(hits,x,y,touch=false){
  // The frontmost sphere wins overlapping silhouettes. Larger touch targets

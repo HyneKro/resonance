@@ -60,3 +60,6 @@ test-output/
 *.mp4
 !android/app/src/androidTest/assets/playback-tone.m4a
 !android/app/src/androidTest/assets/playback-tone.opus
+
+# Purchased source skybox pack stays private
+/skybox/

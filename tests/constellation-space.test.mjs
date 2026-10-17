@@ -39,7 +39,7 @@ test('picking chooses the visible front sphere before a wider touch target',()=>
 });
 test('drag, pinch, cancellation and lost capture never accidentally start a song',()=>{
  let played=[];const canvas={getBoundingClientRect:()=>({left:0,top:0}),setPointerCapture:()=>{},style:{}};
- const scene=Object.assign(Object.create(ConstellationScene.prototype),{canvas,camera:new OrbitCamera(),pointers:new Map(),hits:[{node:{id:'song'},x:100,y:100,radius:8,depth:100}],onSelect:id=>played.push(id)});
+ const scene=Object.assign(Object.create(ConstellationScene.prototype),{canvas,gestureRoot:{addEventListener(){}},camera:new OrbitCamera(),pointers:new Map(),hits:[{node:{id:'song'},x:100,y:100,radius:8,depth:100}],onSelect:id=>played.push(id)});
  const original=globalThis.window;globalThis.window={addEventListener:()=>{}};
  try{scene.bind();const e=(id,x,y,extra={})=>({pointerId:id,clientX:x,clientY:y,button:0,pointerType:'touch',stopPropagation(){},...extra});
   canvas.onpointerdown(e(1,100,100));canvas.onpointerup(e(1,100,100));assert.deepEqual(played,['song']);played=[];

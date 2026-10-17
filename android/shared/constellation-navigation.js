@@ -1,4 +1,13 @@
 import {neighbours,hash} from './constellation-model.js';
+import {genreStyle,artistSignature} from './constellation-space.js';
+import {fold} from './constellation-model.js';
+
+export function songTrail(track){
+ const path=[{id:'home',label:'All music'}];if(!track)return path;
+ const region=genreStyle(track),artist=artistSignature(track).names[0];
+ path.push({id:'genre:'+region.id,label:region.name});if(artist)path.push({id:'artist:'+fold(artist),label:artist});
+ path.push({id:'song:'+track.id,label:track.title});return path;
+}
 
 export const artistLabel=track=>track?.artist||track?.artists?.map(a=>a.name||a).join(', ')||track?.channel||'Artist not identified';
 export function refreshMapTrack(previous,track){

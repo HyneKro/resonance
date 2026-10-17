@@ -7,8 +7,8 @@ android {
         applicationId 'music.resonance.mobile'
         minSdk 29
         targetSdk 35
-        versionCode 27
-        versionName '0.9.0-preview'
+        versionCode 28
+        versionName '0.10.0-preview'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }
@@ -29,7 +29,22 @@ tasks.register('prepareMobileAssets', Copy) {
     from('../web')
     into(layout.buildDirectory.dir('generated/webAssets/web'))
 }
-tasks.named('preBuild').configure { dependsOn 'prepareMobileAssets' }
+tasks.register('prepareSkyboxAsset') {
+    dependsOn 'prepareMobileAssets'
+    def panorama = rootProject.file('../.private/skybox/mobile.webp')
+    def fallback = rootProject.file('shared/constellation-sky-texture.js')
+    def output = layout.buildDirectory.file('generated/webAssets/web/constellation-sky-texture.js')
+    // Always regenerate after Copy: removing the private asset must also remove
+    // the embedded rendition from the next public-source build.
+    doLast {
+        if (panorama.exists()) {
+            byte[] bytes = panorama.bytes
+            if (bytes.length > 4000000 || new String(bytes, 0, 4, 'US-ASCII') != 'RIFF' || new String(bytes, 8, 4, 'US-ASCII') != 'WEBP') throw new GradleException('Expected an optimized WebP panorama under 4 MB')
+            output.get().asFile.text = '// Space Skybox Collection 4 by Makemake. Licensed for use within Resonance only.\nexport const skyTexture = "data:image/webp;base64,' + bytes.encodeBase64().toString() + '";\n'
+        } else output.get().asFile.text = fallback.getText('UTF-8')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'prepareSkyboxAsset' }
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'

@@ -17,7 +17,7 @@ const families = {
   'House':['house'], 'Deep House':['deep house'], 'Progressive House':['progressive house'],
   'Tech House':['tech house'], 'Techno':['techno'], 'Minimal Techno':['minimal techno'],
   'Trance':['trance'], 'Psytrance':['psytrance','psychedelic trance'], 'Dubstep':['dubstep'],
-  'Future Bass':['future bass'], 'Bass Music':['bass music'], 'UK Garage':['uk garage'],
+  'Future Bounce':['future bounce'], 'Artcore':['artcore'], 'Colour Bass':['colour bass','color bass'], 'Melodic Bass':['melodic bass'], 'Future Core':['future core','futurecore'], 'Hyperpop':['hyperpop'], 'J-Rock':['j-rock','jrock'], 'Amapiano':['amapiano'], 'Afrobeats':['afrobeats'], 'Stutter House':['stutter house'], 'Future Bass':['future bass'], 'Bass Music':['bass music'], 'UK Garage':['uk garage'],
   'Breakbeat':['breakbeat','breakbeats'], 'Chillout':['chillout','chill out'],
   'Synthwave':['synthwave'], 'Retrowave':['retrowave'], 'Darksynth':['darksynth'],
   'Vaporwave':['vaporwave'], 'Phonk':['phonk'], 'Trap':['trap'], 'Glitch Hop':['glitch hop'],
@@ -50,7 +50,7 @@ export const genreTaxonomy=()=>Object.fromEntries(aliases);
 export function canonicalGenre(value,official=false){
   const s=String(value||'').trim();if(!s||s.length>65)return '';
   if(['music','entertainment','musicvideo','visualizer','officialvideo','officialaudio','audio','video','youtube','unknown','other','none','aggressive'].includes(normalize(s)))return '';
-  return aliases.get(normalize(s))||aliases.get(normalize(s.replace(/\s+(?:music|beats|songs)$/i,'')))||(official?s.replace(/\b\w/g,c=>c.toUpperCase()):'');
+  return aliases.get(normalize(s))||aliases.get(normalize(s).replace(/(?:music|beats|songs)$/,''))||(official?s.replace(/\b\w/g,c=>c.toUpperCase()):'');
 }
 export function providerGenres(entity){
   const values=[...(entity?.genres||[]).map(g=>({...g,official:true})),...(entity?.tags||[])];
@@ -61,7 +61,7 @@ export function localGenreEvidence(track){
   const add=(name,scope,source)=>{name=canonicalGenre(name);if(name&&!result.some(e=>e.name===name))result.push({name,scope,source,confidence:'descriptive'});};
   // Only explicit genre fields, hashtags, bracket labels, or genre-led mix titles.
   for(const tag of track.sourceTags||[])add(tag,'source','YouTube tags');
-  for(const m of (track.description||'').matchAll(/(?:^|\n)\s*(?:genre|style)\s*:\s*([^\n]+)/gi))for(const v of m[1].split(/[,;|/]/))add(v,'source','YouTube description');
+  for(const m of (track.description||'').matchAll(/(?:^|\n)[^\p{L}\p{N}\r\n]{0,12}(?:genres?|styles?)\s*[:：]\s*([^\r\n]+)/giu))for(const v of m[1].split(/[,;|/]/))add(v,'source','YouTube description');
   for(const m of (track.description||'').matchAll(/#([\p{L}\d_-]+)/gu))add(m[1],'source','YouTube hashtag');
   for(const m of (track.rawTitle||'').matchAll(/[\[(]([^\])]+)[\])]/g))for(const v of m[1].split(/[,;|/]/))add(v,'filename','Filename label');
   if(track.kind==='mix'){

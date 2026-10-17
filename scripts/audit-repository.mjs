@@ -9,7 +9,7 @@ const binary=/\.(?:png|webp|jpe?g|ico|jar|m4a|opus)$/i;
 for(const {name,revision} of entries){
  const object=git('rev-parse',revision+':'+name).toString().trim();
  if(checked.has(name+object))continue;checked.add(name+object);
- const forbidden=/(?:^|\/)(?:data|node_modules|releases|checkpoints|test-output|desktop-build|desktop-staging|\.toolchain|\.gradle|\.private|\.local-tools|\.aws|\.codex)(?:\/|$)/.test(name)||/^tools\//.test(name)||/^android\/(?:verification\/|.*\/build\/)/.test(name)||/(?:^|\/)(?:config\.json|local\.properties|cookies[^/]*|\.env(?:\..*)?)$/.test(name)&&!name.endsWith('.env.example')||/\.(?:sqlite(?:-.*)?|db(?:-.*)?|jks|keystore|p12|pfx|key|pem|exe|apk|zip|lnk|log)$/i.test(name);
+ const forbidden=/(?:^|\/)(?:data|node_modules|releases|checkpoints|test-output|skybox|desktop-build|desktop-staging|\.toolchain|\.gradle|\.private|\.local-tools|\.aws|\.codex)(?:\/|$)/.test(name)||/^tools\//.test(name)||/^android\/(?:verification\/|.*\/build\/)/.test(name)||/(?:^|\/)(?:config\.json|local\.properties|cookies[^/]*|\.env(?:\..*)?)$/.test(name)&&!name.endsWith('.env.example')||/\.(?:sqlite(?:-.*)?|db(?:-.*)?|jks|keystore|p12|pfx|key|pem|exe|apk|zip|lnk|log|uasset|uexp|ubulk|umap)$/i.test(name);
  if(forbidden){issues.push({file:name,reason:'Private/generated file must not be tracked'});continue;}
  const bytes=git('cat-file','blob',object);
  if(bytes.length>25*1024*1024)issues.push({file:name,reason:'Large file belongs outside source history'});

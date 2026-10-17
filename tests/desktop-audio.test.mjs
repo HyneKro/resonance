@@ -15,8 +15,8 @@ test('cancel during permission or connection never leaves a live capture behind'
 });
 test('loopback analysis never reaches speakers with nonzero gain and EQ is local only',()=>{
  const node=name=>({name,outputs:[],gain:{value:0,setTargetAtTime(){},cancelScheduledValues(){},setValueAtTime(v){this.value=v;}},connect(n){this.outputs.push(n);},disconnect(){this.outputs=[];}});
- const r={setPlaybackGain:Reactor.prototype.setPlaybackGain,source:node('local'),desktopSource:node('desktop'),analyser:node('fft'),midAnalyser:node('mid'),fastAnalyser:node('fast'),filters:[node('low'),node('mid'),node('high')],context:{currentTime:0,destination:node('speakers'),createGain:()=>node('silent')}};
- Reactor.prototype.eq.call(r,[3,0,-2]);assert.equal(r.analysisSink.gain.value,0);assert.deepEqual(r.desktopSource.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.analysisSink]);assert.deepEqual(r.filters[2].outputs,[r.levelGain]);assert.deepEqual(r.levelGain.outputs,[r.fadeGain]);assert.deepEqual(r.fadeGain.outputs,[r.context.destination]);
+ const r={setPlaybackGain:Reactor.prototype.setPlaybackGain,source:node('local'),desktopSource:node('desktop'),microphoneSource:node('microphone'),analyser:node('fft'),midAnalyser:node('mid'),fastAnalyser:node('fast'),filters:[node('low'),node('mid'),node('high')],context:{currentTime:0,destination:node('speakers'),createGain:()=>node('silent')}};
+ Reactor.prototype.eq.call(r,[3,0,-2]);assert.equal(r.analysisSink.gain.value,0);assert.deepEqual(r.desktopSource.outputs,[r.analyser]);assert.deepEqual(r.microphoneSource.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.analysisSink]);assert.deepEqual(r.filters[2].outputs,[r.levelGain]);assert.deepEqual(r.levelGain.outputs,[r.fadeGain]);assert.deepEqual(r.fadeGain.outputs,[r.context.destination]);
  r.desktopSource=null;Reactor.prototype.eq.call(r,[0,0,0]);assert.deepEqual(r.source.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.levelGain]);assert.deepEqual(r.fadeGain.outputs,[r.context.destination]);assert.deepEqual(r.analysisSink.outputs,[]);
 });
 test('native capture grants only a recent, single-use, user initiated top-frame Windows request',()=>{
@@ -49,4 +49,26 @@ test('Windows media keys and stale callbacks cannot restart local music during d
  media.update({desktop:true,metadata});assert.equal(session.metadata,null);assert.equal(session.playbackState,'none');assert.equal(handlers.play,null);oldPlay();assert.ok(!calls.includes('play'));
  media.update({desktop:true,metadata,playing:false});assert.equal(handlers.nexttrack,null);
  media.update({metadata,playing:false});assert.equal(session.metadata,metadata);assert.equal(session.playbackState,'paused');handlers.play();assert.equal(calls.at(-1),'play');
+});
+
+test('microphone joins analysis only; stopping capture or cancelling permission releases every track',async()=>{
+ const f=fixture();f.capture.bridge.prepareDesktopMicrophone=async()=>{};f.reactor.setMicrophoneStream=s=>f.reactor.mic=s;
+ await f.capture.start();let resolve;f.mediaDevices.getUserMedia=()=>new Promise(r=>resolve=r);
+ const micTrack={readyState:'live',stop(){this.readyState='ended';},addEventListener(){}};
+ const mic={getAudioTracks:()=>[micTrack],getTracks:()=>[micTrack]};
+ const pending=f.capture.microphone(true);await Promise.resolve();f.capture.stop();resolve(mic);await pending;
+ assert.equal(micTrack.readyState,'ended');assert.equal(f.reactor.mic,null);
+ const g=fixture();g.capture.bridge.prepareDesktopMicrophone=async()=>{};g.reactor.setMicrophoneStream=s=>g.reactor.mic=s;g.mediaDevices.getUserMedia=async()=>{throw Error('denied');};
+ await g.capture.start();await assert.rejects(g.capture.microphone(true),/denied/);assert.equal(g.capture.state,'listening');assert.equal(g.audioTrack.readyState,'live');g.capture.stop();
+});
+
+test('microphone permission is audio-only, top-frame, short-lived, and requires active desktop listening',()=>{
+ const h={},session={setPermissionCheckHandler:f=>h.check=f,setPermissionRequestHandler:f=>h.permission=f,setDisplayMediaRequestHandler:f=>h.display=f},frame={url:'http://127.0.0.1:38723/'},wc={session,mainFrame:frame,getURL:()=>frame.url},win={webContents:wc,on(){}},ipcMain={handle:(_c,f)=>h.ipc=f,removeHandler(){}};let now=100;
+ installDesktopAudio({ipcMain,win,url:frame.url,platform:'win32',now:()=>now});const event={sender:wc,senderFrame:frame},origin='http://127.0.0.1:38723';
+ assert.throws(()=>h.ipc(event,'prepare-microphone'),/Start desktop/);h.ipc(event,'prepare');h.display({frame,securityOrigin:origin,audioRequested:true,userGesture:true},()=>{});h.ipc(event,'disarm');h.ipc(event,'prepare-microphone');
+ assert.equal(h.check(wc,'media',origin,{isMainFrame:true,mediaType:'audio'}),true);assert.equal(h.check(wc,'media',origin,{isMainFrame:true,mediaType:'video'}),false);assert.equal(h.check(wc,'media','https://example.com',{isMainFrame:true,mediaType:'audio'}),false);
+ let granted;h.permission(wc,'media',v=>granted=v,{requestingUrl:frame.url,isMainFrame:true,mediaTypes:['video','audio']});assert.equal(granted,false);
+ h.permission(wc,'media',v=>granted=v,{requestingUrl:frame.url,isMainFrame:true,mediaTypes:['audio']});assert.equal(granted,true);
+ h.permission(wc,'media',v=>granted=v,{requestingUrl:frame.url,isMainFrame:true,mediaTypes:['audio']});assert.equal(granted,false);
+ h.ipc(event,'prepare-microphone');now+=6000;assert.equal(h.check(wc,'media',origin,{mediaType:'audio',isMainFrame:true}),false);h.ipc(event,'stop');assert.throws(()=>h.ipc(event,'prepare-microphone'));
 });

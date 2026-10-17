@@ -5,6 +5,22 @@ import java.util.*;
 import static org.junit.Assert.*;
 
 public class GenreResearchTest {
+ @Test public void decoratedLabelsAndBilingualNamesStayIntact(){
+  JSONObject t=Json.object("id","x","artist","KARDI(카디)","title","Eclipse (MusicVideo) (Clip Officiel)","description","🎵 Genre: Future Bounce\n• Styles：Artcore / Colour Bass");
+  assertEquals(List.of("KARDI(카디)"),GenreResearch.artists(t));assertEquals("Eclipse",GenreResearch.title(t));
+  GenreResearch r=new GenreResearch(url->new JSONObject(),Json.object("futurebounce","Future Bounce","artcore","Artcore","colourbass","Colour Bass"));
+  r.seed(new JSONArray().put(t));assertEquals("Future Bounce, Artcore, Colour Bass",t.optString("genre"));
+ }
+ @Test public void wikidataGenresAreOnlyArtistSuggestionsFromVerifiedArtistRelations(){
+  GenreResearch r=new GenreResearch(url->{
+   if(url.contains("/artist?"))return Json.object("artists",new JSONArray().put(Json.object("id",A,"name","Aster","score",100)));
+   if(url.contains("/artist/"))return Json.object("relations",new JSONArray().put(Json.object("type","wikidata","url",Json.object("resource","https://www.wikidata.org/wiki/Q1"))));
+   if(url.endsWith("/Q1.json"))return Json.object("entities",Json.object("Q1",Json.object("claims",Json.object("P136",new JSONArray().put(Json.object("mainsnak",Json.object("datavalue",Json.object("value",Json.object("id","Q2")))))))));
+   if(url.endsWith("/Q2.json"))return Json.object("entities",Json.object("Q2",Json.object("labels",Json.object("en",Json.object("value","ambient")))));
+   return new JSONObject();
+  },taxonomy());
+  JSONObject result=r.discover(Json.object("title","Night","artist","Aster","genre",""));assertEquals("Ambient",result.optString("genre"));assertEquals("artist",result.optString("genreBasis"));assertEquals("Wikidata",result.optJSONArray("genreEvidence").optJSONObject(0).optString("source"));
+ }
  private static final String R="11111111-1111-1111-1111-111111111111",A="22222222-2222-2222-2222-222222222222",L="33333333-3333-3333-3333-333333333333",G="44444444-4444-4444-4444-444444444444";
  private JSONObject song(){return Json.object("id","song","title","Cafe (feat. Guest) [Official Audio]","artist","Aster - Topic","duration",180,"genre","");}
  private JSONObject taxonomy(){return Json.object("neurofunk","Neurofunk","electronic","Electronic","ambient","Ambient");}
