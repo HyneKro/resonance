@@ -31,7 +31,7 @@ function updateTimeline(){paintTimeline({duration:current()?.duration||audio.dur
 const state={tracks:[],sources:[],playlists:[],prefs:{...defaults},view:'',filter:'all',search:'',sort:'playlist',active:true,limit:60,detail:null,destination:{},revision:0,previewRevision:0,jobs:{scan:{},downloads:{}}};
 let saveTimer,analysisTimer,statusTimer,selectedDownloads=[],discoveryId='',artKey='',pollGeneration=0,discovering=false;
 const current=()=>state.tracks.find(t=>t.id===audio.snapshot.id),toast=message=>{const host=$('#sheet').open?$('#sheet'):document.body;host.append($('#toasts'));const n=document.createElement('div');n.className='toast';n.textContent=message;$('#toasts').append(n);setTimeout(()=>n.remove(),5000);},safe=fn=>(...args)=>{try{return Promise.resolve(fn(...args)).catch(e=>toast(e.message));}catch(e){toast(e.message);}};
-installAppUpdateUI({request:(action,preferences)=>rpc('appUpdate',{action,preferences}),host:()=>$('#app-update-slot'),active:()=>state.view==='settings-updates',toast,platform:'android'});
+installAppUpdateUI({request:(action,preferences)=>rpc('appUpdate',{action,preferences}),host:()=>$('#app-update-slot'),active:()=>state.view==='settings-updates',toast,platform:'android',openUpdates:()=>settings('updates')});
 const sona=installDanceCompanion({reactor,audio,savePosition:position=>preferences({dancePosition:position}),onError:()=>toast('Sona could not load. Try reopening the app.')});
 const palette=new ArtworkPalette({read:async key=>JSON.parse(localStorage.getItem('palette:'+key)||'null'),write:async(key,colors)=>{localStorage.setItem('palette:'+key,JSON.stringify({version:2,colors}));if(localStorage.length>150){for(const key of Object.keys(localStorage).filter(k=>k.startsWith('palette:')).slice(0,20))localStorage.removeItem(key);}},decode:decodeArtwork,onChange:colors=>{reactor.coverColors=colors;applyInterfaceAccent(colors,true);}});
 const cover=t=>t?.artwork?`<img class="cover" src="/artwork/${encodeURIComponent(t.artwork)}" alt="" loading="lazy">`:'<span aria-hidden="true">♫</span>';
@@ -96,7 +96,7 @@ function visuals(){
  const root=$('#sheet-body');sectionTabs(root,[['style','Style',[root.querySelector('[data-visual-group=style]')]],['motion','Motion',[root.querySelector('[data-visual-group=motion]')]],['display','Display',[root.querySelector('[data-visual-group=display]')]],['extras','Extras',[root.querySelector('[data-visual-group=extras]')]]],{label:'Visual settings sections'});
 }
 async function settings(page='home'){
- if(typeof page!=='string')page='home';if(page==='visuals'){visuals();return;}
+ if(typeof page!=='string')page='home';
  const [title,body]=settingsPage(page,{prefs:state.prefs,toggle,slider,select,capturing:audio.snapshot.capturing,discovering});
  sheet(title,'<div class="stack">'+body+'</div>',page==='home'?'settings':'settings-'+page);
  if(page==='playback'){const root=$('#sheet-body'),groups=root.querySelector('.stack');sectionTabs(groups,[['playback','Playback',[groups.querySelector('[data-sound-group=playback]')]],['sync','Audio sync',[groups.querySelector('[data-sound-group=sync]')]],['interface','Interface',[groups.querySelector('[data-sound-group=interface]')]]],{label:'Sound settings sections',scroller:root});}

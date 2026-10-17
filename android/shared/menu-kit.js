@@ -1,7 +1,6 @@
 // Shared menu language and navigation for the desktop and phone interfaces.
 export const SETTINGS_SECTIONS = [
   ['playback', 'Playback & sound', 'Loudness, silent edges, equalizer and audio sync', 'sound'],
-  ['visuals', 'Visuals & Sona', 'Track character, motion, camera and display', 'visuals'],
   ['library', 'Library & downloads', 'Add music, update playlists and find missing details', 'library'],
   ['storage', 'Storage', 'Music size, artwork and space on this device', 'storage'],
   ['updates', 'App updates', 'Check, download and install the latest version', 'updates'],

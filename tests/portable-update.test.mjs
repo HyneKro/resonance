@@ -26,7 +26,7 @@ test('portable update preserves personal data/config and saves replaced files',a
 
 test('hidden helper acknowledges startup, survives parent exit and completes the update',async()=>{
  const f=await fixture(),executable=path.join(f.source,'Resonance.exe');await fs.unlink(executable);
- const code='public class Probe { public static void Main(){string root=System.AppDomain.CurrentDomain.BaseDirectory;System.IO.File.WriteAllText(System.IO.Path.Combine(root,"relaunched.txt"),System.IO.File.ReadAllText(System.IO.Path.Combine(root,"resources/app/package.json")));}}';
+ const code='public class Probe { [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct Startup {public int cb;public System.IntPtr reserved,desktop,title;public int x,y,xSize,ySize,xChars,yChars,fill,flags;public short showWindow,reserved2;public System.IntPtr reservedPtr,input,output,error;} [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern void GetStartupInfo(out Startup info);public static void Main(string[] args){Startup info;GetStartupInfo(out info);string root=System.AppDomain.CurrentDomain.BaseDirectory;System.IO.File.WriteAllText(System.IO.Path.Combine(root,"window.txt"),info.showWindow+"|"+string.Join(" ",args));System.IO.File.WriteAllText(System.IO.Path.Combine(root,"relaunched.txt"),System.IO.File.ReadAllText(System.IO.Path.Combine(root,"resources/app/package.json")));}}';
  await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Add-Type -TypeDefinition ${quote(code)} -OutputAssembly ${quote(executable)} -OutputType WindowsApplication`],{windowsHide:true});
  const binary=await fs.readFile(executable);Object.assign(f.manifest.files.find(x=>x.path==='Resonance.exe'),{bytes:binary.length,sha256:createHash('sha256').update(binary).digest('hex')});
  await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
@@ -36,6 +36,7 @@ test('hidden helper acknowledges startup, survives parent exit and completes the
  assert.ok(report,'helper wrote a result');assert.equal(report.ok,true,report.error);
  let launched;for(let i=0;i<50;i++){try{launched=JSON.parse(await fs.readFile(path.join(f.dest,'relaunched.txt'),'utf8'));break;}catch{}await new Promise(r=>setTimeout(r,100));}
  assert.equal(launched?.version,'1.1.0','the helper automatically launched the newly installed executable');
+ assert.equal(await fs.readFile(path.join(f.dest,'window.txt'),'utf8'),'1|--updated','the new app is launched with SW_SHOWNORMAL, not SW_HIDE');
  assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
 });
 

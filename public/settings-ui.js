@@ -1,9 +1,8 @@
 import {settingsHub,sectionTabs} from './menu-kit.js';
 import {storageCard,mountStorage} from './storage-ui.js';
-export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress,openVisuals}){
+export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress}){
  const card=(title,body)=>`<section class="settings-card"><h2>${title}</h2>${body}</section>`;
  function open(page='home'){
-  if(page==='visuals'){closeDialog();openVisuals();return;}
   if(page==='playback'){soundDialog();return;}
   if(page==='home'){showDialog('Settings','',settingsHub());return;}
   if(page==='library'){

@@ -1,6 +1,10 @@
-# Resonance for Android — 0.3.0 preview
+# Resonance for Android — 0.3.1 preview
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
+
+## Windows 1.3.1 / Android 0.3.1 · startup and update repairs
+
+Saved queues can reopen safely before audio analysis has started. The missing analysis progress and older listening-time fields now use valid defaults. General Settings has five destinations; Visuals & Sona remains on the listening screen. Both platforms show a persistent arrow when an update is ready. Windows also reopens visibly after updating. See [release notes](../docs/release-notes/android-0.3.1.md) for checks and device-testing limits.
 
 ## Windows 1.3.0 / Android 0.3.0 · clearer menus
 

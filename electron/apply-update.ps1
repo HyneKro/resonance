@@ -45,4 +45,5 @@ try {
  for($i=$applied.Count-1;$i -ge 0;$i--){try{$file=$applied[$i];$target=SafePath $root $file.path;if($file.existed){Copy-Item -LiteralPath (SafePath $backup $file.path) -Destination $target -Force}else{Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue}}catch{$restoreErrors+=$_.Exception.Message}}
  @{ok=$false;error=$problem;rollbackErrors=$restoreErrors;backup=$backup} | ConvertTo-Json | Set-Content -LiteralPath $status -Encoding UTF8
 }
-if(-not $NoLaunch){Start-Process -FilePath (Join-Path $root 'Resonance.exe') -WorkingDirectory $root -WindowStyle Hidden}
+# The helper stays hidden; the player is the interactive window the user requested.
+if(-not $NoLaunch){Start-Process -FilePath (Join-Path $root 'Resonance.exe') -ArgumentList '--updated' -WorkingDirectory $root -WindowStyle Normal}

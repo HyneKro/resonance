@@ -4,20 +4,21 @@ const {installPortableUpdate}=require('./portable-update.cjs');
 const {installSonaWindow}=require('./sona-window.cjs');
 const {installAudioOutput}=require('./audio-output.cjs');
 const {installDesktopAudio}=require('./desktop-audio.cjs');
+const {showMainWindow,showWhenReady}=require('./window-activation.cjs');
 const path = require('node:path');
 const fs = require('node:fs');
 let win, service;
 const portableRoot=path.dirname(process.execPath);
 if(app.isPackaged&&fs.existsSync(path.join(portableRoot,'portable.flag'))){const profile=path.join(portableRoot,'data','browser');fs.mkdirSync(profile,{recursive:true});app.setPath('userData',profile);}
 if(!app.requestSingleInstanceLock())app.exit(0);
-app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});
+app.on('second-instance',()=>showMainWindow(win));
 app.setAppUserModelId('local.resonance.music');
 app.whenReady().then(async()=>{
   const root=path.resolve(__dirname,'..');
   const exeDir=path.dirname(process.execPath);
   const dataDir=app.isPackaged?fs.existsSync(path.join(exeDir,'portable.flag'))?path.join(exeDir,'data'):path.join(exeDir,'..','..','data'):path.join(root,'data');
   win=new BrowserWindow({width:1520,height:980,minWidth:760,minHeight:620,title:'Resonance',titleBarStyle:'hidden',titleBarOverlay:{color:'#00000000',symbolColor:'#eee5fa',height:32},backgroundColor:'#111015',autoHideMenuBar:true,icon:path.join(root,'public','icon.ico'),show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});
-  win.once('ready-to-show',()=>win.show());
+  showWhenReady(win);
   try {
     await win.loadFile(path.join(root,'public','startup.html'));
     const { startServer } = await import(require('node:url').pathToFileURL(path.join(root,'server.mjs')).href);

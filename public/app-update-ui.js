@@ -1,5 +1,5 @@
 /** Native clients own networking, file verification and installation. */
-export function installAppUpdateUI({request,subscribe,host,active,toast,platform='pc',manualInstall}){
+export function installAppUpdateUI({request,subscribe,host,active,toast,platform='pc',manualInstall,openUpdates}){
  let current=null,lastReady='',pending=false;
  const call=async(action,data)=>{try{pending=true;const value=await request(action,data);if(value)update(value);}catch(e){toast(e.message||'Could not complete the update request.');}finally{pending=false;}};
  function mount(){const parent=host();if(!active()||!parent||parent.querySelector('[data-app-updates]'))return;
@@ -17,7 +17,11 @@ export function installAppUpdateUI({request,subscribe,host,active,toast,platform
   for(const input of card.querySelectorAll('[data-app-update-pref]'))input.checked=s[input.dataset.appUpdatePref]!==false;
   card.querySelector('[data-app-release-notes]').hidden=!s.release?.notes;card.querySelector('[data-app-release-text]').textContent=s.release?.notes||'';
  }
- function update(value){current=value;for(const card of document.querySelectorAll('[data-app-updates]'))render(card);if(value.phase==='ready'&&value.release?.version!==lastReady){lastReady=value.release?.version;toast('Resonance '+lastReady+' is ready. Open Settings → App updates to install.');}}
+ function update(value){current=value;for(const card of document.querySelectorAll('[data-app-updates]'))render(card);
+  const ready=value.phase==='ready'&&value.canInstall!==false&&!!value.release?.version;
+  for(const button of document.querySelectorAll('[data-update-ready]')){button.hidden=!ready;button.setAttribute('aria-label',ready?'Version '+value.release.version+' is ready to install. Open app updates.':'App updates');}
+  if(ready&&value.release.version!==lastReady){lastReady=value.release.version;toast('Resonance '+lastReady+' is ready. Tap the update arrow to install.');}}
+ document.addEventListener('click',e=>{if(e.target.closest('[data-update-ready]'))openUpdates?.();});
  subscribe?.(update);
  new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});mount();void call('status');
  if(!subscribe)setInterval(()=>{if(!document.hidden&&!pending)void call('status');},4000);
