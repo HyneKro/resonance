@@ -31,8 +31,8 @@ Git stores source history. Compiled portable ZIPs and APKs belong in GitHub Rele
 The helper below verifies that the repository is private, checks for personal data in Windows archives, writes SHA-256 checksums and uploads a **draft** release using the official GitHub CLI. An existing release is never overwritten automatically. Supply notes for the build being uploaded:
 
 ```powershell
-./scripts/publish-release.ps1 -Platform pc -File releases/Resonance-PC-1.1.3-portable.zip -Notes docs/releases/pc-1.1.3.md
-./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.11-preview.apk -Notes docs/releases/android-0.1.11.md
+./scripts/publish-release.ps1 -Platform pc -File releases/Resonance-PC-1.1.3-portable.zip -Notes docs/release-notes/pc-1.1.3.md
+./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.11-preview.apk -Notes docs/release-notes/android-0.1.11.md
 ```
 
 Review the draft on GitHub and publish when ready. `-Publish` publishes after the upload when intentionally requested. For Android, independently verify the package ID, versionCode and signing certificate before using this upload helper.

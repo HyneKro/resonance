@@ -13,19 +13,20 @@ $repository='HyneKro/resonance'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip=[IO.Compression.ZipFile]::OpenRead($archive.FullName)
 try{
+ $entries=@{};foreach($item in $zip.Entries){$entries[$item.FullName.Replace('\','/')]=$item}
  if($Platform -eq 'pc'){
   if($archive.Extension -ne '.zip'){throw 'Choose a clean Windows portable ZIP.'}
-  $entry=@($zip.Entries | Where-Object FullName -match '(^|/)resonance-update.json$')
+  $entry=@($zip.Entries | Where-Object { $_.FullName.Replace('\','/') -match '(^|/)resonance-update.json$' })
   if($entry.Count -ne 1){throw 'Portable update manifest missing or ambiguous.'}
   $reader=[IO.StreamReader]::new($entry[0].Open());try{$manifest=$reader.ReadToEnd() | ConvertFrom-Json}finally{$reader.Dispose()}
   $version=$manifest.version
   if($manifest.product -ne 'resonance-portable' -or $manifest.schema -ne 1){throw 'Unsupported portable update.'}
-  $prefix=$entry[0].FullName.Substring(0,$entry[0].FullName.Length-'resonance-update.json'.Length)
-  $configEntry=$zip.GetEntry($prefix+'resources/app/config.json')
+  $prefix=$entry[0].FullName.Replace('\','/').Substring(0,$entry[0].FullName.Length-'resonance-update.json'.Length)
+  $configEntry=$entries[$prefix+'resources/app/config.json']
   if(!$configEntry){throw 'Clean source configuration missing.'}
   $reader=[IO.StreamReader]::new($configEntry.Open());try{$config=$reader.ReadToEnd() | ConvertFrom-Json}finally{$reader.Dispose()}
   if(@($config.sources).Count -ne 0 -or @($config.psobject.Properties.Name | Where-Object {$_ -notin @('sources','downloadFormat','autoEnrich','autoGenres')}).Count){throw 'This archive contains personalized configuration.'}
-  foreach($item in $zip.Entries){if($item.FullName -match '(^|/)(data|\.updates|\.git)(/|$)|cookies|\.(sqlite|db|jks|keystore|pem|key)$'){throw 'Personal data or credentials found in portable archive.'}}
+  foreach($name in $entries.Keys){if($name -match '(^|/)(data|\.updates|\.git)(/|$)|cookies|\.(sqlite|db|jks|keystore|pem|key)$'){throw 'Personal data or credentials found in portable archive.'}}
  }else{
   if($archive.Name -notmatch '^Resonance-Android-(\d+\.\d+\.\d+(?:-[\w.]+)?)\.apk$'){throw 'Choose a versioned Resonance Android APK.'}
   $version=$Matches[1]
