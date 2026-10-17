@@ -46,7 +46,7 @@ public final class MainActivity extends Activity {
         if(!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){new AlertDialog.Builder(this).setMessage("Update Android System WebView to use Resonance.").setPositiveButton("Close",(d,w)->finish()).show();return;}
         WebViewCompat.addWebMessageListener(web,"ResonanceNative",Set.of(ORIGIN),(view,message,origin,main,reply)->{
             if(!main||!trusted(origin))return;String text=message.getData();if(text==null||text.length()>1_000_000)return;JSONObject request=Json.parse(text);String id=request.optString("id");
-            ExecutorService executor=Set.of("research","search","lyricsSearch","syncMatch","updateDownloader","pickFolder","pickDestination","captureStart").contains(request.optString("action"))?app.io:app.bridge;
+            ExecutorService executor=Set.of("researchGenres","research","search","lyricsSearch","syncMatch","updateDownloader","pickFolder","pickDestination","captureStart").contains(request.optString("action"))?app.io:app.bridge;
             executor.execute(()->{JSONObject result;try{result=Json.object("id",id,"value",handle(request.optString("action"),request.optJSONObject("data")==null?new JSONObject():request.optJSONObject("data")));}catch(Exception e){result=Json.object("id",id,"error",Json.error(e));}JSONObject response=result;app.main.post(()->{if(!isDestroyed())reply.postMessage(response.toString());});});
         });
         controller=new MediaController.Builder(this,new SessionToken(this,new ComponentName(this,PlaybackService.class))).buildAsync();
@@ -116,6 +116,7 @@ public final class MainActivity extends Activity {
             case "songProfile":return app.songAnalysis.status(data.optString("id"));
             case "analyzeSong":return app.songAnalysis.request(data.optString("id"),data.optBoolean("force"),data.optBoolean("priority"));
             case "listeningEdit":return app.songAnalysis.edit(data.optString("id"),data);
+            case "researchGenres":return app.research.genres(data.optString("id"));
             case "research":return app.research.discover(data.optString("id"),data.optBoolean("force"));
             case "search":{String id=data.optString("id");JSONObject original=lib.track(id),query=Json.parse(original.toString());for(String field:List.of("artist","title"))if(data.has(field))Json.put(query,field,data.optString(field));JSONArray candidates=app.research.search(query);lib.setting("recordingSearch:"+id,Json.object("candidates",candidates,"stamp",MetadataEdits.snapshot(original)));return candidates;}
             case "recordingApply":{String id=data.optString("id");JSONObject saved=lib.setting("recordingSearch:"+id);if(saved.optJSONObject("stamp")==null||!MetadataEdits.snapshot(lib.track(id)).toString().equals(saved.optJSONObject("stamp").toString()))throw new IOException("Details changed. Search again.");JSONObject candidate=saved.getJSONArray("candidates").getJSONObject(data.getInt("index")),patch=MetadataEdits.choose(candidate,data.optJSONArray("fields"));Json.put(patch,"id",id);return lib.edit(patch);}

@@ -110,7 +110,7 @@ public final class LibraryStore extends SQLiteOpenHelper {
         try(MediaMetadataRetriever m=new MediaMetadataRetriever()){
             m.setDataSource(context,uri);
             int[] keys={MediaMetadataRetriever.METADATA_KEY_TITLE,MediaMetadataRetriever.METADATA_KEY_ARTIST,MediaMetadataRetriever.METADATA_KEY_ALBUM,MediaMetadataRetriever.METADATA_KEY_GENRE,MediaMetadataRetriever.METADATA_KEY_DATE};String[] fields={"title","artist","album","genre","date"};
-            for(int i=0;i<keys.length;i++){String v=m.extractMetadata(keys[i]);if(v!=null&&!v.isBlank()&&old.length()==0)Json.put(t,fields[i],v);}
+            for(int i=0;i<keys.length;i++){String v=m.extractMetadata(keys[i]);if(v!=null&&!v.isBlank()&&old.length()==0){Json.put(t,fields[i],v);if(fields[i].equals("genre")){Json.put(t,"genreBasis","track");Json.put(t,"genreEvidence",new JSONArray().put(Json.object("name",v,"scope","embedded","source","Embedded tags","confidence","existing")));}}}
             String duration=m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);if(duration!=null)Json.put(t,"duration",Long.parseLong(duration)/1000d);
             String mime=m.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);Json.put(t,"codec",mime==null?name.substring(name.lastIndexOf('.')+1).toUpperCase(Locale.ROOT):mime.replace("audio/",""));
             byte[] cover=m.getEmbeddedPicture();if(cover!=null){cacheCover(key,cover);Json.put(t,"artwork",key+".jpg");}

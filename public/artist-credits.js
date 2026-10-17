@@ -9,7 +9,7 @@ export function splitArtistCredit(credit){
  }));
 }
 export function artistNames(track){
- if(track.metadataStatus==='manual')return splitArtistCredit(track.artist);
+ if(track.metadataStatus==='manual'||track.metadataLocks?.artist)return splitArtistCredit(track.artist);
  if(track.artists?.length)return unique(track.artists);
  return splitArtistCredit(track.artist);
 }

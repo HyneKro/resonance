@@ -1,8 +1,10 @@
-import {normalize,searchArtist,searchTitle,matchScore} from './metadata.mjs';
-export const GENRE_RESEARCH_VERSION=3;
+import {sameGenreRecording,genreTitle,genreArtists} from './public/genre-identity.js';
+export const GENRE_RESEARCH_VERSION=4;
 export function trustedRecording(track,candidates=[]){
- const matches=candidates.filter(c=>normalize(searchTitle(track.title,track.artist))===normalize(searchTitle(c.title,c.artist))&&normalize(searchArtist(track.artist))===normalize(searchArtist(c.artist))&&matchScore(track,c)>=.8&&(!track.duration||!c.duration||Math.abs(track.duration-c.duration)<=5));
+ const matches=candidates.filter(c=>sameGenreRecording(track,c));
  if(!matches.length)return null;
+ const identities=new Set(matches.map(c=>c.artistIds?.[0]?.id).filter(Boolean));
+ if(identities.size>1)return null;
  // Different recordings of an identical artist/title can share genre evidence;
  // explicit remixes and incompatible durations never cross this boundary.
  return matches.sort((a,b)=>b.confidence-a.confidence)[0];
@@ -26,7 +28,7 @@ export function catalogueGenre(track,results=[]){
 let catalogueQueue=Promise.resolve(),catalogueAt=0;
 export function searchCatalogue(track){
  const task=async()=>{await new Promise(r=>setTimeout(r,Math.max(0,catalogueAt-Date.now())));catalogueAt=Date.now()+3200;
-  const query=new URLSearchParams({term:searchArtist(track.artist)+' '+searchTitle(track.title,track.artist),country:'US',media:'music',entity:'song',limit:'12'});
+  const query=new URLSearchParams({term:(genreArtists(track)[0]||track.artist)+' '+genreTitle(track),country:'US',media:'music',entity:'song',limit:'25'});
   const response=await fetch('https://itunes.apple.com/search?'+query,{signal:AbortSignal.timeout(15000)});
   if(response.status===429)catalogueAt=Date.now()+Math.max(60000,(Number(response.headers.get('retry-after'))||60)*1000);
   if(!response.ok)throw Error('Apple catalogue returned '+response.status);

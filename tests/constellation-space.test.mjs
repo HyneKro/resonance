@@ -47,10 +47,11 @@ test('drag, pinch, cancellation and lost capture never accidentally start a song
   canvas.onpointerdown(e(1,100,100));canvas.onpointerdown(e(2,160,160));canvas.onpointerup(e(2,160,160));canvas.onpointerup(e(1,100,100));assert.equal(played.length,0);
   canvas.onpointerdown(e(1,100,100));canvas.onpointercancel();canvas.onpointerup(e(1,100,100));assert.equal(played.length,0);
   canvas.onpointerdown(e(1,100,100));canvas.onlostpointercapture(e(1,100,100));canvas.onpointerup(e(1,100,100));assert.equal(played.length,0);
+  const before=[...scene.camera.center],yaw=scene.camera.yaw;canvas.onpointerdown(e(1,100,100,{button:2,pointerType:'mouse'}));canvas.onpointermove(e(1,150,130,{button:2,pointerType:'mouse'}));canvas.onpointerup(e(1,100,100,{button:2,pointerType:'mouse'}));assert.equal(played.length,0);assert.notDeepEqual(scene.camera.center,before);assert.equal(scene.camera.yaw,yaw);
  }finally{globalThis.window=original;}
 });
 test('map mode only suspends graphics and preserves both existing viewing modes in each runtime',async()=>{
  const reactor=await fs.readFile('public/reactor.js','utf8'),method=reactor.slice(reactor.indexOf('  setSceneSuspended'),reactor.indexOf('  start(){'));
  assert.doesNotMatch(method,/\.pause\(|\.dispose\(|this\.musicOnly\s*=/);assert.match(method,/cancelAnimationFrame/);
- for(const name of ['constellation.js','constellation-space.js','constellation-scene.js','constellation-model.js','constellation.css','artist-credits.js','reactor.js','dance-companion.js'])assert.equal(await fs.readFile('public/'+name,'utf8'),await fs.readFile('android/shared/'+name,'utf8'),name);
+ for(const name of ['constellation.js','constellation-space.js','constellation-scene.js','constellation-sky.js','constellation-model.js','constellation.css','artist-credits.js','reactor.js','dance-companion.js'])assert.equal(await fs.readFile('public/'+name,'utf8'),await fs.readFile('android/shared/'+name,'utf8'),name);
 });

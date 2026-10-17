@@ -109,6 +109,7 @@ public final class Downloads {
             catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
             File[] files=app.library.music.listFiles((dir,name)->name.startsWith(video+".")&&LibraryStore.isAudio(name));if(files==null||files.length==0)throw new DownloadBatch.RecordingUnavailable("No usable audio file was returned. Try updating the downloader before retrying this song.");File file=files[0];JSONObject info=new JSONObject();File infoFile=new File(app.library.music,video+".info.json");if(infoFile.isFile())info=Json.parse(new String(java.nio.file.Files.readAllBytes(infoFile.toPath()),StandardCharsets.UTF_8));
             JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
+            GenreResearch.sourceLabels(supplied,info);
             JSONObject track;
             if(!destination.optString("uri").isEmpty()){
                 publish(true,"saving","Saving "+title+" to "+destination.optString("name"),done,total,100);

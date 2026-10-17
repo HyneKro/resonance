@@ -45,7 +45,7 @@ test('manual lyric choice wins over an automatic lookup already in flight',async
 });
 test('genre completion, fresh retries, protected edits and missing metadata save accurately',async()=>{
  const dir=await fs.mkdtemp(path.resolve('test-output/discovery-')),lib=new Library(process.cwd(),dir);try{
-  const current={...track,available:true,genre:'',genreResearchVersion:3,genreLocalVersion:1,genreCheckedAt:Date.now(),genreArtistAt:Date.now(),metadataStatus:'embedded'};lib.save(current);let calls=0;lib.genres.artistEvidence=async()=>{calls++;return [];};lib.genres.discoverTrack=async id=>{calls++;return lib.tracks.get(id);};
+  const current={...track,available:true,genre:'',genreResearchVersion:4,genreLocalVersion:1,genreCheckedAt:Date.now(),genreArtistAt:Date.now(),metadataStatus:'embedded'};lib.save(current);let calls=0;lib.genres.artistEvidence=async()=>{calls++;return [];};lib.genres.discoverTrack=async id=>{calls++;return lib.tracks.get(id);};
   await lib.genres.start();assert.equal(lib.genres.job.total,0);assert.match(lib.genres.job.message,/already been checked/);lib.genres.stop();assert.equal(lib.genres.job.stop,false);
   await lib.genres.start({retryMissing:true});assert.equal(calls,2);assert.equal(lib.genres.job.found,0);assert.match(lib.genres.job.message,/Finished/);
   const saved=await lib.applyCandidate('t','c',true,{id:'c',title:'Tidal',artist:'Artist',album:'Waves',date:'2020',releaseIds:[],sourceUrl:'https://musicbrainz.org/recording/c'});assert.equal(saved.album,'Waves');assert.equal(saved.date,'2020');assert.equal(saved.title,current.title);

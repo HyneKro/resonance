@@ -48,3 +48,16 @@ test('ambiguous artist names and failed network requests never become confident 
     let attempts=0;for(let i=0;i<2;i++)await assert.rejects(lib.genres.cached('failure',async()=>{attempts++;throw Error('offline');}),/offline/);assert.equal(attempts,2);
   }finally{lib.close();}
 });
+
+test('credit-aware fallback finds a featured recording, release genres, and reuses the saved lookup',async()=>{
+ const lib=await library(),releaseId='33333333-3333-3333-3333-333333333333',groupId='44444444-4444-4444-4444-444444444444';let searches=0;
+ lib.save({...track(),title:'The Song (feat. Guest) [Official Audio]',artist:'The Artist',duration:180});lib.candidates=async()=>[];
+ lib.mbFetch=async url=>{
+  if(url.includes('/recording?')){searches++;assert.match(decodeURIComponent(url),/artist:"The Artist"/);return {recordings:[{id:recordingId,title:'The Song',length:180000,'artist-credit':[{name:'The Artist',artist:{name:'The Artist',id:artistId}}]}]};}
+  if(url.includes('/recording/'))return {'artist-credit':[{artist:{id:artistId,name:'The Artist'}}],releases:[{id:releaseId,status:'Official'}]};
+  if(url.includes('/release/'))return {'release-group':{id:groupId}};
+  if(url.includes('/release-group/'))return {tags:[{name:'neurofunk',count:2},{name:'seen live',count:20}]};
+  return {genres:[{name:'electronic',count:3}]};
+ };
+ try{await lib.genres.discoverTrack('a');assert.equal(lib.tracks.get('a').genre,'Neurofunk');assert.equal(lib.tracks.get('a').genreBasis,'track');assert.equal(lib.tracks.get('a').genreResearchVersion,4);await lib.genres.discoverTrack('a');assert.equal(searches,1);}finally{lib.close();}
+});

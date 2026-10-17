@@ -298,6 +298,7 @@ const constellation=createConstellation({
  onMode:active=>{if(active){openRoom();document.body.classList.remove('visual-settings-open');$('.visual-tools').inert=true;$('#room-visual-settings').setAttribute('aria-expanded','false');}reactor.setSceneSuspended(active);$('#room-constellation').setAttribute('aria-pressed',String(active));if(active){$('#music-only').textContent='Music only';$('#music-only').setAttribute('aria-pressed','false');}else applyMusicOnly();},
  tracks:()=>state.tracks,playlists:()=>state.playlists,current:()=>state.current?.id,paused:()=>audio.paused,
  load:()=>api('/api/constellation'),save:value=>api('/api/constellation',value),
+ research:async id=>{const updated=await api('/api/genres/track',{id});const t=getTrack(id);if(t)Object.assign(t,updated);return updated;},
  artwork:t=>t.artwork?'/artwork/'+encodeURIComponent(t.artwork):'',
  play:(id,ids)=>playTrack(id,ids),
  enqueue:async(id,next)=>{
