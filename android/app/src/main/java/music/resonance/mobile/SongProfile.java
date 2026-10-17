@@ -22,5 +22,10 @@ public final class SongProfile {
         return Json.object("version",1,"duration",rounded(duration),"step",step,"integratedLufs",integrated==null?JSONObject.NULL:rounded(integrated),"truePeakDb",rounded(peak),"timeline",timeline,"trim",Json.object("start",rounded(start),"end",rounded(end)),"method","EBU R128 / true peak · local FFmpeg analysis");
     }
     public static double gain(JSONObject profile,boolean enabled){double lufs=profile.optDouble("integratedLufs",Double.NaN),peak=profile.optDouble("truePeakDb",Double.NaN);if(!enabled||!Double.isFinite(lufs)||!Double.isFinite(peak)||lufs<-60)return 1;return Math.pow(10,clamp(Math.min(-16-lufs,-1-peak),-24,6)/20);}
+    public static final class TrackLevel {
+        private boolean enabled;public double gain=1;
+        public double select(JSONObject profile,boolean value){enabled=value;gain=SongProfile.gain(profile,value);return gain;}
+        public double update(JSONObject profile,boolean value){if(enabled!=value)select(profile,value);return gain;}
+    }
     public static JSONObject range(JSONObject edit,double duration){if(!edit.optBoolean("enabled"))return Json.object("enabled",false,"start",0,"end",duration);double start=edit.optDouble("start",Double.NaN),end=edit.optDouble("end",Double.NaN);if(!Double.isFinite(start)||!Double.isFinite(end)||start<0||end>duration+.1||end-start<1)throw new IllegalArgumentException("Keep at least one second, within the original track duration.");return Json.object("enabled",true,"start",rounded(start),"end",rounded(end));}
 }

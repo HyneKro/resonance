@@ -6,7 +6,7 @@ uniform float u_time,u_mode,u_energy,u_intensity,u_evolve,u_pixel,u_density,u_we
 uniform vec2 u_resolution;
 uniform vec4 u_low,u_high,u_form,u_morph,u_story;
 uniform vec4 u_signature,u_character,u_roles,u_rhythm,u_particle,u_light,u_sculpture,u_shapeFrom,u_shapeTo;
-uniform float u_rotation;
+uniform float u_rotation,u_storyMix;
 uniform vec4 u_camera;
 uniform float u_focalLength;
 uniform float u_shimmer,u_themes[6],u_movement;
@@ -73,7 +73,7 @@ vec3 tissueShape(float u,float v,float resonance,float id,vec4 signature){
  vec3 base=id<.5?tidal:id<1.5?cosmic:id<2.5?ember:id<3.5?bloom:id<4.5?silk:crystal;
  if(identity>.5)p=extraSculpture(id,u,v,t,resonance,base,signature);
  // Saved song structure opens and gathers the surface; live spectral lanes still supply the accents.
- if(u_story.x>=0.&&identity>.5){float fullness=u_story.x,tension=u_story.w,grain=u_story.y;float petalLift=sin(u*(2.+floor(signature.y*4.))+v*3.);p.xy*=1.+(.18*fullness-.10*tension)*(.4+v*v);p.z+=petalLift*(fullness-.35)*(.20+signature.z*.28);p.xz=rot((grain-.5)*.35*v)*p.xz;p+=normalize(p+vec3(.001))*sin(v*PI)*tension*.12;}
+ if(identity>.5){vec3 original=p;float fullness=u_story.x,tension=u_story.w,grain=u_story.y;float petalLift=sin(u*(2.+signature.y*4.)+v*3.);p.xy*=1.+(.18*fullness-.10*tension)*(.4+v*v);p.z+=petalLift*(fullness-.35)*(.20+signature.z*.28);p.xz=rot((grain-.5)*.35*v)*p.xz;p+=normalize(p+vec3(.001))*sin(v*PI)*tension*.12;p=mix(original,p,u_storyMix);}
  // The owning spectral lane opens its tissue; leads ripple its skin, bass inflates it.
  p+=normalize(p+vec3(.001))*resonance*(.025+u_character.y*.065)*u_movement;
  p.z+=sin(u*(4.+u_character.w*6.)+v*7.-t*.14)*(.025+u_roles.z*.07)*identity*u_movement;

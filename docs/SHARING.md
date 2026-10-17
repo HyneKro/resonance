@@ -22,7 +22,7 @@ Personal music, library databases, cache, local configuration, signing keys, dow
 **Standing owner instruction:** every new application release includes both Windows and Android builds published here, unless the owner explicitly requests a narrower release. Publication of tested releases is already authorized. See [AGENTS.md](../AGENTS.md). Documentation-only changes do not need an app version bump or binary release.
 
 1. Increase both platform versions beyond their latest published versions; their numbering remains independent. For Android also increase versionCode and preserve the original signing key. Update `android/tools/build.ps1`'s output name.
-2. Test and build both platforms. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename. If the running desktop app locks its runtime files, leave playback running and use the successfully built staging runtime via `RESONANCE_RUNTIME_DIR` when sharing.
+2. Test and build both platforms. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename. To leave a running desktop installation untouched, use `node scripts/package.mjs --stage-only`, then set `RESONANCE_RUNTIME_DIR` to `desktop-staging/Resonance-win32-x64` when sharing.
 3. Commit and push the reviewed source. A source push alone does not create an app update.
 4. Upload a draft release with the helper, using platform-specific tags and tested artifacts:
 

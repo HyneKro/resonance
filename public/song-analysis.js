@@ -1,3 +1,4 @@
+import {Inertia} from './inertia.js';
 // Shared, compact description of a decoded file. Never changes the original audio.
 export const AUDIO_PROFILE_VERSION=1;
 export const PROFILE_FILTER='ebur128=metadata=1:peak=true,aformat=channel_layouts=mono,astats=metadata=1:reset=1:measure_perchannel=RMS_level+Peak_level+Zero_crossings_rate:measure_overall=none,ametadata=mode=print:file=-';
@@ -31,6 +32,13 @@ export function levelingDb(profile,enabled,target=-16){
  // Preserve dynamics; fixed track gain with one dB of measured true-peak headroom.
  return clamp(Math.min(target-profile.integratedLufs,-1-profile.truePeakDb),-24,6);
 }
+// Latch the measurement at a track boundary. Finishing analysis must not change
+// the volume halfway through a song. An explicit toggle can apply it immediately.
+export class TrackLevel {
+ constructor(){this.db=0;this.enabled=false;}
+ select(profile,enabled){this.enabled=!!enabled;this.db=levelingDb(profile,this.enabled);return this.db;}
+ update(profile,enabled){if(!!enabled!==this.enabled)this.select(profile,enabled);return this.db;}
+}
 export function playbackRange(duration,edit,profile,skipSilence=false){
  duration=Number.isFinite(duration)&&duration>0?duration:profile?.duration||0;
  const chosen=edit?.enabled?edit:skipSilence?profile?.trim:null;
@@ -56,13 +64,29 @@ export function songChapters(profile){
  }return chapters;
 }
 export class SongDirector {
- constructor(){this.values=[.5,.5,.3,0];}
+ constructor(){this.values=[.5,.5,.3,0];this.springs=this.values.map(v=>new Inertia(v,4));this.blend=new Inertia(0,2.4);this.chapter=null;}
  update(profile,time,dt,{enabled=true,active=true,frozen=false,reduced=false}={}){
-  if(this.profile!==profile){this.profile=profile;this.chapters=songChapters(profile);this.chapter=null;}
+  if(this.profile!==profile){this.profile=profile;this.chapters=songChapters(profile);}
   const now=enabled?sampleProfile(profile,time):null,next=now?sampleProfile(profile,time+5):null;
   const target=now?[now.energy,now.texture,now.attack,clamp((next.energy-now.energy)*2,-1,1)]:[.5,.5,.3,0];
-  if(!frozen&&!reduced&&active){const k=1-Math.exp(-clamp(dt,0,.1)/2.8);this.values=this.values.map((v,i)=>v+(target[i]-v)*k);}
-  if(enabled&&active&&!frozen&&!reduced)this.chapter=this.chapters.find(c=>time>=c.start&&time<c.end)||this.chapters.at(-1);
-  return {available:!!now,chapter:now?this.chapter:null,energy:this.values[0],texture:this.values[1],attack:this.values[2],anticipation:this.values[3]};
+  if(!frozen&&!reduced){
+   this.blend.update(now?1:0,dt);
+   if(active)this.values=this.springs.map((s,i)=>s.update(target[i],dt));
+   // Scrubbing can cross many chapters in a few frames. Wait for a stable target,
+   // keeping the last form while a new song's cached analysis is in flight.
+   const candidate=now&&active?(this.chapters.find(c=>time>=c.start&&time<c.end)||this.chapters.at(-1)):null;
+   const key=candidate?candidate.kind+':'+candidate.start:'';
+   if(key!==this.candidateKey){this.candidateKey=key;this.dwell=0;}else this.dwell=(this.dwell||0)+clamp(dt,0,.1);
+   if(candidate&&this.dwell>=.5)this.chapter=candidate;
+  }
+  return {available:!!now,mix:reduced?0:this.blend.value,chapter:this.chapter,energy:this.values[0],texture:this.values[1],attack:this.values[2],anticipation:this.values[3]};
  }
+}
+export function directedAppearance(base,direction){
+ const a={...base},{energy:e,texture:t,attack:r,anticipation:b}=direction,w=direction.mix||0;
+ const scale=(key,factor,max=Infinity)=>{a[key]=base[key]+(Math.min(max,base[key]*factor)-base[key])*w;};
+ scale('particleSpread',.78+e*.4-b*.06,1.6);scale('filigree',.5+t*.8,2);scale('glow',.55+e*.8,2);scale('bloom',.7+e*.6,2.5);scale('motionAmount',.65+r*.65+e*.2);scale('textureDetail',.6+t*.6,1.5);
+ // Domain-warp changes move the entire fluid. Keep this excursion small, even
+ // when a seek jumps from a quiet passage to a loud one.
+ scale('turbulence',.96+e*.08);return a;
 }

@@ -36,3 +36,5 @@
 #listening-room{touch-action:none}.setting input[type=range]{touch-action:pan-y}
 #shuffle[aria-pressed=true]{background:linear-gradient(135deg,var(--ui-accent),var(--ui-accent-two));color:#21152b;box-shadow:0 0 0 1px #ffffff25}
 #shuffle[aria-busy=true]{opacity:.6}
+
+.timeline>div.seek-shell{display:grid;min-height:30px}.timeline .seek-shell.has-cuts{margin-bottom:14px}.timeline .seek-cut-note{top:calc(100% - 1px);font-size:10px}

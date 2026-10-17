@@ -1,6 +1,10 @@
-# Resonance for Android — 0.2.0 preview
+# Resonance for Android — 0.2.1 preview
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
+
+## Windows 1.2.1 / Android 0.2.1 · playback and transition fixes
+
+Loudness leveling now latches each track’s saved gain, avoids mid-play analysis changes, and leaves spectral analysis unaffected. Track Character uses continuous blending through seeks and analysis handoffs, with smaller fluid deformations. The timeline shows hatched skipped edges and exact times. Desktop EQ resets keep the current scroll position. See the platform release notes for validation and limits.
 
 ## Windows 1.2.0 / Android 0.2.0 · song maps and a smoother listen
 

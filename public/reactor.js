@@ -1,4 +1,4 @@
-import {SongDirector} from './song-analysis.js';
+import {SongDirector,directedAppearance} from './song-analysis.js';
 import {KaleidoscopeBlend} from './kaleidoscope.js';
 import {SceneCamera} from './scene-camera.js';
 import {SceneReveal} from './scene-reveal.js';
@@ -45,7 +45,13 @@ export class Reactor {
       this.filters=[['lowshelf',150],['peaking',1000],['highshelf',5000]].map(([type,frequency])=>{const f=this.context.createBiquadFilter();f.type=type;f.frequency.value=frequency;f.gain.value=0;return f;});this.midAnalyser=this.context.createAnalyser();this.midAnalyser.fftSize=2048;this.midAnalyser.smoothingTimeConstant=0;this.fastAnalyser=this.context.createAnalyser();this.fastAnalyser.fftSize=1024;this.fastAnalyser.smoothingTimeConstant=0;this.midFreq=new Float32Array(1024);this.fastFreq=new Float32Array(512);this.freq=new Float32Array(this.analyser.frequencyBinCount);this.wave=new Float32Array(this.fastAnalyser.fftSize);this.freq.fill(-100);this.eq(this.eqValues||[0,0,0]);
     }if(this.context.state==='suspended')await this.context.resume();this.refreshVisualSync(true);
   }
-  setPlaybackGain(db){this.playbackDb=db;if(!this.context?.createGain)return;this.levelGain??=this.context.createGain();this.levelGain.gain.setTargetAtTime(10**(db/20),this.context.currentTime,.35);}
+  setPlaybackGain(db,{immediate=false}={}){
+    const changed=db!==this.playbackDb;this.playbackDb=db;if(!this.context?.createGain)return;
+    const fresh=!this.levelGain;this.levelGain??=this.context.createGain();if(!fresh&&!changed&&!immediate)return;
+    const gain=this.levelGain.gain,now=this.context.currentTime,target=10**(db/20);
+    if(fresh||immediate){gain.cancelScheduledValues(now);gain.setValueAtTime(target,now);}
+    else{if(gain.cancelAndHoldAtTime)gain.cancelAndHoldAtTime(now);else{const value=gain.value;gain.cancelScheduledValues(now);gain.setValueAtTime(value,now);}gain.setTargetAtTime(target,now,.35);}
+  }
   setTransitionGain(value,seconds=0){this.transitionValue=value;if(!this.context?.createGain)return;this.fadeGain??=this.context.createGain();const now=this.context.currentTime;this.fadeGain.gain.cancelScheduledValues(now);this.fadeGain.gain.setValueAtTime(this.fadeGain.gain.value,now);if(seconds)this.fadeGain.gain.linearRampToValueAtTime(value,now+seconds);else this.fadeGain.gain.setValueAtTime(value,now);}
   visualState(dt){
     const d=this.dynamics.output;
@@ -62,7 +68,7 @@ export class Reactor {
     const kaleidoscopeWeights=this.kaleidoscopeBlend.update(dt,{enabled:this.kaleidoscope===true,mode:this.kaleidoscopeMode,reduced:this.reduced});
     if(wasBlending||this.kaleidoscopeBlend.active)this.needsFrame=true;
     this.visualColors=colors;
-    const appearance={...this.appearance};if(direction.available&&!this.reduced){const {energy:e,texture:t,attack:a,anticipation:b}=direction;appearance.particleSpread=Math.min(1.6,appearance.particleSpread*(.78+e*.4-b*.06));appearance.filigree=Math.min(2,appearance.filigree*(.5+t*.8));appearance.glow=Math.min(2,appearance.glow*(.55+e*.8));appearance.bloom=Math.min(2.5,appearance.bloom*(.7+e*.6));appearance.motionAmount*=.65+a*.65+e*.2;appearance.textureDetail=Math.min(1.5,appearance.textureDetail*(.6+t*.6));appearance.turbulence*=.55+e*.7;}
+    const appearance=directedAppearance(this.appearance,direction);
     return {...d,direction,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
       colors};
   }
@@ -72,15 +78,16 @@ export class Reactor {
     const analysers=[this.analyser,this.midAnalyser,this.fastAnalyser].filter(Boolean);
     analysers.forEach(a=>a.disconnect());this.filters.forEach(f=>f.disconnect());let previous=this.source;
     if(values.some(x=>x!==0))this.filters.forEach((f,i)=>{f.gain.setTargetAtTime(values[i],this.context.currentTime,.05);previous.connect(f);previous=f;});
-    this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);previous=this.fadeGain;
+    this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();
     if(this.desktopSource){
-      previous.connect(this.context.destination);previous=this.desktopSource;
+      previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);previous=this.desktopSource;
       for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       this.analysisSink??=this.context.createGain();this.analysisSink.gain.value=0;
       previous.connect(this.analysisSink);this.analysisSink.connect(this.context.destination);
     }else{
       if(!this.musicOnly)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
-      previous.connect(this.context.destination);
+      // Analyse the same signal regardless of leveling or crossfade gain.
+      previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);
     }
   }
   setMusicOnly(enabled){
@@ -146,5 +153,11 @@ export class Reactor {
     const palette=document.querySelector('#palette-status');if(palette){palette.textContent=this.coverPalette===false?'Music colors':this.coverStatus||'No cover · music colors';palette.style.setProperty('--cover-color',`rgb(${this.visualState(0).colors[0].map(x=>Math.round(x*255)).join(' ')})`);}
   }
   draw2D(canvas,rect,mode,hero=false){drawClassic(canvas,rect,mode,hero,this);}
-  resetAnalysis(){this.rawFeatures=new AudioFeatures();this.features=this.rawFeatures;this.visualSync?.clear();this.visualWave=null;this.tempo?.reset();if(this.roles){const config=this.roles.config;this.roles=new SoundRoles();this.roles.config=config;}}
+  resetAnalysis(){
+    this.rawFeatures=new AudioFeatures();this.features=this.rawFeatures;this.visualSync?.clear();this.visualWave=null;
+    // Forget the old audio evidence, not the rendered pose. Abruptly zeroing these
+    // envelopes made the sculpture shrink on every seek before growing again.
+    if(this.tempo){const pose={phase:this.tempo.phase,pulse:this.tempo.pulse};this.tempo.reset();Object.assign(this.tempo,pose);Object.assign(this.tempo.output,pose);}
+    if(this.roles)this.roles.previous={};
+  }
 }

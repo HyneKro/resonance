@@ -14,10 +14,10 @@ test('cancel during permission or connection never leaves a live capture behind'
  const bad=fixture();bad.mediaDevices.getDisplayMedia=async()=>{throw Error('denied');};await assert.rejects(bad.capture.start(),/denied/);assert.equal(bad.capture.state,'off');assert.equal(bad.audio.paused,false);
 });
 test('loopback analysis never reaches speakers with nonzero gain and EQ is local only',()=>{
- const node=name=>({name,outputs:[],gain:{value:0,setTargetAtTime(){}},connect(n){this.outputs.push(n);},disconnect(){this.outputs=[];}});
+ const node=name=>({name,outputs:[],gain:{value:0,setTargetAtTime(){},cancelScheduledValues(){},setValueAtTime(v){this.value=v;}},connect(n){this.outputs.push(n);},disconnect(){this.outputs=[];}});
  const r={setPlaybackGain:Reactor.prototype.setPlaybackGain,source:node('local'),desktopSource:node('desktop'),analyser:node('fft'),midAnalyser:node('mid'),fastAnalyser:node('fast'),filters:[node('low'),node('mid'),node('high')],context:{currentTime:0,destination:node('speakers'),createGain:()=>node('silent')}};
  Reactor.prototype.eq.call(r,[3,0,-2]);assert.equal(r.analysisSink.gain.value,0);assert.deepEqual(r.desktopSource.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.analysisSink]);assert.deepEqual(r.filters[2].outputs,[r.levelGain]);assert.deepEqual(r.levelGain.outputs,[r.fadeGain]);assert.deepEqual(r.fadeGain.outputs,[r.context.destination]);
- r.desktopSource=null;Reactor.prototype.eq.call(r,[0,0,0]);assert.deepEqual(r.source.outputs,[r.levelGain]);assert.deepEqual(r.fadeGain.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.context.destination]);assert.deepEqual(r.analysisSink.outputs,[]);
+ r.desktopSource=null;Reactor.prototype.eq.call(r,[0,0,0]);assert.deepEqual(r.source.outputs,[r.analyser]);assert.deepEqual(r.fastAnalyser.outputs,[r.levelGain]);assert.deepEqual(r.fadeGain.outputs,[r.context.destination]);assert.deepEqual(r.analysisSink.outputs,[]);
 });
 test('native capture grants only a recent, single-use, user initiated top-frame Windows request',()=>{
  const handlers={},session={setPermissionCheckHandler:f=>handlers.check=f,setPermissionRequestHandler:f=>handlers.permission=f,setDisplayMediaRequestHandler:f=>handlers.display=f},frame={url:'http://127.0.0.1:38723/'},wc={session,mainFrame:frame},win={webContents:wc,on(){}},ipcMain={handle:(_c,f)=>handlers.ipc=f,removeHandler(){}};let now=10;
