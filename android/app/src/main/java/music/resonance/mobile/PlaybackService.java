@@ -92,6 +92,22 @@ public final class PlaybackService extends MediaSessionService {
         for(int i=0;i<ids.length();i++){JSONObject t=lib.track(ids.optString(i));if(t.length()==0)continue;if(t.optString("id").equals(selected))actual=items.size();MediaMetadata.Builder metadata=new MediaMetadata.Builder().setTitle(t.optString("title")).setArtist(t.optString("artist")).setAlbumTitle(t.optString("album"));java.io.File art=new java.io.File(lib.artwork,t.optString("artwork"));if(art.isFile())metadata.setArtworkUri(android.net.Uri.fromFile(art));items.add(new MediaItem.Builder().setMediaId(t.optString("id")).setUri(t.optString("path")).setCustomCacheKey("resonance:"+t.optString("id")).setMediaMetadata(metadata.build()).build());}
         if(items.isEmpty())return;clearError();player.setMediaItems(items,Math.min(actual,items.size()-1),Math.max(0,position));if(player.getShuffleModeEnabled())PlaybackQueue.randomize(player,shuffleRandom);player.prepare();if(autoplay)resume();else player.pause();save();
     }
+    private MediaItem constellationItem(String id){
+        LibraryStore lib=ResonanceApp.instance.library;JSONObject t=lib.track(id);
+        MediaMetadata.Builder metadata=new MediaMetadata.Builder().setTitle(t.optString("title")).setArtist(t.optString("artist")).setAlbumTitle(t.optString("album"));
+        java.io.File art=new java.io.File(lib.artwork,t.optString("artwork"));if(art.isFile())metadata.setArtworkUri(android.net.Uri.fromFile(art));
+        return new MediaItem.Builder().setMediaId(id).setUri(t.optString("path")).setCustomCacheKey("resonance:"+id).setMediaMetadata(metadata.build()).build();
+    }
+    public void constellationQueue(JSONArray ids,String mode){
+        player.setShuffleModeEnabled(false);player.setRepeatMode(Player.REPEAT_MODE_ALL);
+        if(mode.equals("now")||player.getMediaItemCount()==0){load(ids,0,0,mode.equals("now")||mode.equals("after"));return;}
+        int next=player.getCurrentMediaItemIndex()+1;String current=player.getCurrentMediaItem().mediaId;
+        if(mode.equals("next")||mode.equals("add")){Set<String> requested=new HashSet<>();for(int i=0;i<ids.length();i++)requested.add(ids.optString(i));for(int i=player.getMediaItemCount()-1;i>=next;i--)if(requested.contains(player.getMediaItemAt(i).mediaId))player.removeMediaItem(i);}
+        JSONArray tail=ConstellationData.tail(ids,current,mode);List<MediaItem> items=new ArrayList<>();for(int i=0;i<tail.length();i++)items.add(constellationItem(tail.optString(i)));
+        // Mutate only upcoming items: keep the decoder, current position and play/pause state.
+        if(mode.equals("after")&&next<player.getMediaItemCount())player.removeMediaItems(next,player.getMediaItemCount());
+        player.addMediaItems(mode.equals("add")?player.getMediaItemCount():next,items);save();
+    }
     public void shuffle(boolean enabled){PlaybackQueue.setShuffle(player,enabled,shuffleRandom);save();}
     public void playQueued(String id,long position){
         for(int i=0;i<player.getMediaItemCount();i++)if(player.getMediaItemAt(i).mediaId.equals(id)){clearError();player.seekTo(i,Math.max(0,position));resume();save();return;}

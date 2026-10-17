@@ -1,4 +1,5 @@
 import {metadataSnapshot} from './public/metadata-review.js';
+import {summarizeProfile,cleanMapState} from './public/constellation-model.js';
 import {AudioResearch} from './audio-research.mjs';
 import {CAMERA_SPEED} from './public/scene-camera.js';
 import {KALEIDOSCOPE_MODES} from './public/kaleidoscope.js';
@@ -55,6 +56,17 @@ export async function startServer({port=38721,dataDir=process.env.RESONANCE_DATA
       return json(res,{config:lib.config});
     }
     if(route==='/api/audio-profile'&&req.method==='GET')return json(res,audioResearch.status(url.searchParams.get('id')));
+    if(route==='/api/constellation'&&req.method==='GET'){
+      const profiles={},colors={},failed=[];
+      for(const t of lib.tracks.values()){
+        if(!t.available)continue;const p=audioResearch.read(t.id),summary=summarizeProfile(p);
+        if(summary)profiles[t.id]=summary;else if(audioResearch.status(t.id).error)failed.push(t.id);
+        const c=lib.getSetting('artworkPalette:'+t.artwork)?.colors?.[0];
+        if(Array.isArray(c)&&c.length===3&&c.every(Number.isFinite))colors[t.id]='#'+c.map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');
+      }
+      return json(res,{profiles,colors,failed,saved:cleanMapState(lib.getSetting('constellation'),[...lib.tracks.keys()]),canPrepare:true});
+    }
+    if(route==='/api/constellation'&&req.method==='POST'){const saved=cleanMapState(body,[...lib.tracks.keys()]);lib.setSetting('constellation',saved);return json(res,{ok:true});}
     if(route==='/api/audio-profile'&&req.method==='POST')return json(res,audioResearch.request(body.id,body.force===true,body.priority===true));
     if(route==='/api/loudness-status'&&req.method==='GET')return json(res,audioResearch.coverage());
     if(route==='/api/playback-edit'&&req.method==='POST')return json(res,audioResearch.edit(body.id,body));
@@ -112,7 +124,7 @@ export async function startServer({port=38721,dataDir=process.env.RESONANCE_DATA
     if(route==='/app-update-ui.js')return serveFile(req,res,path.join(root,'public','app-update-ui.js'));
     if(/^\/artwork\/[a-f0-9]{24}\.(jpg|png|webp)$/.test(route))return serveFile(req,res,path.join(dataDir,route));
     if(/^\/wallpapers\/[a-f0-9]{24}\.(jpg|png|webp)$/.test(route))return serveFile(req,res,path.join(dataDir,route));
-    if(['/','/menu-kit.js','/menu-layout.css','/settings-ui.js','/leveling-ui.js','/portable-update-ui.js','/sona-desktop.js','/sona-overlay.html','/sona-overlay.js','/artist-credits.js','/scene-camera.js','/scene-preparation.js','/storage-ui.js','/storage.css','/scene-reveal.js','/sleeve.css','/shader-loader.js','/startup.js','/startup.css','/visual-sync.js','/visual-sync-ui.js','/display-settings.js','/hdr-output.js','/sync-review.js','/desktop-audio.js','/kaleidoscope.js','/default-preferences.js','/brand.js','/brand.css','/signature.css','/sculpture-forms.js','/atmosphere-transition.js','/dance-companion.js','/companion-motion.js','/companion-model.js','/companion-renderer.js','/companion-emblem.js','/companion-atlas.js','/companion-registration.js','/sona-dance-a.png','/sona-dance-b.png','/sona-interactions.png','/dancer-interactions.png','/dancer-sprite-v2.png','/setting-resets.js','/wallpaper-ui.js','/interface-accent.js','/atmosphere-ui.js','/atmosphere.css','/song-details.js','/visual-settings.js','/track-character.js','/tempo.js','/sound-roles.js','/app.js','/styles.css','/cinema.css','/immersive.css','/window-controls.js','/listening-controls.js','/immersive-ui.js','/source-ui.js','/view-state.js','/particle-spectrum.js','/visual-conductor.js','/inertia.js','/artwork-palette.js','/nebula-live.js','/reactor.js','/analysis.js','/visual-dynamics.js','/classic-scenes.js','/queue.js','/gpu-scene.js','/scene-shaders.js','/nebula-original.js','/scene-catalog.js','/feedback.js','/icon.svg'].includes(route))return serveFile(req,res,path.join(root,'public',route==='/'?'index.html':route));
+    if(['/','/constellation.js','/constellation-model.js','/constellation.css','/menu-kit.js','/menu-layout.css','/settings-ui.js','/leveling-ui.js','/portable-update-ui.js','/sona-desktop.js','/sona-overlay.html','/sona-overlay.js','/artist-credits.js','/scene-camera.js','/scene-preparation.js','/storage-ui.js','/storage.css','/scene-reveal.js','/sleeve.css','/shader-loader.js','/startup.js','/startup.css','/visual-sync.js','/visual-sync-ui.js','/display-settings.js','/hdr-output.js','/sync-review.js','/desktop-audio.js','/kaleidoscope.js','/default-preferences.js','/brand.js','/brand.css','/signature.css','/sculpture-forms.js','/atmosphere-transition.js','/dance-companion.js','/companion-motion.js','/companion-model.js','/companion-renderer.js','/companion-emblem.js','/companion-atlas.js','/companion-registration.js','/sona-dance-a.png','/sona-dance-b.png','/sona-interactions.png','/dancer-interactions.png','/dancer-sprite-v2.png','/setting-resets.js','/wallpaper-ui.js','/interface-accent.js','/atmosphere-ui.js','/atmosphere.css','/song-details.js','/visual-settings.js','/track-character.js','/tempo.js','/sound-roles.js','/app.js','/styles.css','/cinema.css','/immersive.css','/window-controls.js','/listening-controls.js','/immersive-ui.js','/source-ui.js','/view-state.js','/particle-spectrum.js','/visual-conductor.js','/inertia.js','/artwork-palette.js','/nebula-live.js','/reactor.js','/analysis.js','/visual-dynamics.js','/classic-scenes.js','/queue.js','/gpu-scene.js','/scene-shaders.js','/nebula-original.js','/scene-catalog.js','/feedback.js','/icon.svg'].includes(route))return serveFile(req,res,path.join(root,'public',route==='/'?'index.html':route));
     return json(res,{error:'Not found'},404);
   }catch(e){if(!res.headersSent)json(res,{error:e.message},500);else res.destroy();}});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});

@@ -57,7 +57,7 @@ public final class MainActivity extends Activity {
     private PlaybackService playback() throws Exception {controller.get(12,TimeUnit.SECONDS);PlaybackService s=PlaybackService.instance;if(s==null)throw new IOException("Player is still starting. Try again.");return s;}
     private Object handle(String action,JSONObject data) throws Exception {
         LibraryStore lib=app.library;
-        if(Set.of("analysis","visuals","state","play","pause","seek","next","previous","volume","shuffle","repeat","equalizer").contains(action))playback(); // Never await controller binding on Android's main thread.
+        if(Set.of("constellationQueue","analysis","visuals","state","play","pause","seek","next","previous","volume","shuffle","repeat","equalizer").contains(action))playback(); // Never await controller binding on Android's main thread.
         switch(action){
             case "appUpdate":{
                 switch(data.optString("action")){
@@ -99,6 +99,20 @@ public final class MainActivity extends Activity {
             case "history":return lib.setting("history");
             case "loudnessStatus":return app.songAnalysis.coverage();
             case "playOriginal":return app.onMain(()->{PlaybackService s=playback();s.playOriginal();return s.state();});
+            case "constellation":{
+                JSONArray tracks=lib.tracks(),failed=new JSONArray();JSONObject profiles=new JSONObject();
+                for(int i=0;i<tracks.length();i++){JSONObject t=tracks.optJSONObject(i);if(t==null||!t.optBoolean("available",true))continue;String id=t.optString("id");JSONObject summary=ConstellationData.summarize(app.songAnalysis.profile(id));if(summary!=null)Json.put(profiles,id,summary);else if(!app.songAnalysis.status(id).optString("error").isEmpty())failed.put(id);}
+                return Json.object("profiles",profiles,"failed",failed,"saved",ConstellationData.clean(lib.setting("constellation"),ConstellationData.known(tracks)),"canPrepare",charging());
+            }
+            case "saveConstellation":lib.setting("constellation",ConstellationData.clean(data,ConstellationData.known(lib.tracks())));return Json.object("ok",true);
+            case "prepareConstellation":if(!charging())throw new IOException("Connect a charger to prepare more sound data.");return app.songAnalysis.request(data.optString("id"),false,false);
+            case "constellationQueue":{
+                String mode=data.optString("mode");if(!Set.of("now","after","next","add").contains(mode))throw new IOException("Choose how to queue this journey.");
+                JSONArray ids=ConstellationData.queueIds(data.optJSONArray("ids"),ConstellationData.available(lib.tracks()));
+                if(ids.length()==0||data.optJSONArray("ids")==null||ids.length()!=data.optJSONArray("ids").length())throw new IOException("Some songs are unavailable. Reopen Constellation to refresh the library.");
+                if(mode.equals("now"))stopService(new Intent(this,CaptureService.class));
+                return app.onMain(()->{PlaybackService s=playback();if(mode.equals("after")&&s.player.getMediaItemCount()==0)stopService(new Intent(this,CaptureService.class));s.constellationQueue(ids,mode);if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},44);return Json.put(s.state(),"capturing",CaptureService.instance!=null);});
+            }
             case "songProfile":return app.songAnalysis.status(data.optString("id"));
             case "analyzeSong":return app.songAnalysis.request(data.optString("id"),data.optBoolean("force"),data.optBoolean("priority"));
             case "listeningEdit":return app.songAnalysis.edit(data.optString("id"),data);
@@ -132,6 +146,7 @@ public final class MainActivity extends Activity {
             default:throw new IOException("Unknown action: "+action);
         }
     }
+    private boolean charging(){Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));return battery!=null&&battery.getIntExtra(BatteryManager.EXTRA_PLUGGED,0)!=0;}
     private JSONObject startDownloadJob(String kind,JSONObject data) throws Exception {
         app.downloads.begin(kind);try{libJob(kind,data);app.onMain(()->{if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},44);startForegroundService(new Intent(this,DownloadService.class).putExtra("operation",app.downloads.progress.optLong("operation")));return null;});}catch(Exception e){app.downloads.fail(e);throw e;}return app.downloads.progress;
     }
