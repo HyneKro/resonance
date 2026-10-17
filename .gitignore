@@ -29,6 +29,7 @@ releases/
 checkpoints/
 /CHECKPOINT.json
 test-output/
+/download-page/dist/
 /Resonance-*.png
 /Resonance-*.jpg
 /.local-tools/

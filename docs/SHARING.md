@@ -1,6 +1,8 @@
 # Sharing Resonance and publishing updates
 
-The source and releases at https://github.com/HyneKro/resonance are public, by the owner's choice. Anyone can download the app without an account. No Cloudflare account or separate update server is needed. Share the Releases page, not GitHub's “Download ZIP” source archive.
+The source and releases at https://github.com/HyneKro/resonance are public, by the owner's choice. Anyone can download the app without an account. No Cloudflare account or separate update server is needed. **Share https://hynekro.github.io/resonance/**: it has direct PC and Android download buttons, version numbers and installation instructions. GitHub's “Download ZIP” option on the repository is a source archive, not the app.
+
+The download page is published through `.github/workflows/download-page.yml`. Publishing, editing, deleting or unpublishing a release rebuilds the page from the latest valid release for each platform; page-source changes on main and manual workflow runs also deploy it. Windows selects stable releases; Android includes previews. Deployments typically take a few minutes. The page has no client-side API dependency, credentials, analytics or required JavaScript. If release lookup or validation fails, deployment stops and the existing page stays online. See [download-page/README.md](../download-page/README.md).
 
 ## Install and update
 
@@ -32,7 +34,7 @@ Personal music, library databases, cache, local configuration, signing keys, dow
 The helper confirms the destination repository, checks the clean Windows configuration and archive, writes `SHA256SUMS.txt`, and uploads the artifact and checksum. It refuses to overwrite an existing release. Independently confirm Android's signing certificate and versionCode. Compare GitHub's uploaded asset size and SHA-256 digest with the local artifact before publishing. For this verification workflow, leave `-Publish` off: that switch publishes immediately after uploading, without the separate remote digest review.
 
 5. After both uploads pass verification, publish both drafts. Set Windows as a stable release and Latest; keep Android preview as a prerelease with Latest disabled. Drafts are ignored by app update checks, so leaving drafts is not a completed release.
-6. Verify public download access and platform-specific updater discovery without credentials. An older installed version should find the corresponding new release; the current version should not offer itself again. Return both published release links. Report any remaining build or publication blocker explicitly.
+6. Verify public download access and platform-specific updater discovery without credentials. An older installed version should find the corresponding new release; the current version should not offer itself again. Wait for the download-page workflow to succeed and verify both buttons on https://hynekro.github.io/resonance/ show the new versions. Return the shareable download-page link and both published release links. Report any remaining build or publication blocker explicitly.
 
 Keep the exact platform tag and asset filename conventions shown above. Do not overwrite a published artifact with changed contents; ship a new version instead.
 

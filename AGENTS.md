@@ -11,9 +11,10 @@ The owner requested on 2026-10-17 that every future application version be publi
 - Review and audit the source, then commit and push it. Publish the corresponding tested artifacts to GitHub Releases; a source push or a local build alone does not deliver an app update.
 - Follow the exact platform tag and asset filename conventions in the sharing guide. Upload drafts first, compare the uploaded asset size and SHA-256 digest to the local artifact, then publish both releases. Set the Windows stable release as Latest; keep Android preview releases as prereleases with Latest disabled. Never replace a published version's binary with different contents.
 - Verify unauthenticated release discovery and download access for both platforms, including that the updater selects the new version for an older installation and does not offer the current version again. Provide both published release links in the delivery message.
+- The public download page is https://hynekro.github.io/resonance/. Release events refresh it automatically through `.github/workflows/download-page.yml`. Verify that deployment succeeds and both download buttons show the new versions before calling a release complete. Preserve this automatic refresh when modifying publishing tools; automation-created release events using GitHub's default GITHUB_TOKEN may require an explicit workflow dispatch.
 - If a build, check or publication fails, resolve it when possible. Otherwise report the specific blocker and which platform remains unpublished; never claim both shipped or silently leave a release as a draft.
 
-Documentation-only and project-instruction changes do not require new app versions or duplicate binary releases. This is a release workflow for future work, not a scheduled background publishing task.
+Documentation-only, download-page-only and project-instruction changes do not require new app versions or duplicate binary releases. This is a release workflow for future work, not a scheduled background publishing task.
 
 ## Protect existing installations and private data
 

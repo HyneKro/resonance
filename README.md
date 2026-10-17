@@ -2,6 +2,8 @@
 
 A local music library, audio-reactive universe and Sona companion for Windows and Android. The source and app releases are public. Personal music, sources, listening history, artwork caches, signing keys and compiled releases are excluded from Git.
 
+**[Download Resonance for PC or Android](https://hynekro.github.io/resonance/)** — one simple page, automatically refreshed with the latest published versions.
+
 For development, install Node 24 and run `npm ci`, then `npm start` (desktop) or `npm run dev` (browser). A fresh checkout starts with an empty library; add music from the app. Optional local configuration belongs in the ignored `config.json`; `config.example.json` is a clean template. See [Sharing and releases](docs/SHARING.md) for sharing, automatic updates and publishing releases, and [Android setup](android/README.md) for APK builds.
 
 Existing Windows workspace installations can still use **Launch Resonance.cmd**. Portable releases keep their `data` folder alongside the executable and support installing a newer ZIP from Settings → App updates.
