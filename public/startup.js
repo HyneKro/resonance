@@ -12,5 +12,11 @@
  document.getElementById('startup-quiet').onclick=()=>window.resonanceBoot.onQuiet?.();
  slow=setTimeout(()=>{if(!done){stage('Taking a little longer to prepare the scene…');document.getElementById('startup-quiet').hidden=!window.resonanceBoot.onQuiet;document.getElementById('startup-retry').hidden=false;}},10000);
  window.resonanceBoot={stage,finish,fail,prepareReveal,animate:()=>host.classList.add('startup-running')};
- window.addEventListener('error',()=>fail('Something could not load. Try opening Resonance again.'));
+ // Module graph failures fire on the script element and do not bubble to window.
+ // Capture them before the app initializes; missing artwork must not block startup.
+ window.addEventListener('error',event=>{
+  if(event.target===window)fail('Something could not load. Try opening Resonance again.');
+  else if(event.target?.tagName==='SCRIPT')fail('An app file could not load. Extract a fresh copy of Resonance and try again.');
+ },true);
+ window.addEventListener('unhandledrejection',()=>fail('Startup could not finish. Try opening Resonance again.'));
 })();

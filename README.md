@@ -8,9 +8,13 @@ For development, install Node 24 and run `npm ci`, then `npm start` (desktop) or
 
 Existing Windows workspace installations can still use **Launch Resonance.cmd**. Portable releases keep their `data` folder alongside the executable and support installing a newer ZIP from Settings → App updates.
 
-**App updates · Windows 1.1.4 / Android 0.1.12.** Download the app from [GitHub Releases](https://github.com/HyneKro/resonance/releases), without a GitHub account. These versions check for and download newer app builds from Settings → App updates. Windows waits for Restart & update; Android downloads automatically on unmetered Wi-Fi and asks for system installation confirmation. Older installations need this ZIP/APK installed once to gain online updates. Music, playlists and settings are retained. [Update and publishing guide](docs/SHARING.md).
+**App updates · Windows 1.1.5 / Android 0.1.13.** Download the app from [GitHub Releases](https://github.com/HyneKro/resonance/releases), without a GitHub account. These versions check for and download newer app builds from Settings → App updates. Windows waits for Restart & update; Android downloads automatically on unmetered Wi-Fi and asks for system installation confirmation. Older installations need this ZIP/APK installed once to gain online updates. Music, playlists and settings are retained. [Update and publishing guide](docs/SHARING.md).
 
 **Approved major checkpoint · 15 October 2026.** The user-approved baseline is preserved in `checkpoints/2026-10-15-major-baseline/`, including a source snapshot, a clean portable build, checksums and restore notes. Use it as the reference for subsequent changes; keep this checkpoint intact. See `CHECKPOINT.json` and the checkpoint's `RESTORE.txt` for exact paths and scope.
+
+## Windows 1.1.5 · first-start repair
+
+Fixes an unserved update-interface dependency that kept Windows 1.1.4 on the loading screen. A clean installation now reaches the welcome screen, and startup script failures produce an immediate explanation. Download and extract the new ZIP if your current app cannot open; keep its `data` folder to retain your library. Complete frontend dependency checks now run against both extracted distributables. Android 0.1.13 is a companion preview with the same playback behavior.
 
 ## Android 0.1.11 · shuffle and listening queue
 

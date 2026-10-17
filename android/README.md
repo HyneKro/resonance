@@ -1,19 +1,25 @@
-# Resonance for Android — 0.1.12 preview
+# Resonance for Android — 0.1.13 preview
 
 A separate Android application based on the approved desktop checkpoint of 15 October 2026. The approved checkpoint is preserved. Shared visual fixes are applied separately to the current desktop and Android runtimes; the library and personal settings are untouched. This is an initial device-test build, not a claim that desktop parity or S22+ performance has been fully verified.
 
 ## Install on the S22+
 
-1. Transfer `releases/Resonance-Android-0.1.12-preview.apk` to the phone and open it in My Files. Android may ask you to allow installation from that file app. Install it over the existing version, then open Library and tap any song cover or title to play. In Downloads, Listen now takes you directly to saved songs; Resume / Download continues your remaining downloads. Existing songs, sources and destination choices are retained. If you still have the old 101-song preview, expand Playlist & download options → Check playlists once.
+1. Transfer `releases/Resonance-Android-0.1.13-preview.apk` to the phone and open it in My Files. Android may ask you to allow installation from that file app. Install it over the existing version, then open Library and tap any song cover or title to play. In Downloads, Listen now takes you directly to saved songs; Resume / Download continues your remaining downloads. Existing songs, sources and destination choices are retained. If you still have the old 101-song preview, expand Playlist & download options → Check playlists once.
 2. **For an empty download folder:** open Library → Add music → Download a playlist. Paste the playlist link and tap Find playlist songs. Then Choose folder, select or create your music folder, and tap Download songs. Songs appear in Library as they finish. Existing linked playlists are under Add music → Downloads & playlist updates.
 3. **For music already on the phone:** use Add existing music. This scans the chosen folder; it does not download songs into it. Old folders linked in 0.1.0 need to be selected again through Choose folder to grant permission to save downloads.
 4. Start with a small collection and the default graphics settings. The full player works independently of the PC.
 
-The ARM64 APK fits the S22+; Android 10 or newer is required. It is a debug-signed preview for local testing, not a Play Store release. Keep the signing key used for this build for compatible updates. **Install 0.1.12 over the existing app. Do not uninstall to update:** **uninstalling Android apps deletes their private library, settings and downloaded music**. Files saved to a separately chosen Music folder remain outside the app. Existing private downloads are not moved automatically when you change the destination.
+The ARM64 APK fits the S22+; Android 10 or newer is required. It is a debug-signed preview for local testing, not a Play Store release. Keep the signing key used for this build for compatible updates. **Install 0.1.13 over the existing app. Do not uninstall to update:** **uninstalling Android apps deletes their private library, settings and downloaded music**. Files saved to a separately chosen Music folder remain outside the app. Existing private downloads are not moved automatically when you change the destination.
 
 No personal playlists are embedded in the distributable. Connect playlists in Settings → Music sources. Files stored on a PC must first be copied to the phone; Android cannot access a PC drive directly. Embedded tags, common `.info.json` / cover sidecars and recognizable YouTube IDs in bracketed filenames help preserve metadata and avoid repeat downloads.
 
-## Changes in 0.1.12
+## Changes in 0.1.13
+
+Companion preview to the Windows first-start repair. Android is unaffected by the Windows server route bug; playback and visuals are unchanged. Startup dependency checks now follow every import in the actual APK assets, including the updater. Shared startup assets remain aligned.
+
+Validation: 59 JVM tests pass; build and lint succeed with no errors (16 warnings). The APK retains its signing certificate and package ID with versionCode 14. No physical Android device was used for this release.
+
+## Previous changes in 0.1.12
 
 Settings → App updates now checks public GitHub Releases and downloads newer APKs on unmetered Wi-Fi through Android's Download Manager. A manual download can use mobile data. Downloads survive screen-off; reopening the app also restores progress and checks completed downloads. Files are verified against the expected size, SHA-256, package name, newer versionCode and matching signing certificate. Tap Install update and confirm the Android installer; grant installation permission if requested, then return and tap Install again. Automatic checks and downloads are independently optional. No GitHub account or owner credential is needed. Install this APK over your existing version once to gain online updates.
 
