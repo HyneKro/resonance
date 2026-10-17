@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {resedit} from '../node_modules/@electron/packager/dist/resedit.js';
-const root=process.cwd(),runtime=path.join(root,'desktop-build','Resonance-win32-x64');
+const root=process.cwd(),runtime=path.resolve(process.env.RESONANCE_RUNTIME_DIR||path.join(root,'desktop-build','Resonance-win32-x64'));
 const stamp=new Date().toISOString().replace(/[:.]/g,'-');
 const destination=path.join(root,'releases','Resonance-Portable-'+stamp),appDir=path.join(destination,'resources','app');
 await fs.mkdir(appDir,{recursive:true});
@@ -23,7 +23,7 @@ await fs.writeFile(path.join(destination,'portable.flag'),'Resonance portable li
 await fs.writeFile(path.join(destination,'START HERE.txt'),`RESONANCE
 
 Extract the whole folder to a writable location on your Windows computer.
-Open Resonance.exe. For future releases, go to Settings & library → App updates, choose the new portable ZIP, and restart when prompted. Your data folder stays intact. Keep it when updating; do not send your used data folder to anyone.
+Open Resonance.exe. App updates are checked and downloaded automatically from github.com/HyneKro/resonance. Go to Settings & library → App updates to restart and install when ready. You can disable automatic checks/downloads there, or install a new portable ZIP manually. Your data folder stays intact. Keep it when updating; do not send your used data folder to anyone.
 
 Choose Add music source to connect:
   • a local music folder (including subfolders),

@@ -1,10 +1,12 @@
 # Resonance
 
-A local music library, audio-reactive universe and Sona companion for Windows and Android. This is the private development repository. Personal music, sources, listening history, artwork caches, signing keys and compiled releases are excluded from Git.
+A local music library, audio-reactive universe and Sona companion for Windows and Android. The source and app releases are public. Personal music, sources, listening history, artwork caches, signing keys and compiled releases are excluded from Git.
 
-For development, install Node 24 and run `npm ci`, then `npm start` (desktop) or `npm run dev` (browser). A fresh checkout starts with an empty library; add music from the app. Optional local configuration belongs in the ignored `config.json`; `config.example.json` is a clean template. See [Sharing and releases](docs/SHARING.md) for version control, private access and publishing updates, and [Android setup](android/README.md) for APK builds.
+For development, install Node 24 and run `npm ci`, then `npm start` (desktop) or `npm run dev` (browser). A fresh checkout starts with an empty library; add music from the app. Optional local configuration belongs in the ignored `config.json`; `config.example.json` is a clean template. See [Sharing and releases](docs/SHARING.md) for sharing, automatic updates and publishing releases, and [Android setup](android/README.md) for APK builds.
 
 Existing Windows workspace installations can still use **Launch Resonance.cmd**. Portable releases keep their `data` folder alongside the executable and support installing a newer ZIP from Settings → App updates.
+
+**App updates · Windows 1.1.4 / Android 0.1.12.** Download the app from [GitHub Releases](https://github.com/HyneKro/resonance/releases), without a GitHub account. These versions check for and download newer app builds from Settings → App updates. Windows waits for Restart & update; Android downloads automatically on unmetered Wi-Fi and asks for system installation confirmation. Older installations need this ZIP/APK installed once to gain online updates. Music, playlists and settings are retained. [Update and publishing guide](docs/SHARING.md).
 
 **Approved major checkpoint · 15 October 2026.** The user-approved baseline is preserved in `checkpoints/2026-10-15-major-baseline/`, including a source snapshot, a clean portable build, checksums and restore notes. Use it as the reference for subsequent changes; keep this checkpoint intact. See `CHECKPOINT.json` and the checkpoint's `RESTORE.txt` for exact paths and scope.
 

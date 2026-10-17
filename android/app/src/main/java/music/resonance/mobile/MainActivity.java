@@ -59,6 +59,19 @@ public final class MainActivity extends Activity {
         LibraryStore lib=app.library;
         if(Set.of("analysis","visuals","state","play","pause","seek","next","previous","volume","shuffle","repeat","equalizer").contains(action))playback(); // Never await controller binding on Android's main thread.
         switch(action){
+            case "appUpdate":{
+                switch(data.optString("action")){
+                    case "status":break;
+                    case "check":app.updates.check(false);break;
+                    case "download":app.updates.download();break;
+                    case "cancel":app.updates.cancel();break;
+                    case "preferences":app.updates.preferences(data.optJSONObject("preferences")==null?new JSONObject():data.optJSONObject("preferences"));break;
+                    case "install":app.updates.install(this);break;
+                    case "releases":app.onMain(()->{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(AppRelease.PAGE)));return null;});break;
+                    default:throw new IOException("Unknown update action");
+                }
+                return app.updates.snapshot();
+            }
             case "library":return Json.put(Json.put(lib.snapshot(),"openDownloads",getIntent().getBooleanExtra("openDownloads",false)),"displayHz",app.onMain(()->getWindowManager().getDefaultDisplay().getRefreshRate()));
             case "preferences":return lib.updatePreferences(data);
             case "storage":return lib.storage();

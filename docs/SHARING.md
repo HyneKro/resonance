@@ -1,57 +1,36 @@
-# Private development and releases
+# Sharing Resonance and publishing updates
 
-Resonance's source repository is private. A repository link alone does not grant access. Friends who only need the app do not need source access.
+The source and releases at https://github.com/HyneKro/resonance are public, by the owner's choice. Anyone can download the app without an account. No Cloudflare account or separate update server is needed. Share the Releases page, not GitHub's “Download ZIP” source archive.
 
-## Version control
+## Install and update
 
-The repository includes Windows and Android source, illustrated assets, build scripts and synthetic tests. `.gitignore` excludes music, library databases, caches, local configuration, signing keys, downloaded tools, build folders, previous releases, screenshots and checkpoints. The approved local checkpoint is preserved on the original development machine; it is not part of Git history.
+- **Windows:** download `Resonance-PC-<version>-portable.zip`, extract the complete folder and launch `Resonance.exe`. Starting with 1.1.4, Settings & library → App updates checks GitHub and downloads newer builds automatically. Choose **Restart & update** when ready. Installing retains music, playlists, settings and the existing `data` folder, with rollback if replacing application files fails. Older versions can use **Install a portable update…** to install the new ZIP once and gain online updates.
+- **Android:** download `Resonance-Android-<version>.apk` and install it over the existing app. Starting with 0.1.12, Settings → App updates checks GitHub and downloads newer APKs on unmetered Wi-Fi. Android's Download Manager continues downloads when the screen is off. Tap **Install update**, allow Resonance to install apps if Android requests it, then confirm the system installer. Never uninstall to update: uninstalling deletes private app music and data. The published preview currently supports ARM64 devices such as the S22+.
+- Automatic checks happen 30 seconds after launch and at six-hour intervals while the process is running. Both automatic checks and downloads can be disabled. **Check for updates** works manually; Android's manual **Download update** may use mobile data. No version is installed during listening without a restart/install action.
+- An offline connection, cancelled download or unavailable GitHub service leaves the current installation usable. Cancelling a download does not delete music. Manual downloads from GitHub remain available.
 
-Before committing, run `npm run audit:repository`. This checks the staged files for excluded data and likely credentials without printing secret values. It is an additional check, not a guarantee that arbitrary files are safe to publish. Review the changed files before pushing.
+## Verification and privacy
 
-Typical update:
+Clients read public GitHub release metadata without a token. Checks share normal connection information with GitHub, not library contents. They select their platform's versioned asset, skip drafts and downgrades, and require the expected size and GitHub SHA-256 digest. Windows additionally verifies the archive's per-file manifest and stages an update inside its own portable directory. Android checks the package ID, versionCode, versionName and installed signing certificate before offering installation. The checksum detects damaged or substituted downloads; the repository account remains the trust source for releases.
 
-```powershell
-git status
-git add <changed-source-files>
-npm run audit:repository
-npm test
-git commit -m "Describe the change"
-git push
-```
+Personal music, library databases, cache, local configuration, signing keys, downloaded tools, build folders and checkpoints are excluded from source control. Use `npm run audit:repository` before pushing; `node scripts/audit-repository.mjs --history` also checks committed history. This is an additional check, not a guarantee. Review files before publication. Signing keys stay private and must be backed up independently.
 
-Git stores source history. Compiled portable ZIPs and APKs belong in GitHub Releases, not in Git commits. Releases in this private repository also require authorized GitHub access.
+## Publishing a new version
 
-## Publishing a build
-
-1. Build and test the appropriate platform. Windows: `npm run package` then `npm run share`. Android: follow `android/README.md`, keeping the same signing key and increasing versionCode.
-2. Use a clean, unused Windows portable ZIP. Never upload a used app folder or its data. Verify Android updates use the existing certificate; a different key will not update installed copies.
-3. Create a release with a platform-specific tag (`pc-v1.1.3`, `android-v0.1.11-preview`), attach the tested ZIP/APK and a SHA-256 checksum file, then write short release notes. Keep releases as drafts until verification is complete.
-4. A source push does not publish a binary or trigger app updates. Publish only a tested build.
-
-The helper below verifies that the repository is private, checks for personal data in Windows archives, writes SHA-256 checksums and uploads a **draft** release using the official GitHub CLI. An existing release is never overwritten automatically. Supply notes for the build being uploaded:
+1. Increase the platform version. For Android also increase versionCode and preserve the original signing key. Update `android/tools/build.ps1`'s output name.
+2. Test and build. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename.
+3. Commit and push the reviewed source. A source push alone does not create an app update.
+4. Upload a draft release with the helper, using platform-specific tags and tested artifacts:
 
 ```powershell
-./scripts/publish-release.ps1 -Platform pc -File releases/Resonance-PC-1.1.3-portable.zip -Notes docs/release-notes/pc-1.1.3.md
-./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.11-preview.apk -Notes docs/release-notes/android-0.1.11.md
+./scripts/publish-release.ps1 -Platform pc -File releases/Resonance-PC-1.1.4-portable.zip -Notes docs/release-notes/pc-1.1.4.md
+./scripts/publish-release.ps1 -Platform android -File android/releases/Resonance-Android-0.1.12-preview.apk -Notes docs/release-notes/android-0.1.12.md
 ```
 
-Review the draft on GitHub and publish when ready. `-Publish` publishes after the upload when intentionally requested. For Android, independently verify the package ID, versionCode and signing certificate before using this upload helper.
+The helper confirms the destination repository, checks the clean Windows configuration and archive, writes `SHA256SUMS.txt`, and uploads the artifact and checksum. It refuses to overwrite an existing release. Independently confirm Android's signing certificate and versionCode. Compare GitHub's uploaded asset digest with the local artifact before publishing. Drafts are ignored by app update checks; publish only after verification. `-Publish` publishes immediately after uploading when that is intentional. New Windows releases should be stable; Android preview releases are supported by the Android updater. Keep exact platform tag and asset filename conventions shown above.
 
-Signing keys stay outside the repository. This matters even for a private repository. Back up the original Android signing key privately; do not recreate it for every build or move it into Git.
+Never upload a used portable folder or its `data` directory. Send only the original clean ZIP. Do not include an owner's GitHub token, password or signing key in an app, repository or release.
 
-## Friends without GitHub accounts
+## Local development
 
-The selected distribution model is private download links, with no GitHub login for friends. GitHub does not offer an unlisted, link-only private repository. A separate distribution endpoint is required to serve private releases to those friends. Cloudflare is one option, not a requirement; another suitable host works too.
-
-Suggested arrangement:
-
-- Keep source code and release archives in private GitHub storage.
-- A small server checks a unique, revocable invitation for each friend, then serves only approved releases and their version/hash metadata. Its GitHub access is limited to release contents and stays on the server.
-- Friends receive app access only; never place the owner's GitHub credentials in the app. Anyone holding a bearer invitation can share it, so use individually revocable links if that matters.
-- Each app periodically checks its platform's feed, verifies the downloaded file and offers the update. Windows can reuse its existing staged ZIP installer and rollback. Android should use the normal signed APK installation flow, which may require user confirmation.
-
-No update server has been deployed and automatic online app updates are not enabled by the repository setup. Choosing/connecting a host and integrating authenticated checks in both clients are the next steps. Existing Windows ZIP updates and Android install-over updates continue to work.
-
-## External build tools
-
-`tools/` is intentionally excluded. Windows downloads need official yt-dlp, Node, ffmpeg and ffprobe binaries in that directory. Existing development machines already have them; a fresh checkout must supply them separately. Generated sprite atlases are included; optional sprite rebuilding needs `sharp` (or `RESONANCE_SHARP_PATH`) and the original local artwork inputs.
+Git tracks source history. Generated ZIPs/APKs are stored in GitHub Releases, not commits. The original approved checkpoint remains local and unchanged. A fresh source checkout starts with no personal music sources. Optional Windows download tools in `tools/` must be obtained from their official providers. Generated Sona sprites are included; rebuilding them also needs the original artwork inputs and `sharp` (or `RESONANCE_SHARP_PATH`).

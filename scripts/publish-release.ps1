@@ -40,7 +40,7 @@ if($ValidateOnly){@{platform=$Platform;version=$version;tag=$tag;file=$archive.N
 $gh=Join-Path $project '.local-tools/github-cli/runtime/bin/gh.exe'
 if(!(Test-Path -LiteralPath $gh)){$gh=(Get-Command gh -ErrorAction Stop).Source}
 $repoInfo=& $gh repo view $repository --json nameWithOwner,isPrivate | ConvertFrom-Json
-if($LASTEXITCODE -ne 0 -or !$repoInfo.isPrivate -or $repoInfo.nameWithOwner -ne $repository){throw 'The private Resonance repository could not be verified.'}
+if($LASTEXITCODE -ne 0 -or $repoInfo.nameWithOwner -ne $repository){throw 'The Resonance release repository could not be verified.'}
 $output=Join-Path $project ('releases/publish-'+$tag)
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $hashFile=Join-Path $output 'SHA256SUMS.txt'

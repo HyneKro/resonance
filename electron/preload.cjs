@@ -1,6 +1,8 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('resonanceDesktop',{
   installUpdate:()=>ipcRenderer.invoke('resonance:update'),
+  appUpdate:(action,data)=>ipcRenderer.invoke('resonance:online-update',action,data),
+  onAppUpdate:callback=>{const fn=(_e,state)=>callback(state);ipcRenderer.on('resonance:update-state',fn);return ()=>ipcRenderer.removeListener('resonance:update-state',fn);},
   publishSona:state=>ipcRenderer.invoke('resonance:sona-publish',state),
   sonaCommand:action=>ipcRenderer.invoke('resonance:sona-command',action),
   onSonaState:callback=>{const fn=(_e,s)=>callback(s);ipcRenderer.on('resonance:sona-state',fn);return ()=>ipcRenderer.removeListener('resonance:sona-state',fn);},
