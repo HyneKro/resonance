@@ -68,3 +68,6 @@
 #sheet{background:rgba(17,14,25,.78);backdrop-filter:blur(20px) saturate(.8)}
 #sheet .menu-section .fine-print{font-size:12px;line-height:1.7;color:#bdb3c9}
 #sheet .menu-section .listening-edit h3{font-size:16px}
+
+/* Fixed global access, three equal listening surfaces, then surface tools. */
+.room-top{gap:4px;padding:8px 14px}.room-top .brand{margin-right:auto}.room-top .brand span{font-size:20px}.room-top>.text{font-size:12px;padding:6px 10px}.mobile-modes{position:absolute;z-index:5;top:65px;left:14px;right:14px;justify-content:space-around;padding:3px}.mobile-modes button{font-size:12px;flex:1;min-height:38px;border-radius:22px}.mobile-mode-tools{position:absolute;z-index:5;top:114px;right:14px;display:flex;gap:5px}.mobile-mode-tools button{font-size:11px;padding:5px 11px;border:1px solid #ffffff24;border-radius:22px;min-height:36px;background:#14152150}.bottom-nav{justify-content:flex-end;border:0;padding:0;height:34px}.bottom-nav button{flex-direction:row;width:auto;gap:7px;min-height:32px;font-size:16px}.bottom-nav span{font-size:11px}.immersed .mobile-modes,.immersed .mobile-mode-tools{opacity:0;pointer-events:none}.constellation-mode .room-dock .bottom-nav button{min-height:32px;flex-direction:row}.constellation-mode .room-dock .bottom-nav{padding:0}.constellation-mode .room-dock .volume-row{display:none}

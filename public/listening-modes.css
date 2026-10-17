@@ -1,0 +1,11 @@
+/* Global navigation stays in place; each listening surface owns its tools. */
+.room-controls{flex-wrap:wrap;justify-content:flex-end;gap:10px!important}
+.room-global,.listening-modes,.mode-tools{display:flex;align-items:center;gap:6px}
+.listening-modes{padding:4px;border:1px solid #ffffff22;border-radius:28px;background:#0e122b40}
+.listening-modes button{border:0!important;background:transparent;white-space:nowrap}
+.listening-modes [aria-pressed=true]{background:linear-gradient(120deg,color-mix(in srgb,var(--ui-accent,#cbb3ff) 22%,transparent),#ffffff12)!important;box-shadow:inset 0 0 0 1px #ffffff35;color:var(--accent-light,#f0eafa)}
+body:not([data-listening-mode=visualizer]) [data-visualizer-only]{display:none!important}
+#dock-details{min-width:0;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:5px;background:transparent;border:0;padding:4px 0;color:inherit;cursor:pointer}
+#dock-details b,#dock-details span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dock-details:focus-visible{outline:2px solid var(--ui-accent,#cbb3ff);outline-offset:5px;border-radius:6px}
+@media(max-width:1150px){.room-top>.brand,.room-top>div:first-child .brand{font-size:28px}.room-controls{max-width:78%}.room-controls .chip{padding:8px 12px}}

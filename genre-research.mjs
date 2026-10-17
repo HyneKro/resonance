@@ -1,5 +1,5 @@
-import {sameGenreRecording,genreTitle,genreArtists} from './public/genre-identity.js';
-export const GENRE_RESEARCH_VERSION=5;
+import {sameGenreRecording,genreTitle,genreArtists,genreKey} from './public/genre-identity.js';
+export const GENRE_RESEARCH_VERSION=6;
 export function trustedRecording(track,candidates=[]){
  const matches=candidates.filter(c=>sameGenreRecording(track,c));
  if(!matches.length)return null;
@@ -26,9 +26,14 @@ export function catalogueGenre(track,results=[]){
  return labels.length===1?[{name:labels[0],scope:'recording',source:'Apple Music catalogue',url:matches[0].trackViewUrl,confidence:'catalogued'}]:[];
 }
 let catalogueQueue=Promise.resolve(),catalogueAt=0;
-export function searchCatalogue(track){
+export function catalogueArtistGenre(name,results=[]){
+ const exact=results.filter(r=>r.wrapperType==='artist'&&genreKey(r.artistName)===genreKey(name)&&r.artistId&&/^https:\/\/(music|itunes)\.apple\.com\//.test(r.artistLinkUrl||r.artistViewUrl||''));
+ if(new Set(exact.map(r=>r.artistId)).size!==1)return [];
+ const r=exact[0];return r.primaryGenreName?[{name:r.primaryGenreName,scope:'artist',source:'Apple Music artist catalogue',artist:r.artistName,url:r.artistLinkUrl||r.artistViewUrl,confidence:'suggested'}]:[];
+}
+export function searchCatalogue(track,artistOnly=false){
  const task=async()=>{await new Promise(r=>setTimeout(r,Math.max(0,catalogueAt-Date.now())));catalogueAt=Date.now()+3200;
-  const query=new URLSearchParams({term:(genreArtists(track)[0]||track.artist)+' '+genreTitle(track),country:'US',media:'music',entity:'song',limit:'25'});
+  const query=new URLSearchParams({term:artistOnly?track.artist:(genreArtists(track)[0]||track.artist)+' '+genreTitle(track),country:'US',media:'music',entity:artistOnly?'musicArtist':'song',limit:'25',...(artistOnly?{attribute:'artistTerm'}:{})});
   const response=await fetch('https://itunes.apple.com/search?'+query,{signal:AbortSignal.timeout(15000)});
   if(response.status===429)catalogueAt=Date.now()+Math.max(60000,(Number(response.headers.get('retry-after'))||60)*1000);
   if(!response.ok)throw Error('Apple catalogue returned '+response.status);

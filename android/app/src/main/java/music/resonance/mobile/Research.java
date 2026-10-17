@@ -41,7 +41,7 @@ public final class Research {
     private long lastCatalogue,mbBlockedUntil,catalogueBlockedUntil;
     private final Object requestLock=new Object();
     private JSONObject cachedGenreRead(String url) throws Exception {
-        String key="genre-v5:"+LibraryStore.id(url);LibraryStore lib=app.library;
+        String key="genre-v6:"+LibraryStore.id(url);LibraryStore lib=app.library;
         synchronized(requestLock){
             JSONObject cache=lib.setting(key);if(cache.optJSONObject("data")!=null&&System.currentTimeMillis()-cache.optLong("at")<30L*86400000)return cache.optJSONObject("data");
             boolean mb=url.startsWith("https://musicbrainz.org/");if(System.currentTimeMillis()<(mb?mbBlockedUntil:catalogueBlockedUntil))throw new IOException("Metadata service is resting after a connection error. Try again shortly.");long delay=(mb?1100:3200)-(System.currentTimeMillis()-(mb?lastMusicBrainz:lastCatalogue));if(delay>0)Thread.sleep(delay);

@@ -5,8 +5,8 @@ import {ConstellationSky} from './constellation-sky.js';
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
  * No second WebGL context, audio decoder or background worker is needed. */
 export class ConstellationScene {
- constructor(canvas,{onSelect,onHover,onEmpty,onGroups,viewport=()=>({top:0,bottom:0})}){
-  this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=viewport;
+ constructor(canvas,{onSelect,onHover,onEmpty,onHome,onGroups,viewport=()=>({top:0,bottom:0})}){
+  this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=viewport;
   this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
   this.coarse=matchMedia('(pointer:coarse)').matches||innerWidth<750;this.reduced=matchMedia('(prefers-reduced-motion:reduce)');
   this.sky=new ConstellationSky(this.coarse);
@@ -18,7 +18,7 @@ export class ConstellationScene {
  focus(id,zoom){const p=this.byId?.get(id);if(p)this.camera.focus(flowingPosition(p,this.time),zoom);}
  fit(points,reset=false){
   if(!points.length)return;if(reset)this.camera.home();
-  const center=[0,1,2].map(i=>(Math.min(...points.map(p=>p[i]))+Math.max(...points.map(p=>p[i])))/2),inset=this.viewport(),w=this.width,h=Math.max(150,this.height-(inset.top||0)-(inset.bottom||0)),f=Math.min(w,h*1.55)*1.12;
+  const center=[0,1,2].map(i=>(Math.min(...points.map(p=>p[i]))+Math.max(...points.map(p=>p[i])))/2),inset=this.viewport(),w=this.width-(inset.right||0),h=Math.max(150,this.height-(inset.top||0)-(inset.bottom||0)),f=Math.min(w,h*1.55)*1.12;
   const yaw=reset?0:this.camera.yaw,pitch=reset?0:this.camera.pitch,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
   let distance=260;for(const p of points){const [x,y,z]=p.map((v,i)=>v-center[i]),xx=x*cy-z*sy,zz=x*sy+z*cy,yy=y*cp-zz*sp,depth=y*sp+zz*cp;distance=Math.max(distance,Math.max((Math.abs(xx)+55)*f/(w*.39),(Math.abs(yy)+55)*f/(h*.34))-depth);}
   this.camera.focus(center,1250/distance);
@@ -51,7 +51,7 @@ export class ConstellationScene {
  draw(pose){
   const c=this.ctx,w=this.width,h=this.height;if(!w||!h)return;const inset=this.viewport(),top=inset.top||0,vh=Math.max(150,h-top-(inset.bottom||0));
   c.setTransform(this.ratio,0,0,this.ratio,0,0);c.fillStyle='#060a13';c.fillRect(0,0,w,h);this.hits=[];
-  const project=p=>{const v=projectPoint(p,pose,w,vh);if(v)v.y+=top;return v;};
+  const project=p=>{const v=projectPoint(p,pose,w-(inset.right||0),vh);if(v)v.y+=top;return v;};
   this.sky.draw(c,w,h,pose,top,vh,this.focusMix);
   const skyPose={...pose,zoom:1,center:[0,0,0]};
   for(const star of this.dust){const p=projectPoint(star.point,skyPose,w,vh);if(!p||p.depth<1300)continue;p.y+=top;if(p.x<0||p.x>w||p.y<0||p.y>h)continue;c.globalAlpha=(.55+Math.sin(this.time*.35+star.phase)*.15)*(1-this.focusMix*.5);c.fillStyle='#c9d8f2';c.fillRect(p.x,p.y,star.size,star.size);}c.globalAlpha=1;
@@ -97,7 +97,7 @@ export class ConstellationScene {
   canvas.onpointerup=e=>{e.stopPropagation();const p=point(e);if(this.pointers.has(e.pointerId)&&!this.dragged&&!this.pinch&&!this.secondary){const hit=pickSphere(this.hits,p.x,p.y,e.pointerType==='touch');if(hit)this.onSelect?.(hit.node.id);else this.onEmpty?.();}this.pointers.delete(e.pointerId);if(!this.pointers.size){this.pinch=null;canvas.style.cursor='grab';}};
   const cancel=()=>{this.pointers.clear();this.pinch=null;this.dragged=true;};canvas.onpointercancel=cancel;canvas.onlostpointercapture=e=>{if(this.pointers.has(e.pointerId))cancel();};this.blur=cancel;window.addEventListener('blur',cancel);
   canvas.onpointerleave=()=>{this.hover='';this.onHover?.(null);};canvas.onwheel=e=>{e.preventDefault();e.stopPropagation();this.camera.scale(this.camera.zoom*Math.exp(-e.deltaY*.0015));};
-  canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home'].includes(e.key)){e.preventDefault();if(e.key==='Home')this.home();else if(['+','=','-'].includes(e.key))this.camera.scale(this.camera.zoom*(e.key==='-'?.8:1.25));else{const dx=e.key==='ArrowLeft'?-30:e.key==='ArrowRight'?30:0,dy=e.key==='ArrowUp'?-30:e.key==='ArrowDown'?30:0;if(e.shiftKey)pan(dx,dy);else this.camera.drag(dx,dy);}}if(e.key==='Enter'&&this.selected){e.preventDefault();this.onSelect?.(this.selected);}};
+  canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home'].includes(e.key)){e.preventDefault();if(e.key==='Home'){if(this.onHome)this.onHome();else this.home();}else if(['+','=','-'].includes(e.key))this.camera.scale(this.camera.zoom*(e.key==='-'?.8:1.25));else{const dx=e.key==='ArrowLeft'?-30:e.key==='ArrowRight'?30:0,dy=e.key==='ArrowUp'?-30:e.key==='ArrowDown'?30:0;if(e.shiftKey)pan(dx,dy);else this.camera.drag(dx,dy);}}if(e.key==='Enter'&&this.selected){e.preventDefault();this.onSelect?.(this.selected);}};
  }
  dispose(){this.active=false;cancelAnimationFrame(this.frame);this.observer.disconnect();document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('blur',this.blur);this.pointers.clear();this.sprites.clear();this.sky.dispose();this.canvas.width=this.canvas.height=1;}
 }

@@ -26,7 +26,7 @@ public class GenreResearchTest {
    if(url.contains("/artist/"))return Json.object("genres",new JSONArray().put(Json.object("name","electronic","count",2)));
    return new JSONObject();
   },taxonomy());
-  JSONObject t=research.discover(song());assertEquals("Neurofunk",t.optString("genre"));assertEquals("track",t.optString("genreBasis"));assertEquals(2,t.optJSONArray("genreEvidence").length());assertEquals(5,t.optInt("genreResearchVersion"));
+  JSONObject t=research.discover(song());assertEquals("Neurofunk",t.optString("genre"));assertEquals("track",t.optString("genreBasis"));assertEquals(2,t.optJSONArray("genreEvidence").length());assertEquals(GenreResearch.VERSION,t.optInt("genreResearchVersion"));
  }
  @Test public void homonymousArtistsAndRemixesAreNeverBorrowed(){
   GenreResearch research=new GenreResearch(url->{if(url.contains("/artist?"))return Json.object("artists",new JSONArray().put(Json.object("id",A,"name","Aster","score",100)).put(Json.object("id",L,"name","Aster","score",100)));return new JSONObject();},taxonomy());
@@ -54,5 +54,18 @@ public class GenreResearchTest {
    if(url.contains("/recording/"))return Json.object("genres",new JSONArray().put(Json.object("name","ambient","count",2)));return new JSONObject();
   },taxonomy());
   JSONObject t=Json.object("title","Daughter","artist","Youth","rawTitle","Youth - Daughter","duration",250);assertEquals("Ambient",r.discover(t).optString("genre"));assertEquals("Youth",t.optString("artist"));
+ }
+
+ @Test public void artistCatalogueFallbackIsSuggestedAndRejectsHomonyms(){
+  JSONObject a=Json.object("wrapperType","artist","artistName","Aster","artistId",1,"artistLinkUrl","https://music.apple.com/us/artist/aster/1","primaryGenreName","Electronic");
+  GenreResearch r=new GenreResearch(url->url.contains("entity=musicArtist")?Json.object("results",new JSONArray().put(a)):new JSONObject(),taxonomy());
+  JSONObject result=r.discover(Json.object("title","Rare song","artist","Aster","duration",180));assertEquals("Electronic",result.optString("genre"));assertEquals("artist",result.optString("genreBasis"));
+  GenreResearch ambiguous=new GenreResearch(url->url.contains("entity=musicArtist")?Json.object("results",new JSONArray().put(a).put(Json.object("wrapperType","artist","artistName","Aster","artistId",2,"artistLinkUrl","https://music.apple.com/us/artist/aster/2","primaryGenreName","Pop"))):new JSONObject(),taxonomy());
+  assertEquals("",ambiguous.discover(Json.object("title","Rare song","artist","Aster","duration",180)).optString("genre"));
+ }
+ @Test public void blankArtistCanUseUploaderOnlyWithAnExactRecordingMatch(){
+  GenreResearch r=new GenreResearch(url->url.contains("entity=song")?Json.object("results",new JSONArray().put(Json.object("kind","song","trackName","Guts","artistName","Ellie Dixon","trackTimeMillis",126000,"primaryGenreName","Pop","trackViewUrl","https://music.apple.com/us/song/guts/1"))):new JSONObject(),taxonomy());
+  JSONObject t=Json.object("title","Guts","artist","","channel","Ellie Dixon","duration",126);assertEquals("Pop",r.discover(t).optString("genre"));assertEquals("",t.optString("artist"));
+  assertEquals("",r.discover(Json.object("title","Guts","artist","","channel","Repost","duration",126)).optString("genre"));
  }
 }

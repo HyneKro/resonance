@@ -27,6 +27,9 @@ export function genreResearchArtists(track){
 }
 export function genreSearchTracks(track){
  const variants=[track];if(track.metadataLocks?.artist||['manual','confirmed'].includes(track.metadataStatus))return variants;
+ // The uploader is a search clue, not an artist credit. Only a matching
+ // recording may corroborate it; repost channels must not colour their uploads.
+ if(!genreArtists(track).length&&track.channel){const artist=track.channel.replace(/\s+-\s+Topic$/i,'').replace(/\s+official$/i,'').trim();if(artist)variants.push({...track,artist,artists:undefined,artistIds:undefined,channelCandidate:true});}
  const parts=String(track.rawTitle||'').split(/\s+[-–—]\s+/);
  if(parts.length===2&&track.duration>0&&genreKey(parts[0])===genreKey(track.artist)&&genreKey(parts[1])===genreKey(track.title))variants.push({...track,title:parts[0],artist:parts[1],artists:undefined,artistIds:undefined,rawTitle:parts[0]});
  return variants;
