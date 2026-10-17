@@ -1,16 +1,16 @@
 import {hash} from './constellation-model.js';
-import {buildSpace,connections,OrbitCamera,projectPoint,pickSphere,flowingPosition,sameArtistIds} from './constellation-space.js';
-import {ConstellationSky} from './constellation-sky.js';
+import {buildSpace,connections,OrbitCamera,projectPoint,pickSphere,flowingPosition,sameArtistIds,placeMapLabels} from './constellation-space.js';
+import {ConstellationSky,backdropStars,projectBackdrop} from './constellation-sky.js';
 
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
- * No second WebGL context, audio decoder or background worker is needed. */
+ * The lightweight sky context is disposed together with this view. */
 export class ConstellationScene {
  constructor(canvas,{onSelect,onHover,onEmpty,onHome,onGroups,viewport=()=>({top:0,bottom:0})}){
   this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=viewport;
   this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
   this.coarse=matchMedia('(pointer:coarse)').matches||innerWidth<750;this.reduced=matchMedia('(prefers-reduced-motion:reduce)');
   this.sky=new ConstellationSky(this.coarse);
-  this.dust=Array.from({length:this.coarse?500:1100},(_,i)=>{const a=hash(i+'skyaz')*Math.PI*2,z=hash(i+'skyheight')*2-1,r=Math.sqrt(1-z*z);return {point:[Math.cos(a)*r*5000,z*5000,Math.sin(a)*r*5000],size:hash(i+'skysize')>.96?1.4:.55,phase:hash(i+'skytwinkle')*6.28};});
+  this.dust=backdropStars(this.coarse);
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas);this.bind();this.resize();this.tick=this.tick.bind(this);this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;this.last=0;}else this.wake();};document.addEventListener('visibilitychange',this.visibility);this.wake();
  }
  setData(nodes,positions){this.data=buildSpace(nodes,positions);this.byId=new Map(this.data.points.map(p=>[p.id,p]));this.visible=new Set(nodes.map(n=>n.id));this.selectedLinks=null;this.setSelection(this.selected);}
@@ -53,8 +53,7 @@ export class ConstellationScene {
   c.setTransform(this.ratio,0,0,this.ratio,0,0);c.fillStyle='#060a13';c.fillRect(0,0,w,h);this.hits=[];
   const project=p=>{const v=projectPoint(p,pose,w-(inset.right||0),vh);if(v)v.y+=top;return v;};
   this.sky.draw(c,w,h,pose,top,vh,this.focusMix);
-  const skyPose={...pose,zoom:1,center:[0,0,0]};
-  for(const star of this.dust){const p=projectPoint(star.point,skyPose,w,vh);if(!p||p.depth<1300)continue;p.y+=top;if(p.x<0||p.x>w||p.y<0||p.y>h)continue;c.globalAlpha=(.55+Math.sin(this.time*.35+star.phase)*.15)*(1-this.focusMix*.5);c.fillStyle='#c9d8f2';c.fillRect(p.x,p.y,star.size,star.size);}c.globalAlpha=1;
+  for(const star of this.dust){const p=projectBackdrop(star,pose,w,h);if(!p||p.x<0||p.x>w||p.y<0||p.y>h)continue;const alpha=.35+star.layer*.12+(this.reduced.matches?0:Math.sin(this.time*.2+star.phase)*.07);c.globalAlpha=alpha;c.fillStyle=star.layer===2?'#e9e3ff':'#b9ccec';c.beginPath();c.arc(p.x,p.y,star.size,0,Math.PI*2);c.fill();}c.globalAlpha=1;
   const shown=this.data.points.filter(p=>this.visible.has(p.id)),projected=new Map();
   for(const n of shown){const p=project(flowingPosition(n,this.time));if(p&&p.x>-60&&p.y>-60&&p.x<w+60&&p.y<h+60)projected.set(n.id,{...p,node:n,radius:Math.max(1.1,Math.min(13,4.5*p.scale))});}
   for(const g of this.data.groups){const p=project(g.position);if(!p)continue;const r=Math.min(650,250*p.scale);if(p.x<-r||p.x>w+r||p.y<-r||p.y>h+r)continue;const glow=c.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(1,r));glow.addColorStop(0,g.color+'17');glow.addColorStop(.45,g.color+'09');glow.addColorStop(1,g.color+'00');c.fillStyle=glow;c.fillRect(p.x-r,p.y-r,r*2,r*2);}
@@ -69,22 +68,24 @@ export class ConstellationScene {
    if(special||r>3.3&&!dim){const s=n.signature,orbit=r*(special?2.6:2),count=s.count;c.fillStyle=n.region.color;for(let i=0;i<count;i++){const a=s.phase+i/count*Math.PI*2+this.time*.28,px=Math.cos(a)*orbit,py=Math.sin(a)*orbit*(s.style==='halo'?.45:.8);const xx=x+px*Math.cos(s.tilt)-py*Math.sin(s.tilt),yy=y+px*Math.sin(s.tilt)+py*Math.cos(s.tilt);c.beginPath();c.arc(xx,yy,special?1.5:1,0,Math.PI*2);c.fill();}}
    if(special||peer){c.strokeStyle=n.id===this.current?'#ffffffc0':n.region.color+'a0';c.lineWidth=1;c.beginPath();c.ellipse(x,y,r*2.1,r*.85,-.45,0,Math.PI*2);c.stroke();}c.globalAlpha=1;this.hits.push(p);
   }
-  // Screen-space labels have collision avoidance, unlike the depth-sorted stars.
-  const boxes=[];const label=(text,x,y,color,size=11)=>{c.font=`${size}px system-ui`;const tw=Math.min(w-32,c.measureText(text).width+18),xx=Math.max(16,Math.min(w-tw-16,x-tw/2)),yy=Math.max(top+10,Math.min(h-(inset.bottom||0)-24,y));if(boxes.some(b=>xx<b[0]+b[2]&&xx+tw>b[0]&&yy<b[1]+22&&yy+22>b[1]))return;boxes.push([xx,yy,tw]);c.fillStyle='#070c16dd';c.fillRect(xx,yy,tw,22);c.fillStyle=color;c.textAlign='center';c.fillText(text,xx+tw/2,yy+15,tw-12);};
-  for(const id of new Set([this.hover,this.selected,this.current])){const p=projected.get(id);if(p)label(p.node.title.slice(0,42),p.x,p.y+p.radius*3+8,'#f2efff',12);}
-  // Real buttons, positioned in the scene, make clusters discoverable by touch
-  // and keyboard. Artist labels appear inside a genre and around a selected star.
+  // Captions and cluster labels share one collision grid and stay outside chrome.
+  const bounds={x:18,y:top,width:Math.max(0,w-(inset.right||0)-36),height:Math.max(0,h-top-(inset.bottom||0))},boxes=[];
+  for(const id of new Set([this.hover,this.selected,this.current])){
+   const p=projected.get(id);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
+   c.font='11px system-ui';const text=p.node.title.slice(0,38),width=Math.min(240,c.measureText(text).width+20),placed=placeMapLabels([{x:p.x,y:p.y+p.radius*3+7,width,height:26}],bounds,boxes,1)[0];
+   if(!placed)continue;boxes.push(placed);c.fillStyle='#090c17cf';c.fillRect(placed.x,placed.y,placed.width,placed.height);c.fillStyle='#e6dff3';c.textAlign='center';c.fillText(text,placed.x+placed.width/2,placed.y+17,placed.width-14);
+  }
   const focused=this.data.groups.find(g=>g.id===this.focusedGroup),memberSet=focused?new Set(focused.ids):null;
-  let candidates=(!this.focusedGroup&&!this.selected)?this.data.groups:this.data.artistGroups.filter(g=>this.selected?g.ids.some(id=>linked.has(id)):g.id===this.focusedGroup||memberSet&&g.ids.some(id=>memberSet.has(id)));
-  const overview=!this.focusedGroup&&!this.selected,compact=w<750||this.coarse,markers=[];
-  for(const g of [...candidates].sort((a,b)=>b.count-a.count).slice(0,40)){
-   if(!g.ids.some(id=>this.visible.has(id)))continue;const p=project(g.position);if(!p||!overview&&(p.x<30||p.x>w-30||p.y<top+8||p.y>h-(inset.bottom||0)-35))continue;
-   const width=Math.min(compact?125:210,35+g.name.length*6),baseX=p.x-width/2,baseY=p.y-22,slots=[];
-   for(const dy of [0,-40,40,-80,80])for(const dx of [0,-width-8,width+8])slots.push({x:Math.max(12,Math.min(w-width-12,baseX+dx)),y:Math.max(top+3,Math.min(h-(inset.bottom||0)-38,baseY+dy))});
-   const place=slots.find(q=>!markers.some(m=>q.x<m.x+m.width+6&&q.x+width+6>m.x&&Math.abs(q.y-m.y)<38));if(!place)continue;
-   markers.push({...g,...place,width});if(Math.hypot(place.x+width/2-p.x,place.y+18-p.y)>35){c.strokeStyle=g.color+'50';c.lineWidth=.7;c.beginPath();c.moveTo(p.x,p.y);c.lineTo(place.x+width/2,place.y+18);c.stroke();}
-   if(markers.length>=(compact?10:18))break;
-  }this.onGroups?.(markers);
+  const overview=!this.focusedGroup&&!this.selected,compact=w<750||this.coarse;
+  const groups=overview?this.data.groups:this.data.artistGroups.filter(g=>this.selected?g.ids.some(id=>linked.has(id)):g.id===this.focusedGroup||memberSet&&g.ids.some(id=>memberSet.has(id)));
+  const candidates=[];
+  for(const g of [...groups].sort((a,b)=>b.count-a.count)){
+   if(!g.ids.some(id=>this.visible.has(id)))continue;const p=project(g.position);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
+   candidates.push({...g,x:p.x,y:p.y-37,width:Math.min(compact?132:185,24+g.name.length*(compact?5.3:6)),height:32,anchor:p});
+  }
+  const markers=placeMapLabels(candidates,bounds,boxes,compact?4:8);
+  for(const m of markers)if(Math.hypot(m.x+m.width/2-m.anchor.x,m.y+16-m.anchor.y)>32){c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.x+m.width/2,m.y+16);c.stroke();}
+  this.onGroups?.(markers);
 
  }
  bind(){const canvas=this.canvas,point=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};

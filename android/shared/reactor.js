@@ -98,7 +98,7 @@ export class Reactor {
   }
   setMusicOnly(enabled){
     enabled=!!enabled;if(this.musicOnly===enabled)return;const returning=this.musicOnly===true&&!enabled;this.musicOnly=enabled;this.paintReturnCue=returning;
-    if(enabled)this.sceneReveal?.cancel();else if(returning){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin();}
+    if(enabled)this.sceneReveal?.cancel();else if(returning&&!this.sceneSuspended){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin();}
     if(enabled){
       this.visualSync.clear();this.visualWave=null;this.onVisualSyncChange?.();
       this.running=false;cancelAnimationFrame(this.frameRequest);this.frameRequest=null;
@@ -119,7 +119,7 @@ export class Reactor {
       this.gpu?.dispose();this.gpu=null;this.hadFrame=false;this.previousFrame=0;
       this.visualSync.clear();this.visualWave=null;
       for(const canvas of document.querySelectorAll('#room-gl,#room-canvas,[data-reactor]')){const empty=canvas.cloneNode(false);empty.width=empty.height=1;canvas.replaceWith(empty);}
-    }else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.resetAnalysis();if(!this.musicOnly){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin();this.paintReturnCue=true;}this.start();}
+    }else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.resetAnalysis();if(!this.musicOnly){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin('constellation');this.paintReturnCue=true;}this.start();}
     this.eq(this.eqValues||[0,0,0]);document.dispatchEvent(new Event('resonance-scene-visibility'));
   }
   start(){

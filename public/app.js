@@ -294,7 +294,7 @@ $('#music-only').onclick=safe(()=>setListeningMode('music'));
 $('#music-cover-play').onclick=safe(togglePlay);
 const constellation=createConstellation({
  onMode:active=>{if(active){openRoom();desktopAudio.stop();setCinema(false);document.body.classList.remove('visual-settings-open');$('.visual-tools').inert=true;$('#room-visual-settings').setAttribute('aria-expanded','false');}reactor.setSceneSuspended(active);paintListeningMode(active?'constellation':state.prefs.musicOnly?'music':'visualizer');if(!active)applyMusicOnly();},
- tracks:()=>state.tracks,playlists:()=>state.playlists,current:()=>state.current?.id,currentTrack:()=>state.current,paused:()=>audio.paused,
+ tracks:()=>state.tracks,playlists:()=>state.playlists,current:()=>state.current?.id,currentTrack:()=>state.current,paused:()=>audio.paused,details,
  load:async()=>{await refresh(false);return api('/api/constellation');},save:value=>api('/api/constellation',value),
  research:async id=>{const updated=await api('/api/genres/track',{id});const t=getTrack(id);if(t)Object.assign(t,updated);if(state.current?.id===id)Object.assign(state.current,updated);renderNow();return updated;},
  artwork:t=>t.artwork?'/artwork/'+encodeURIComponent(t.artwork):'',
@@ -321,10 +321,11 @@ const constellation=createConstellation({
 });
 let modeRequest=0;
 async function setListeningMode(mode){const request=++modeRequest;
+ if(mode==='constellation'){const opening=constellation.open();await setPreferences({musicOnly:false});if(request===modeRequest)await opening;else void opening;return;}
+ if(mode==='music'&&constellation.isOpen){state.prefs.musicOnly=true;reactor.setMusicOnly(true);}
  if(mode!=='constellation'&&constellation.isOpen)constellation.close();
  if(mode!=='visualizer'){desktopAudio.stop();setCinema(false);document.body.classList.remove('visual-settings-open');$('.visual-tools').inert=true;$('#room-visual-settings').setAttribute('aria-expanded','false');}
  await setPreferences({musicOnly:mode==='music'});
- if(request===modeRequest&&mode==='constellation')await constellation.open();
 }
 $('#room-constellation').onclick=safe(()=>setListeningMode('constellation'));
 $('#room-visualizer').onclick=safe(()=>setListeningMode('visualizer'));
