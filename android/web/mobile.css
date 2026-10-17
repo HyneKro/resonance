@@ -38,3 +38,33 @@
 #shuffle[aria-busy=true]{opacity:.6}
 
 .timeline>div.seek-shell{display:grid;min-height:30px}.timeline .seek-shell.has-cuts{margin-bottom:14px}.timeline .seek-cut-note{top:calc(100% - 1px);font-size:10px}
+/* Task-focused menus with one scroll surface and reachable actions. */
+#sheet .settings-hub{grid-template-columns:1fr}
+#sheet .settings-hub .menu-destination{width:100%}
+#sheet .section-tabs{position:sticky;top:-1px;z-index:4;background:color-mix(in srgb,#15121e 94%,var(--accent,#c3a2ff));backdrop-filter:blur(16px);margin-bottom:20px}
+#sheet .section-tabs button{font-size:12px;min-height:44px;padding:8px 10px}
+#sheet .menu-section .lyrics{max-height:none;overflow:visible;white-space:pre-wrap;overflow-wrap:anywhere}
+#sheet .detail-overview-head{display:flex;align-items:center;gap:18px;margin-bottom:10px}
+#sheet .detail-overview-head .detail-cover{width:82px;height:82px;margin:0;flex-shrink:0}
+#sheet .detail-overview-head .detail-title{text-align:left;min-width:0}
+#sheet .detail-overview-head h2{font-size:21px;line-height:1.25}
+#sheet .song-detail-actions{position:sticky;bottom:-1px;display:flex;gap:10px;padding:14px 0 max(8px,env(safe-area-inset-bottom));background:#15121ef2;z-index:3;border-top:1px solid #ffffff18;margin-top:16px}
+#sheet .song-detail-actions button{flex:1;min-width:0;font-size:14px;padding:14px 9px}
+#sheet .library-filters{border-bottom:1px solid #ffffff15;margin:10px 0;padding-bottom:8px}
+#sheet .library-filters summary{display:flex;justify-content:space-between;gap:10px;padding:12px 0;font-size:13px;cursor:pointer}
+#sheet #filter-summary{color:var(--muted);font-size:12px;text-align:right}
+#sheet .library-tools{margin:12px 0;gap:10px}
+#sheet .library-tools label{display:block;flex:1;min-width:0}
+#sheet .collection-label{display:block;margin-bottom:7px}
+#sheet .library-tools select{width:100%;min-width:0}
+#sheet .library-tools>.text{flex-shrink:0;padding:14px 4px}
+#sheet .pills{gap:8px}#sheet .pills button{flex:1;min-width:0;font-size:13px;text-align:center}
+#sheet .menu-section .setting{margin-block:18px}
+#sheet .menu-section h3{margin:20px 0 12px}
+#sheet .settings-hub+.menu-footnote{margin-bottom:10px}
+#sheet .menu-section:has([data-visual-group]){min-height:240px}
+#sheet .menu-section .card:first-child h3{margin-top:0}
+.room-top #settings{min-height:44px;font-size:13px}
+#sheet{background:rgba(17,14,25,.78);backdrop-filter:blur(20px) saturate(.8)}
+#sheet .menu-section .fine-print{font-size:12px;line-height:1.7;color:#bdb3c9}
+#sheet .menu-section .listening-edit h3{font-size:16px}

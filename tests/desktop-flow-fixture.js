@@ -1,6 +1,6 @@
 // Test-only loopback substitute. A silent oscillator tests app source switching
 // in the browser; native loopback is verified independently. Never shipped.
-window.resonanceDesktop={prepareDesktopAudio:async()=>{},stopDesktopAudio:async()=>{},windowState:async()=>({fullscreen:false}),onWindowState(){},toggleFullscreen:async()=>({fullscreen:false})};
+window.resonanceDesktop={installUpdate:async()=>({cancelled:true}),appUpdate:async action=>({current:'1.3.0',phase:'idle',message:action==='check'?'You have the latest version.':'Updates are checked automatically.',autoCheck:true,autoDownload:true}),prepareDesktopAudio:async()=>{},stopDesktopAudio:async()=>{},windowState:async()=>({fullscreen:false}),onWindowState(){},toggleFullscreen:async()=>({fullscreen:false})};
 navigator.mediaDevices.getDisplayMedia=async()=>{
  const context=new AudioContext(),tone=context.createOscillator(),destination=context.createMediaStreamDestination();tone.frequency.value=110;tone.connect(destination);tone.start();
  const track=destination.stream.getAudioTracks()[0],stop=track.stop.bind(track);track.stop=()=>{if(track.readyState==='ended')return;stop();tone.stop();void context.close();};return destination.stream;

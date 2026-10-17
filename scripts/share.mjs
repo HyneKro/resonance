@@ -23,9 +23,9 @@ await fs.writeFile(path.join(destination,'portable.flag'),'Resonance portable li
 await fs.writeFile(path.join(destination,'START HERE.txt'),`RESONANCE
 
 Extract the whole folder to a writable location on your Windows computer.
-Open Resonance.exe. App updates are checked and downloaded automatically from github.com/HyneKro/resonance. Go to Settings & library → App updates to restart and install when ready. You can disable automatic checks/downloads there, or install a new portable ZIP manually. Your data folder stays intact. Keep it when updating; do not send your used data folder to anyone.
+Open Resonance.exe. App updates are checked and downloaded automatically from github.com/HyneKro/resonance. Go to Settings → App updates to restart and install when ready. You can disable automatic checks/downloads there, or install a new portable ZIP manually. Your data folder stays intact. Keep it when updating; do not send your used data folder to anyone.
 
-Choose Add music source to connect:
+Choose Library → Add music to connect:
   • a local music folder (including subfolders),
   • a local M3U / M3U8 playlist,
   • a YouTube playlist and its download folder,
@@ -38,13 +38,13 @@ settings are saved locally in the data folder next to Resonance.exe.
 Desktop audio listens live to sound from other Windows apps. Stop listening returns to your paused local queue; Resume music continues it.
 No audio is recorded or uploaded. Control desktop playback and volume in its source app or Windows.
 
-Sound settings → Bluetooth & visual sync detects the current Windows output. Bluetooth uses the reported estimate; wired/USB outputs use zero automatic delay. Fine offsets and connection overrides are saved separately for each output.
+Settings → Playback & sound → Audio sync detects the current Windows output. Bluetooth uses the reported estimate; wired/USB outputs use zero automatic delay. Fine offsets and connection overrides are saved separately for each output.
 Adjust Visual offset in 1 ms steps if your headphones still feel out of sync: positive values delay the visuals; negative values reduce the estimate. Turn Use device estimate off to set the whole delay manually. Desktop audio has its own saved manual offset. Only the visuals and Sona are delayed; playback quality stays unchanged.
 
 Music only stops the visualizer and audio analysis, leaving covers, playback and queue.
 Show visualizer brings the live scene back. Visual settings: Track character,
 Musical flashes, Contrast, Movement, Beat motion, Response, Detail, Frame rate and HDR.
-Bonus effects has twelve Kaleidoscope patterns and Sona, an optional dance companion, both off by default. Kaleidoscope patterns and its toggle dissolve smoothly, including when you change your mind during a transition.
+Visuals → Extras has twelve Kaleidoscope patterns and Sona, an optional dance companion, both off by default. Kaleidoscope patterns and its toggle dissolve smoothly, including when you change your mind during a transition.
 Sona keeps her illustrated style with 104 poses: eight dance routines, head-bobbing, a dedicated idle blink, sleep, greetings and pickup/landing sequences. Deliberate frame timing keeps blinks brief and gestures readable. Fixed foot anchors keep her grounded; carrying swings gently from her headphone band. Fixed-speed loops run at up to 12 sprite FPS, with at least three complete loops before routine changes and a 24 FPS redraw limit. Sona does not accelerate, stretch or squash with the music.
 Sona’s hair follows the richer live background colors while her outfit keeps softer theme accents. Click to say hello, hold or drag to pick her up, move, and drop; placement is remembered.
 Her far headphone cup stays visible in front-facing poses. D6 is now a gentle alternating cheer bounce.
@@ -62,14 +62,14 @@ Genre discovery shows progress and results in the panel; Retry missing genres by
 Track character is researched automatically and cached locally. Metadata searches send
 title, artist, album and duration to MusicBrainz / LRCLIB, with Apple catalogue and linked Wikidata genre fallbacks; audio is never uploaded.
 Cover and verified artist images are cached for a static record-sleeve collage.
-Settings & library includes a refreshable storage estimate for music, artwork, library data, browser cache and the app.
+Settings → Storage includes a refreshable storage estimate for music, artwork, library data, browser cache and the app.
 
 Visual delay adjusts without emptying the buffered signal. Sona preserves her pose sequence through rendering stalls.
 
 Beat motion still uses the live rhythm estimate. Track character now uses a compact local audio map, decoded once and cached.
 Sound settings offer optional loudness leveling, silent-edge skipping and experimental PC crossfade.
 Behind the sound > Listening edit shows the energy map and lets you save start/end markers for spoken intros or outros. Original files stay untouched.
-Settings > Library review collects uncertain metadata, with field-by-field recording choices and undo.
+Settings > Library & downloads > Review missing details collects uncertain metadata, with field-by-field recording choices and undo.
 When returning from Music only, the static artwork stays visible until the full scene is ready, then fades away.
 Genre and character research is gradual; all results stay local.
 Click the volume percentage for precise adjustment, down to 0.1%.

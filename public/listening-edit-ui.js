@@ -16,5 +16,5 @@ export function mountListeningEdit({container,track,request,audio,current,onChan
  root.querySelector('[data-use-silence]').onclick=()=>run(()=>{if(!profile)throw Error('Analyze this song first.');field('start').value=profile.trim.start;field('end').value=profile.trim.end;note.textContent='Suggested silent edges only. Preview, adjust spoken passages if needed, then save.';});
  form.onsubmit=e=>{e.preventDefault();void run(async()=>{await request('edit',{id:track.id,enabled:true,start:Number(field('start').value),end:Number(field('end').value)});note.textContent='Saved. Playback skips the marked intro and outro; the file is untouched.';onChange();});};
  root.querySelector('[data-reset-edit]').onclick=()=>run(async()=>{await request('edit',{id:track.id,enabled:false});field('start').value=0;field('end').value=track.duration;note.textContent='Listening edit removed. Turn off Skip silent edges too if you want all silence retained.';onChange();});
- void run(()=>load());
+ root.dataset.resumePanel='';root.addEventListener('panelresume',()=>void run(()=>load()));void run(()=>load());
 }

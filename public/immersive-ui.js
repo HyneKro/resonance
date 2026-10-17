@@ -55,7 +55,7 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
   $('#room-shuffle').onclick=()=>{$('#shuffle').click();updateTrack();};$('#room-repeat').onclick=()=>{$('#repeat').click();updateTrack();};
   $('#room-visual-settings').onclick=()=>{
     const open=!document.body.classList.contains('visual-settings-open');document.body.classList.toggle('visual-settings-open',open);
-    $('#room-visual-settings').setAttribute('aria-expanded',String(open));$('.visual-tools').inert=!open;if(open)$('[data-preference=autoDirection]').focus();
+    $('#room-visual-settings').setAttribute('aria-expanded',String(open));$('.visual-tools').inert=!open;if(open)$('.visual-tools [role=tab][aria-selected=true]')?.focus();
   };
   $('#room-seek').oninput=e=>{if(Number.isFinite(audio.duration))audio.currentTime=Math.min(audio.duration,Math.max(0,Number(e.target.value)));};
   audio.addEventListener('play',updatePlay);audio.addEventListener('pause',updatePlay);
