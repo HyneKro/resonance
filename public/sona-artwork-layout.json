@@ -1,0 +1,10 @@
+{
+  "generator": "Built-in image_gen",
+  "files": [
+    "sona-dance-a.png",
+    "sona-dance-b.png",
+    "sona-interactions.png"
+  ],
+  "prompt": "Use case: precise-object-edit. This is a production sprite atlas whose sprites are currently TOO CLOSE to the cell borders; some hair tufts touch the shoes in the row above.\nChange ONLY the SHEET LAYOUT: keep all 32 drawings, their exact poses, expressions, colors and illustrated character style unchanged, but uniformly make EACH individual sprite about 20% SMALLER inside its own cell and center it in that cell. Do not scale the whole sheet. Do not crop the outer transparent margins. Keep exactly8columns and4rows across the same2:1 rectangular canvas. For EVERY cell, leave a clearly visible transparent safety margin above the hair and below the shoes, at least10% of cell height EACH, plus left/right padding. Neutral feet share a baseline at85%cellheight, head top at15%cellheight. There must be a complete band of fully transparent pixels between every row and column, with NO parts touching. All heads, hair tufts, shoes, raised hands, poses must be fully visible and entirely separate. No new drawings, no changed choreography, no discarded frames, no grid lines, labels, shadows, glow, background or border. Genuine transparent alpha. This is a layout/registration repair, not an artistic redesign.",
+  "note": "Final images have extra cell padding. Source rectangles and foot anchors are measured by scripts/measure-sona-sprites.mjs; the PNG artwork remains unchanged at runtime."
+}

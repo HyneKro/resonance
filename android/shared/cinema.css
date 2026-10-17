@@ -1,0 +1,34 @@
+/* Let the scene occupy the center; the HUD stays near the edges. */
+#listening-room{background:#030508}
+.room-top{padding:23px 30px;background:linear-gradient(#030508bb,transparent)}
+.room-top .brand{font-weight:450;color:#ced5df}
+.room-controls select{background:#10161dd9;border-color:#ffffff1c;font-size:11px}
+.visual-tools{top:101px;left:30px;padding:14px;gap:13px;background:#090f18a1;border-color:#bdcdd719;max-width:calc(100% - 60px)}
+.visual-tools label{color:#94a6b8}
+.room-caption{bottom:25px;left:30px;right:auto;text-align:left;padding:0;max-width:70%}
+.room-caption .section-kicker{letter-spacing:2px;color:#b1bdcc}
+.room-caption h1{max-width:100%;margin:9px 0 6px;font-size:24px;color:#e8eef5}
+.room-caption p{color:#aab8c9;margin-bottom:8px}
+.room-caption #visual-note{font-size:10px;color:#8b9aad}
+.room-caption .primary{display:none}
+.has-meters .room-caption{bottom:135px}
+#audio-meters{background:#080e16a1;border-color:#bdcdd719}
+#toggle-cinema{position:absolute;z-index:5;right:30px;top:90px;font-size:10px;letter-spacing:.4px;padding:9px 13px;color:#bcc9d9;background:#0a111b96;border:1px solid #bdcdd726;backdrop-filter:blur(12px)}
+.cinema #listening-room{bottom:0}
+.cinema .room-top,.cinema .visual-tools,.cinema .room-caption,.cinema #audio-meters,.cinema .player{visibility:hidden;pointer-events:none}
+.cinema #toggle-cinema{top:23px;opacity:.22;background:#080e1644;border-color:transparent}
+.cinema #toggle-cinema:hover,.cinema #toggle-cinema:focus-visible{opacity:1;background:#080e16cc;border-color:#bdcdd73c}
+@media(max-width:1000px),(max-height:740px){
+ .visual-tools{top:90px;right:30px;flex-direction:row;align-items:center;max-width:calc(100% - 60px);gap:14px;padding:11px 13px}
+ .visual-tools label{gap:5px}.visual-tools .dynamics-control{min-width:164px}.dynamics-control .fine-print{display:none}
+ #toggle-cinema{top:auto;bottom:25px}
+ .cinema #toggle-cinema{top:23px;bottom:auto}
+ .has-meters .room-caption{bottom:126px}
+ .room-caption .section-kicker{display:none}.room-caption h1{font-size:20px}
+}
+@media(max-width:800px){
+ .room-top{padding:20px}.room-controls{gap:6px}.room-controls select{max-width:180px}
+ .visual-tools{left:20px;right:20px;max-width:calc(100% - 40px);gap:10px}
+ .visual-tools label{flex-direction:row}.visual-tools input{max-width:70px}.visual-tools select{max-width:80px}
+ .room-caption{left:20px}.room-caption #visual-note{display:none}#toggle-cinema{right:20px}
+}

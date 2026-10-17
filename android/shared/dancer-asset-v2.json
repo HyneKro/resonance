@@ -1,0 +1,18 @@
+{
+  "generator": "Built-in image_gen",
+  "layout": {
+    "columns": 8,
+    "rows": 8
+  },
+  "routines": [
+    "Waiting",
+    "Stepping",
+    "Jumping",
+    "Zombie groove",
+    "Waving",
+    "Hula",
+    "Windmill",
+    "Dervish"
+  ],
+  "prompt": "Create a production-ready transparent PNG sprite sheet for a tiny optional anime dance companion in the Resonance music player. Inspired by classic desktop dance mascot sheets: cute chibi, clear silhouette, crisp outlined cel-shaded game sprite, short lavender hair, violet headphones with tiny star, dark purple little jacket and mint accents, skirt over opaque leggings, sneakers. Original character. Same character proportions and outfit in ALL frames. Two-and-a-half-head chibi proportions.\nEXACTLY 8 columns by 8 rows, 64 individual full-body frames, equally spaced uniform square cells across a square canvas. No gutters outside this grid. Each character is centered horizontally in its cell with feet at 87% cell height except intentional jumps; normal body height 68% of cell. All parts contained in each cell with transparent padding. No labels, words, borders, backgrounds, checkerboard, shadows cast outside cells, or decorative floating elements.\nEvery row is a smooth eight-step cyclic animation moving left to right, frame 8 leads seamlessly into frame 1. Avoid unrelated still poses in a row.\nRow 1: calm waiting idle, gentle breathing and head sway, mostly feet planted.\nRow 2: stepping left then right with alternating bent knees, arms swinging gently.\nRow 3: bouncy two-foot jump, crouch/takeoff/apex/descent/landing progression.\nRow 4: playful zombie groove, arms forward, swaying shoulders.\nRow 5: wave hands overhead from left to right, small side steps.\nRow 6: hula dance, hips swaying, arms drawing a smooth horizontal wave.\nRow 7: energetic windmill arm dance, feet remain in place, each arm cycles around.\nRow 8: dervish full turn, front/three-quarter/side/back-three-quarter/back/side/three-quarter/front; skirt flares slightly.\nThe sheet must be precisely registered for CSS sprite animation: rigid uniform 8x8 grid. Transparent alpha background. Clear expressive eyes and strong readable movement at a display size of about 96px. Aim for compact charming sprite art, not a tall full-size illustration."
+}

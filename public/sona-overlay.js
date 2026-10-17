@@ -1,0 +1,18 @@
+import {CompanionRenderer} from './companion-renderer.js';
+import {DanceMotion,CompanionClock} from './companion-motion.js';
+import {interfaceAccents} from './interface-accent.js';
+import {companionHairColors} from './companion-model.js';
+const bridge=window.resonanceDesktop,motion=new DanceMotion(),clock=new CompanionClock(),canvas=document.querySelector('canvas'),renderer=new CompanionRenderer(canvas),button=document.querySelector('#sona');
+let state={playing:false,colors:null},pointer=null,picked=false,hold,interactive=false;
+const command=action=>bridge.sonaCommand(action).catch(()=>{});
+bridge.onSonaState(next=>{state=next;document.querySelector('#title').textContent=next.desktop?'Desktop audio':next.title;const play=document.querySelector('[data-command=play]');play.textContent=next.playing?'Ⅱ':'▶';play.setAttribute('aria-label',next.playing?'Pause music':'Play music');for(const b of document.querySelectorAll('[data-command=play],[data-command=previous],[data-command=next]'))b.disabled=next.desktop;});
+await renderer.load();
+function tick(now){const dt=clock.step(now);if(dt!==null)renderer.draw(motion.update(dt,{active:state.playing,reduced:state.reduced}),interfaceAccents(state.colors),companionHairColors(state.colors));requestAnimationFrame(tick);}requestAnimationFrame(tick);
+document.addEventListener('mousemove',e=>{const hit=!!e.target.closest('button,nav');if(hit!==interactive){interactive=hit;void command(hit?'interactive':'passthrough');}});
+document.addEventListener('mouseleave',()=>{if(!pointer){interactive=false;void command('passthrough');}});
+document.querySelector('nav').addEventListener('click',e=>{const action=e.target.closest('[data-command]')?.dataset.command;if(action)void command(action);});
+const pick=()=>{if(pointer&&!picked){picked=true;motion.pickUp();}};
+button.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();pointer={id:e.pointerId,x:e.screenX,y:e.screenY};picked=false;motion.press();button.setPointerCapture(e.pointerId);void command('drag-start');hold=setTimeout(pick,180);});
+button.addEventListener('pointermove',e=>{if(!pointer)return;if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>4)pick();if(picked)void command('drag-move');});
+const release=()=>{if(!pointer)return;clearTimeout(hold);pointer=null;void command('drag-end');if(picked)motion.drop();else motion.click();picked=false;};
+button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);window.addEventListener('blur',release);

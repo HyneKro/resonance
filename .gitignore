@@ -1,0 +1,61 @@
+# Local libraries, downloaded music, credentials and machine configuration
+data/
+/config.json
+.env
+.env.*
+!.env.example
+**/cookies*.txt
+**/cookies*.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+*.log
+*.lnk
+.DS_Store
+Thumbs.db
+
+# Dependencies, build outputs, checkpoints and local screenshots
+node_modules/
+desktop-build/
+desktop-staging/
+releases/
+checkpoints/
+/CHECKPOINT.json
+test-output/
+/Resonance-*.png
+/Resonance-*.jpg
+/.local-tools/
+/.private/
+/.codex/
+/.agents/
+/.aws/
+
+# Downloaded helper programs and personal playlist scans
+/tools/
+
+# Android SDK, local signing identity and generated files
+**/.gradle/
+**/.toolchain/
+**/local.properties
+/android/**/build/
+/android/verification/
+
+# Only synthetic test audio belongs in Git; a music library never does.
+*.mp3
+*.flac
+*.opus
+*.m4a
+*.wav
+*.aac
+*.ogg
+*.webm
+*.mp4
+!android/app/src/androidTest/assets/playback-tone.m4a
+!android/app/src/androidTest/assets/playback-tone.opus

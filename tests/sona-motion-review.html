@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sona · movement rehearsal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:24px;background:#15131d;color:#eee7fa;font:14px system-ui}h1{font-size:25px;font-weight:500}p{color:#c0b4cf}.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px}.grid{display:grid;grid-template-columns:repeat(8,minmax(120px,1fr));gap:12px}.tile{text-align:center;min-width:0}.tile canvas{width:128px;height:128px;max-width:100%;display:block;margin:auto}button,select{font:inherit;border:1px solid #51415f;background:#27212f;color:#f4eaff;border-radius:12px;padding:8px 12px;cursor:pointer}button[aria-pressed=true]{background:#7353a1;border-color:#b69cda}button:focus-visible,select:focus-visible{outline:2px solid #d8b8ff;outline-offset:3px}.strip{display:grid;grid-template-columns:repeat(8,minmax(90px,1fr));gap:10px;margin-top:18px}.strip canvas{width:144px;height:144px;max-width:100%;display:block;margin:auto}.strip figure{text-align:center;margin:0}#results{color:#a9d8c5;font:12px system-ui;white-space:pre-wrap}#detail{margin-top:24px}#frame-status{min-height:20px}@media(max-width:900px){.grid{grid-template-columns:repeat(4,minmax(120px,1fr))}.strip{grid-template-columns:repeat(4,minmax(90px,1fr))}}@media(max-width:560px){.grid{grid-template-columns:repeat(2,minmax(100px,1fr))}}
+</style>
+<h1>Sona · movement rehearsal</h1>
+<p>Clear gestures, deliberate expressions, gentler timing. Select any move to inspect its drawings.</p>
+<div class="toolbar"><button id="pause">Pause</button><label>Dance tempo <select id="tempo"><option value="70">Slow · 70 BPM</option><option value="120" selected>Normal · 120 BPM</option><option value="170">Fast · 170 BPM</option></select></label><button id="replay">Replay reactions</button><label><input type="checkbox" id="theme" checked> Background-colored hair</label></div>
+<div class="grid"></div><h2 id="detail">D1 · Two-step</h2><div class="strip"></div><p id="frame-status" aria-live="polite"></p><pre id="results">Checking artwork…</pre>
+<script type="module">
+import {CompanionRenderer} from '/companion-renderer.js';
+import {DanceMotion,CompanionClock,REST_POSE,SONA_TIMING,clipDurations} from '/companion-motion.js';
+import {SONA_SOURCE_NAMES,SONA_CLIPS,spriteFootAnchor} from '/companion-atlas.js';
+const specs=[['D1 · Two-step','dancing',0,1],['D2 · Hip sway','dancing',1,5],['D3 · Head bob','listening',2,0],['D4 · Hand wave','dancing',3,4],['D5 · Groove','dancing',4,3],['D6 · Cheer bounce','dancing',5,6],['D7 · Soft bounce','dancing',6,2],['D8 · Full turn','dancing',7,7],['I1 · Idle','idle',null,12],['I2 · Sleep','sleep',null,8],['I3 · Pressed','pressed',null,12],['I4 · Hello','clicked',null,9],['I5 · Pickup','pickup',null,10],['I6 · Dangling','held',null,10],['I7 · Soft landing','drop',null,11]];
+const colors=[[224,199,255],[132,226,218]],hair=[[175,120,242],[100,211,220]],tiles=[],strip=[];let bpm=120,playing=true,theme=true,selected=0;
+function reset(d){d.motion=new DanceMotion();d.motion.bpm=bpm;d.motion.energy=.6;d.age=0;if(d.spec[2]!==null)d.motion.beats=d.spec[2]*16;else if(['pressed','clicked','pickup','held','drop'].includes(d.spec[1]))d.motion.action=d.spec[1];}
+for(const [index,spec]of specs.entries()){
+ const tile=document.createElement('div'),canvas=document.createElement('canvas'),button=document.createElement('button');tile.className='tile';button.textContent=spec[0];button.type='button';button.setAttribute('aria-pressed','false');canvas.setAttribute('aria-label',spec[0]);tile.append(canvas,button);document.querySelector('.grid').append(tile);
+ const d={spec,renderer:new CompanionRenderer(canvas),button};reset(d);tiles.push(d);button.onclick=()=>choose(index);
+}
+await Promise.all(tiles.map(d=>d.renderer.load()));
+function paint(r,f){if(theme)r.draw(f,colors,hair);else{r.context.clearRect(0,0,160,160);r.context.putImageData(r.frame(f.row,f.frame),0,0);}r.canvas.dataset.pose=f.row+':'+f.frame;r.canvas.dataset.state=f.state||'artwork';}
+function choose(index){selected=index;const d=tiles[index],[label,mode,phrase,row]=d.spec;document.querySelector('#detail').textContent=label;tiles.forEach((t,i)=>t.button.setAttribute('aria-pressed',String(i===index)));document.querySelector('.strip').replaceChildren();strip.length=0;
+ const order=mode==='pressed'?[0]:mode==='pickup'?[0,1,2,3]:mode==='held'?[3,4,5,6,7]:[0,1,2,3,4,5,6,7];
+ for(const f of order){const fig=document.createElement('figure'),canvas=document.createElement('canvas'),button=document.createElement('button'),r=new CompanionRenderer(canvas);r.images=d.renderer.images;r.ready=true;const frame={row,frame:f,pose:REST_POSE};button.textContent='Frame '+(f+1);button.setAttribute('aria-label',label+' frame '+(f+1));paint(r,frame);fig.append(canvas,button);document.querySelector('.strip').append(fig);strip.push({r,frame});button.onclick=()=>{playing=false;document.querySelector('#pause').textContent='Play';paint(d.renderer,frame);document.querySelector('#frame-status').textContent=label+' · artwork frame '+(f+1);};}
+}
+choose(0);
+document.querySelector('#pause').onclick=e=>{playing=!playing;e.target.textContent=playing?'Pause':'Play';};
+document.querySelector('#replay').onclick=()=>{tiles.forEach(reset);playing=true;document.querySelector('#pause').textContent='Pause';};
+document.querySelector('#tempo').onchange=e=>{bpm=+e.target.value;tiles.forEach(d=>d.motion.bpm=bpm);};
+document.querySelector('#theme').onchange=e=>{theme=e.target.checked;choose(selected);};
+function advance(d,dt){d.age+=dt;const mode=d.spec[1];if(d.spec[2]!==null)d.motion.beats=d.spec[2]*16+d.motion.beats%16;
+ else if(['clicked','pickup','drop'].includes(mode)&&d.age>2.8)reset(d);
+ const active=d.spec[2]!==null,override=mode==='listening'?'listening':active?bpm<90?'dancing-slow':bpm>132?'dancing-fast':'dancing':['idle','sleep'].includes(mode)?mode:undefined;
+ return d.motion.update(dt,{bpm,confidence:1,active,loudness:.6,mode:override});
+}
+const report=[],check=(ok,label)=>{if(!ok)throw Error(label);report.push('PASS · '+label);};
+try{
+ check(tiles.every(d=>d.renderer.ready),'The shared artwork texture loads');let edge=0,feet=0,min=Infinity,max=0;
+ const r=tiles[0].renderer;
+ for(let row=0;row<SONA_SOURCE_NAMES.length;row++)for(let f=0;f<8;f++){
+  const data=r.frame(row,f).data,anchor=spriteFootAnchor(data,160,160);let solid=0;
+  for(let y=0;y<160;y++)for(let x=0;x<160;x++)if(data[(y*160+x)*4+3]>160){solid++;if(x<1||x>158||y<1||y>158)edge++;}
+  feet=Math.max(feet,Math.abs(anchor.y-143));min=Math.min(min,solid);max=Math.max(max,solid);
+ }
+ check(edge===0,'All 104 complete figures fit without cropped hair, hands or shoes');check(feet<=2,'Ground contact stays within 2 pixels across every pose');check(min>2500&&max<19000,'Every pose has a complete, readable silhouette');
+ for(const name of Object.keys(SONA_CLIPS).filter(k=>SONA_CLIPS[k].beats))for(const tempo of [70,120,170]){const times=clipDurations(SONA_CLIPS[name],tempo);if(times.some(t=>t<1/12-1e-8))throw Error('Over-fast pose '+name);}
+ check(true,'Every dance pose is held for at least 1/12 second at slow, normal and fast tempo');
+ check(SONA_TIMING.clicked[4]<=.15&&SONA_TIMING.drop[3]<=.15&&SONA_TIMING.idle[4]<=.15,'Blinks and impact eye-closes are brief');
+ document.querySelector('#results').dataset.status='passed';
+}catch(error){report.push(error.stack);document.querySelector('#results').dataset.status='failed';}
+document.querySelector('#results').textContent=report.join('\n');
+const clock=new CompanionClock();function tick(now){const dt=clock.step(now);if(dt!==null&&playing)tiles.forEach(d=>paint(d.renderer,advance(d,dt)));requestAnimationFrame(tick);}requestAnimationFrame(tick);
+</script></html>

@@ -1,0 +1,8 @@
+const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output');app.setPath('userData',path.join(out,'kaleidoscope-profile'));let win,server,finished=false;
+async function finish(result){if(finished)return;finished=true;await new Promise(r=>setTimeout(r,350));if(win)fs.writeFileSync(path.join(out,'kaleidoscope-check.png'),(await win.webContents.capturePage()).toPNG());fs.writeFileSync(path.join(out,'kaleidoscope-check.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));win?.destroy();server?.close();app.exit(result.ok?0:1);}
+app.whenReady().then(async()=>{
+ server=http.createServer((req,res)=>{let name=new URL(req.url,'http://localhost').pathname.slice(1)||'kaleidoscope-check.html';if(!/^[a-z0-9-]+\.(js|html)$/.test(name)){res.writeHead(404);res.end();return;}const file=path.join(root,name.startsWith('kaleidoscope-check.')?'tests':'public',name);if(!fs.existsSync(file)){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':'text/html');res.end(fs.readFileSync(file));});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ win=new BrowserWindow({show:false,width:1190,height:850,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});win.webContents.on('console-message',d=>{if(d.message?.startsWith('KALEIDO_CHECK:'))void finish(JSON.parse(d.message.slice(14)));});await win.loadURL('http://127.0.0.1:'+server.address().port);
+}).catch(e=>finish({ok:false,error:e.stack}));setTimeout(()=>finish({ok:false,error:'Timed out'}),60000).unref();
+

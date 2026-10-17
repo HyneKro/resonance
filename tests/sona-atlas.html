@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Sona · dance rehearsal</title>
+<style>body{margin:30px;background:#14131d;color:#eae4f6;font:14px system-ui}h1{font-size:28px;font-weight:450}p{color:#b6adc6}.grid{display:grid;grid-template-columns:repeat(6,160px);gap:14px}.tile{border:1px solid #ffffff12;border-radius:20px;text-align:center;background:#ffffff04;padding:4px 0 14px}canvas{width:160px;height:160px}.frames{display:grid;grid-template-columns:repeat(8,120px);gap:10px;margin-top:24px}.frames canvas{width:120px;height:120px}button,select{background:#32283e;color:white;border:1px solid #665376;border-radius:12px;padding:8px;margin:8px}pre{font:12px monospace;color:#a4d3bc}input{vertical-align:middle}.ground canvas{background:linear-gradient(transparent 89.2%,#b9a9d544 89.2%,#b9a9d544 90%,transparent 90%)}.light{background:#e0d5e9}.light .tile{background:#c6b9cf}</style>
+<h1>Sona · a little dance rehearsal</h1><p>Eight illustrated dance loops · new interaction poses · music-colored gradients</p>
+<label>Tempo <input id="bpm" type="range" min="60" max="180" value="120"><output>120 BPM</output></label><button id="pause">Pause</button><button id="ground">Foot anchors</button><button id="light">Light background</button><button id="tint">Original colors</button>
+<div class="grid"></div><p>Inspect a move <select id="row"></select></p><div class="frames"></div><pre id="result">Checking all 104 poses…</pre>
+<script type="module">
+import {CompanionRenderer} from '/companion-renderer.js';import {CompanionClock,REST_POSE} from '/companion-motion.js';import {SONA_SHEETS,SONA_CLIPS,spriteFootAnchor} from '/companion-atlas.js';
+const names=['Head bob','Two-step','Soft bounce','Shoulder groove','Overhead wave','Hip sway','Arm swing','Full turn','Sleep','Hello','Pickup & held','Soft landing','Idle / blink'];
+const themes=[[[216,178,255],[118,225,213]],[[246,190,168],[204,159,246]],[[149,207,255],[220,178,255]]],grid=document.querySelector('.grid'),dancers=[];let beats=0,bpm=120,paused=false,tinted=true;
+for(const [row,name]of names.entries()){
+ const div=document.createElement('div'),canvas=document.createElement('canvas');div.className='tile';div.append(canvas,document.createTextNode(name));grid.append(div);dancers.push(new CompanionRenderer(canvas));document.querySelector('#row').add(new Option(name,row));
+}
+await Promise.all(dancers.map(d=>d.load()));
+const preview=document.querySelector('.frames'),single=[];for(let f=0;f<8;f++){const c=document.createElement('canvas');preview.append(c);const r=new CompanionRenderer(c);single.push(r);}await Promise.all(single.map(d=>d.load()));
+const frame=(row,f)=>({row,frame:f,pose:{...REST_POSE}});
+function paint(r,row,f){if(tinted)r.draw(frame(row,f),themes[row%3]);else{r.context.clearRect(0,0,160,160);r.context.putImageData(r.frame(row,f),0,0);}}
+function poses(){const row=+document.querySelector('#row').value;single.forEach((r,f)=>paint(r,row,row===6?(SONA_CLIPS.cheer.frames?.[f]??f):f));}poses();
+document.querySelector('#row').onchange=poses;document.querySelector('#pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Play':'Pause';};document.querySelector('#ground').onclick=()=>grid.classList.toggle('ground');document.querySelector('#light').onclick=()=>document.body.classList.toggle('light');document.querySelector('#tint').onclick=e=>{tinted=!tinted;e.target.textContent=tinted?'Original colors':'Theme colors';poses();};document.querySelector('#bpm').oninput=e=>{bpm=+e.target.value;document.querySelector('output').textContent=bpm+' BPM';};
+const report=[];try{
+ if(!dancers.every(d=>d.ready))throw Error('Artwork failed to load');
+ const r=dancers[0];let minSolid=Infinity,maxSolid=0,maxFeetError=0,edge=0;
+ for(let row=0;row<13;row++)for(let f=0;f<8;f++){
+  const data=r.frame(row,f).data,anchor=spriteFootAnchor(data,160,160);let solid=0;
+  for(let y=0;y<160;y++)for(let x=0;x<160;x++)if(data[(y*160+x)*4+3]>160){solid++;if(x===0||y===0||x===159||y===159){edge++;if(edge<15)report.push(row+':'+f+' edge '+x+','+y);}}
+  minSolid=Math.min(minSolid,solid);maxSolid=Math.max(maxSolid,solid);maxFeetError=Math.max(maxFeetError,Math.abs(anchor.y-143));
+  if(solid<2500||solid>19000)throw Error('Unexpected silhouette '+row+':'+f+' ('+solid+')');
+ }
+ if(edge)throw Error('A sprite clips at the canvas edge');if(maxFeetError>2)throw Error('Unstable foot baseline');
+ report.push('PASS · All 104 illustrated poses render with transparent surroundings.','PASS · Every pose fits, no clipped feet / hands / hair.','PASS · Foot registration error ≤ '+maxFeetError+' px.','Silhouette range: '+minSolid+'–'+maxSolid+' px.');document.querySelector('#result').dataset.status='passed';
+}catch(e){report.push(e.stack);document.querySelector('#result').dataset.status='failed';}document.querySelector('#result').textContent=report.join('\n');
+const clock=new CompanionClock();function tick(now){const dt=clock.step(now);if(dt!==null){if(!paused)beats+=dt*bpm/60;dancers.forEach((r,row)=>{const cycle=row===0||row===1||row===3?2:row===8?8:4;const f=Math.floor(beats*8/cycle)%8;paint(r,row,row===6?(SONA_CLIPS.cheer.frames?.[f]??f):f);});}requestAnimationFrame(tick);}requestAnimationFrame(tick);
+</script>

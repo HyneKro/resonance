@@ -1,0 +1,16 @@
+<!doctype html><html><body><button id="fullscreen">Fullscreen</button><script type="module">
+import {installWindowUI} from '/window-controls.js';
+const desktop=window.resonanceDesktop,button=document.querySelector('button');
+const wait=fn=>new Promise((resolve,reject)=>{let count=0;const timer=setInterval(()=>{if(fn()){clearInterval(timer);resolve();}else if(++count>200){clearInterval(timer);reject(Error('State not reflected in renderer'));}},20);});
+try{
+ installWindowUI({button,onError:e=>{throw e;}});
+ if((await desktop.windowState()).fullscreen)throw Error('Unexpected initial fullscreen');
+ button.click();await wait(()=>button.getAttribute('aria-pressed')==='true');
+ if(!(await desktop.windowState()).fullscreen||!document.body.classList.contains('is-fullscreen'))throw Error('Native and rendered state differ');
+ button.click();await wait(()=>button.getAttribute('aria-pressed')==='false');
+ if((await desktop.windowState()).fullscreen)throw Error('Button did not exit native fullscreen');
+ await desktop.toggleFullscreen();await wait(()=>button.getAttribute('aria-pressed')==='true');
+ await desktop.exitFullscreen();await wait(()=>button.getAttribute('aria-pressed')==='false');
+ console.log('WINDOW_TEST:'+JSON.stringify({ok:true,message:'Real sandboxed preload, IPC, native fullscreen, button state, and exit all pass in an offscreen Electron window.'}));
+}catch(e){console.log('WINDOW_TEST:'+JSON.stringify({ok:false,message:e.stack}));}
+</script></body></html>

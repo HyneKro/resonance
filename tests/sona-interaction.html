@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>Sona interaction verification</title><style>body{background:#171822;color:white;font:14px system-ui}#listening-room{position:relative;width:900px;height:500px}.dance-companion{position:absolute;border:0;background:none;width:112px;height:112px}.dance-companion canvas{width:100%;height:100%;pointer-events:none}.companion-help{display:none}</style><h1>Sona interaction verification</h1><pre id="result">Testing…</pre><div id="listening-room"><div class="room-top"></div><div class="room-dock"></div></div>
+<script type="module">
+import {installDanceCompanion} from '/dance-companion.js';import {DanceMotion} from '/companion-motion.js';
+const updates=[];const update=DanceMotion.prototype.update;DanceMotion.prototype.update=function(...args){const p=update.apply(this,args);updates.push({dt:args[0],elapsed:this.elapsed,state:p.state});if(updates.length>20)updates.shift();return p;};import {CompanionRenderer} from '/companion-renderer.js';
+let draws=0;const draw=CompanionRenderer.prototype.draw;CompanionRenderer.prototype.draw=function(...args){const painted=draw.apply(this,args);if(painted)draws++;return painted;};
+const room=document.querySelector('#listening-room'),reactor={audioActive:true,tempo:{output:{bpm:120,confidence:1}},features:{loudness:.6},musicOnly:false};const saved=[],widget=installDanceCompanion({reactor,savePosition:p=>saved.push(p)}),prefs={danceCompanion:true};widget.apply(prefs);
+const sona=document.querySelector('.dance-companion');let captured=false;sona.setPointerCapture=()=>captured=true;sona.hasPointerCapture=()=>captured;sona.releasePointerCapture=()=>captured=false;
+const send=(type,extra={})=>sona.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,isPrimary:true,pointerId:1,button:0,buttons:1,clientX:700,clientY:330,...extra}));
+const wait=ms=>new Promise(r=>setTimeout(r,ms)),report=[],check=(ok,label)=>{if(!ok)throw Error(label);report.push('PASS · '+label);};
+const until=async condition=>{const limit=performance.now()+12000;while(!condition()&&performance.now()<limit)await wait(30);};
+try{
+ await until(()=>draws>1);check(draws>1,'Companion animates without any visualizer frame callback');
+ send('pointerdown');check(sona.dataset.state==='pressed','Mouse down gives immediate expression feedback');send('pointerup',{buttons:0});check(sona.dataset.state==='clicked','A short click greets instead of dragging');
+ send('pointerdown');send('pointermove',{clientX:720});check(sona.dataset.state==='pickup','Drag starts the pickup transition');await until(()=>sona.dataset.state==='held');check(sona.dataset.state==='held','Pickup flows into a distinct held idle');
+ const heldTransform=sona.style.transform;send('pointermove',{clientX:600,clientY:250});check(sona.style.transform!==heldTransform,'Held character follows the mouse');send('pointerup',{buttons:0});check(sona.dataset.state==='drop','Release plays the landing animation');await until(()=>sona.dataset.state.startsWith('dancing'));check(sona.dataset.state.startsWith('dancing'),'Landing returns to dancing');check(saved.length===1,'New placement saves once');
+ const origin=sona.style.transform;send('pointerdown');send('pointermove',{clientX:500});document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));check(sona.style.transform===origin&&!captured,'Escape restores the pickup origin');
+ let rightReached=false,wheelReached=false;room.addEventListener('pointerdown',e=>{if(e.button===2)rightReached=true;});room.addEventListener('wheel',()=>wheelReached=true);
+ send('pointerdown',{button:2,buttons:2});sona.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:-100}));check(rightReached&&wheelReached,'Right click and wheel pass through Sona to the music gesture handlers');
+ reactor.musicOnly=true;widget.apply({...prefs,musicOnly:true});const count=draws;await wait(140);check(draws===count&&sona.hidden,'Music only stops every companion draw');
+ reactor.musicOnly=false;widget.apply(prefs);await wait(120);check(draws>count&&!sona.hidden,'Returning from Music only resumes the companion');
+ widget.apply({danceCompanion:false});const off=draws;await wait(140);check(draws===off,'Disabled companion consumes no render frames');
+ document.querySelector('#result').textContent=report.join('\n');document.querySelector('#result').dataset.status='passed';
+}catch(e){widget.apply({danceCompanion:false});document.querySelector('#result').textContent=e.stack+'\n'+JSON.stringify(updates);document.querySelector('#result').dataset.status='failed';}
+</script>

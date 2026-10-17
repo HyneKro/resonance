@@ -1,0 +1,14 @@
+{
+  "generator": "Built-in image_gen",
+  "reference": "dancer-sprite-v2.png",
+  "layout": {
+    "columns": 8,
+    "rows": 3
+  },
+  "routines": [
+    "Pick up",
+    "Held idle",
+    "Drop and land"
+  ],
+  "prompt": "Use the attached sprite sheet as the character identity and art-style reference. Create an ADDITIONAL transparent animation sprite sheet for this exact same small chibi anime music companion: same lavender bob hair, violet star headphones, dark jacket with mint accents, skirt over opaque leggings, sneakers, expressive face, proportions and linework. Do not redraw the dance sheet; create three NEW interaction animations.\nExact grid: EIGHT columns by THREE rows, 24 square cells, landscape canvas in 8:3 aspect ratio (e.g. 1536 by 576). Uniform square cells with no outer margins, labels, grid lines, props, cursor or hands. Full character safely inside each cell, with feet normally at 87% cell height, head near 15% height, maximum character height 74% cell. Consistent horizontal center, same scale every frame. Leave ample transparent padding. Actual transparent background.\nRow 1 PICK UP: eight successive frames from the neutral standing pose to being gently lifted by an invisible grip at the top of her headphones; surprised cute expression, arms slowly rise toward the headphone sides, knees straighten and sneaker feet dangle; body stretches only subtly. Keep the head at the same local anchor, feet adjust upward slightly.\nRow 2 HELD IDLE: eight seamless loop frames, dangling suspended upright, little ankle kicks and gentle leg swing left and right, hands resting against headphone sides, blinking and mild amused expression. First and last frames must match seamlessly, no large body rotations. Head stays anchored.\nRow 3 DROP / LAND: eight sequential frames from suspended posture to soft landing, knees bend in a small squash, arms lower, she bounces upright and ends in the same neutral standing pose as the existing reference dance sheet. Gentle, cheerful landing with no impact props or ground/shadow.\nKeep her recognizable as exactly the same original reference character. Crisp clean cel-shaded sprites readable when displayed at 104px. No colored halos, detached sparkle specks or noise. Preserve lavender/mint material colors so the app can recolor them at runtime."
+}

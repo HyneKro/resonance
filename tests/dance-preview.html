@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>Resonance dance sheet check</title>
+<style>body{background:#101019;color:#f1eafa;font:14px system-ui;margin:24px}h1{font-size:22px}.row{display:grid;grid-template-columns:110px repeat(8,100px);align-items:center;gap:8px;margin:6px 0}.sprite{width:96px;height:96px;background-image:url('/dancer-sprite-v2.png');background-size:800% 800%;outline:1px solid #ffffff15}.animated{outline-color:#ac95e6}p{color:#b6abc3}</style>
+<h1>Resonance · eight-frame dance routines</h1><p>Each outlined square is one runtime sprite cell. The final column advances through the complete routine.</p><div id="sheet"></div>
+<script type="module">
+const names=['Waiting','Stepping','Jumping','Zombie groove','Waving','Hula','Windmill','Dervish'],container=document.querySelector('#sheet');
+for(let row=0;row<8;row++){const line=document.createElement('div');line.className='row';line.innerHTML=`<b>${names[row]}</b>`;for(let frame=0;frame<7;frame++){const el=document.createElement('div');el.className='sprite';el.style.backgroundPosition=`${frame*100/7}% ${row*100/7}%`;line.append(el);}const moving=document.createElement('div');moving.className='sprite animated';moving.dataset.row=row;line.append(moving);container.append(line);}
+function draw(t){const frame=Math.floor(t/140)%8;document.querySelectorAll('.animated').forEach(el=>el.style.backgroundPosition=`${frame*100/7}% ${el.dataset.row*100/7}%`);requestAnimationFrame(draw);}requestAnimationFrame(draw);
+</script>

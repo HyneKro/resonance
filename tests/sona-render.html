@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Sona · illustrated choreography</title>
+<style>body{background:radial-gradient(ellipse at 45% 0,#292238,#10141b 75%);color:#e9e1fa;font:14px system-ui;margin:30px}h1{font-weight:400;font-size:30px}.grid{display:grid;grid-template-columns:repeat(7,140px);gap:14px}.tile{text-align:center;background:#ffffff05;border:1px solid #ffffff10;border-radius:24px;padding:6px}canvas{width:128px;height:128px}p{color:#b5b0c8}.title{color:#f0deff;font-size:12px;margin-bottom:8px}#results{white-space:pre-wrap;font-size:12px;color:#a9d9d7}</style>
+<h1>Sona · her new illustrated dance loops</h1><p>BPM-paced sprite loops · music-colored gradients</p><div class="grid"></div><pre id="results">Checking sprite animation…</pre>
+<script type="module">
+import {DanceMotion,SONA_ROUTINES,CompanionClock} from '/companion-motion.js';
+import {CompanionRenderer} from '/companion-renderer.js';
+const themes=[[[224,199,255],[132,226,218]],[[255,186,168],[210,150,249]],[[156,220,255],[190,170,255]]];
+const grid=document.querySelector('.grid'),dancers=[],specs=[['Idle','idle'],['Sleep','sleep'],['Hello','clicked'],['Pickup','pickup'],['Held','held'],['Landing','drop'],...SONA_ROUTINES.map((name,i)=>[name,'dancing',i])];
+for(const [i,[label,mode,phrase]]of specs.entries()){
+ const tile=document.createElement('div');tile.className='tile';const canvas=document.createElement('canvas'),title=document.createElement('div');title.className='title';title.textContent=label;tile.append(canvas,title);grid.append(tile);
+ const motion=new DanceMotion();if(phrase!==undefined)motion.beats=phrase*16;else if(['clicked','pickup','held','drop'].includes(mode))motion.action=mode;
+ const renderer=new CompanionRenderer(canvas);dancers.push({renderer,motion,mode,phrase,theme:themes[i%3],reset:0});tile.addEventListener('click',()=>motion.click());
+}
+await Promise.all(dancers.map(d=>d.renderer.load()));
+const report=[],check=(ok,label)=>{if(!ok)throw Error(label);report.push('PASS · '+label);};
+try{
+ check(dancers.every(d=>d.renderer.ready),'The shared sprite texture loads for every pose');
+ const {renderer}=dancers[0],motion=new DanceMotion();let worst=0;const frames=new Set();
+ for(let i=0;i<24*4;i++){
+  const pose=motion.update(1/24,{active:true,bpm:120,confidence:1,loudness:.5});const before=performance.now();check(renderer.draw(pose,themes[0]),'');worst=Math.max(worst,performance.now()-before);frames.add(pose.row+':'+pose.frame);
+ }
+ report.splice(1);check(frames.size>=8,'A full new eight-frame routine renders');check(renderer.frames.size<=32&&renderer.tints.size<=16,'Sprite caches stay bounded');
+ const pixels=renderer.context.getImageData(0,0,160,160).data;let solid=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i]>200)solid++;check(solid>2000&&solid<18000,'Painted character remains visible with transparent surroundings');
+ report.push('Sprite poses: at most 12 FPS. Squash / redraw budget: 24 FPS.','Slowest sprite draw including first cache fill: '+worst.toFixed(2)+' ms.');
+ document.querySelector('#results').textContent=report.join('\n');document.querySelector('#results').dataset.status='passed';
+}catch(e){document.querySelector('#results').textContent=e.stack;document.querySelector('#results').dataset.status='failed';}
+const clock=new CompanionClock();function draw(now){const dt=clock.step(now);if(dt!==null)for(const d of dancers){
+ d.reset+=dt;if(d.phrase!==undefined){d.motion.beats=d.phrase*16+(d.motion.beats%16);}else if(['clicked','pickup','held','drop'].includes(d.mode)&&d.reset>2.2){d.motion.action=d.mode;d.motion.elapsed=0;d.reset=0;}
+ d.renderer.draw(d.motion.update(dt,{active:d.phrase!==undefined,bpm:120,confidence:1,loudness:.55,mode:d.phrase===undefined?['idle','sleep'].includes(d.mode)?d.mode:undefined:'dancing'}),d.theme);
+}requestAnimationFrame(draw);}requestAnimationFrame(draw);
+</script>

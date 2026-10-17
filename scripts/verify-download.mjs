@@ -1,0 +1,11 @@
+import { Library } from '../library.mjs';
+import { PlaylistSync } from '../sync.mjs';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+const root=process.cwd(),dataDir=path.join(root,'test-output','download-check');await fs.mkdir(path.join(dataDir,'audio'),{recursive:true});
+const lib=new Library(root,dataDir);lib.config.sources=[{id:'verify',kind:'track',name:'Download verification',path:path.join(dataDir,'audio')}];
+const source=JSON.parse(await fs.readFile(path.join(root,'tools','playlist-one.json'),'utf8')).entries[0];const sync=new PlaylistSync(lib);sync.preview={entries:[{id:source.id,title:source.title,status:'new',sourceId:'verify'}],sources:[]};
+const alreadyArchived=(await fs.readFile(path.join(dataDir,'downloads.txt'),'utf8').catch(()=>'')).includes(source.id);
+console.log('Verifying real best-audio download, tags, thumbnail, and archive for',source.title);
+await sync.download([`verify:${source.id}`]);console.log(JSON.stringify(sync.job,null,2));console.log(lib.list().map(t=>({title:t.title,codec:t.codec,duration:t.duration,artwork:!!t.artwork,youtubeId:t.youtubeId,uploadDate:t.uploadDate})));
+if(sync.job.errors.length||sync.job.downloaded!==(alreadyArchived?0:1)||!lib.list()[0]?.duration)process.exitCode=1;lib.close();

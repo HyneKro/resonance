@@ -1,0 +1,57 @@
+const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output');app.setPath('userData',path.join(out,'android-mobile-ux-profile'));
+let win,server,finished=false;const errors=[],checks=[],sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function finish(ok,error){if(finished)return;finished=true;fs.writeFileSync(path.join(out,'android-mobile-ux-check.json'),JSON.stringify({ok,error,checks,errors},null,2));console.log(JSON.stringify({ok,error,checks,errors}));win?.destroy();server?.close();app.exit(ok?0:1);}
+app.whenReady().then(async()=>{
+ server=http.createServer((req,res)=>{try{
+  const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1)||'index.html';if(name.includes('..')||name.includes('\\'))throw Error('Path');
+  let file=name==='test-native.js'?path.join(root,'android/tests',name):name.startsWith('artwork/')?path.join(root,'data',name):path.join(root,'android/web',name);
+  if(!fs.existsSync(file))file=path.join(root,'android/shared',name);
+  let data=fs.readFileSync(file);if(name==='index.html')data=Buffer.from(data.toString().replace('<script type="module"','<script src="/test-native.js"></script><script type="module"'));
+  res.setHeader('Content-Type',({'.js':'text/javascript','.html':'text/html','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp'})[path.extname(file)]||'application/octet-stream');res.end(data);
+ }catch{res.writeHead(404);res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ win=new BrowserWindow({show:false,width:412,height:915,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});win.webContents.on('console-message',d=>{if(d.level==='error')errors.push(d.message);});
+ await win.loadURL('http://127.0.0.1:'+server.address().port);await sleep(1200);
+ const run=code=>win.webContents.executeJavaScript(code);
+
+ await win.webContents.debugger.attach('1.3');
+ const cdp=(method,params)=>win.webContents.debugger.sendCommand(method,params);
+ await cdp('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+ const swipe=async(x,y,dx,dy,count=1)=>{const points=t=>Array.from({length:count},(_,id)=>({x:x+id*22+dx*t,y:y+dy*t,id,radiusX:2,radiusY:2,force:1}));await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(0)});for(let i=1;i<=12;i++){await cdp('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(i/12)});await sleep(20);}await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(250);};
+ const reset=async(key,changed,expected)=>{
+  const before=await run(`(()=>{const control=document.querySelector('[data-pref="${key}"]');control.value='${changed}';control.dispatchEvent(new Event('input',{bubbles:true}));const b=document.querySelector('[data-reset="${key}"]');b.scrollIntoView({block:'center'});b.focus({preventScroll:true});window.heldReset=b;window.heldControl=control;return document.querySelector('#sheet-body').scrollTop})()`);
+  assert.ok(before>100,'reset target is down the menu');await run('window.heldReset.click()');await sleep(450);
+  const after=await run(`({scroll:document.querySelector('#sheet-body').scrollTop,value:document.querySelector('[data-pref="${key}"]').value,same:window.heldControl.isConnected&&window.heldReset===document.activeElement})`);
+  assert.ok(Math.abs(after.scroll-before)<1,JSON.stringify({key,before,after}));assert.equal(after.value,String(expected));assert.equal(after.same,true);
+ };
+ await run(`document.querySelector('#visuals').click()`);
+ await reset('cameraSpeed',12,2.22);await reset('targetFPS',120,60);await reset('kaleidoscopeMode','spiral','facets');checks.push('Visual slider and dropdown resets retain scroll position, focus and controls');
+ await run(`document.querySelector('#sheet-close').click();document.querySelector('#settings').click()`);await sleep(150);
+ await reset('eqLow',-8,0);await reset('visualSyncOffsetMs',240,0);await reset('sfxVolume',1,.5);
+ assert.equal(await run(`document.querySelector('[data-offset-number]').value`),'0');checks.push('EQ, sound and Bluetooth resets stay in place and synchronize the exact offset');
+ const offsetScroll=await run(`(()=>{const n=document.querySelector('[data-offset-number]');n.scrollIntoView({block:'center'});n.value='76';const scroll=document.querySelector('#sheet-body').scrollTop;n.dispatchEvent(new Event('change',{bubbles:true}));return scroll})()`);await sleep(100);assert.equal(await run(`document.querySelector('#sheet-body').scrollTop`),offsetScroll);assert.equal(await run(`document.querySelector('[data-pref=visualSyncOffsetMs]').value`),'76');
+ const slider=await run(`(()=>{const s=document.querySelector('[data-pref=eqMid]');s.scrollIntoView({block:'center'});const r=s.getBoundingClientRect();return {x:r.left+r.width*.65,y:r.top+r.height/2,value:s.value,scroll:document.querySelector('#sheet-body').scrollTop}})()`);
+ await swipe(slider.x,slider.y,0,-140);
+ const vertical=await run(`({value:document.querySelector('[data-pref=eqMid]').value,scroll:document.querySelector('#sheet-body').scrollTop})`);assert.equal(vertical.value,slider.value);assert.ok(vertical.scroll>slider.scroll+60,JSON.stringify({slider,vertical}));checks.push('A real vertical touch swipe starting on a slider scrolls without changing its value');
+ const horizontal=await run(`(()=>{const s=document.querySelector('[data-pref=eqMid]');s.scrollIntoView({block:'center'});const r=s.getBoundingClientRect();return {x:r.left+r.width*.45,y:r.top+r.height/2,scroll:document.querySelector('#sheet-body').scrollTop}})()`);
+ await run(`window.sliderEvents=[];for(const type of ['pointerdown','pointerup','pointercancel','input','change','touchstart','touchend','click']){document.addEventListener(type,e=>{if(e.target.matches?.('[data-pref=eqMid]'))window.sliderEvents.push({type,capture:true,value:e.target.value,cancelled:e.defaultPrevented,touch:e.pointerType});},true);document.addEventListener(type,e=>{if(e.target.matches?.('[data-pref=eqMid]'))window.sliderEvents.push({type,capture:false,value:e.target.value,cancelled:e.defaultPrevented,touch:e.pointerType});});}`);
+ const beforeTap=await run(`document.querySelector('[data-pref=eqMid]').value`);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:horizontal.x+80,y:horizontal.y,id:0}]});await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(100);assert.equal(await run(`document.querySelector('[data-pref=eqMid]').value`),beforeTap,JSON.stringify(await run('window.sliderEvents')));checks.push('A stray tap does not jump the slider');
+ await run(`document.querySelector('[data-pref=eqMid]').focus({preventScroll:true})`);win.webContents.sendInputEvent({type:'keyDown',keyCode:'Right'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Right'});await sleep(50);assert.equal(Number(await run(`document.querySelector('[data-pref=eqMid]').value`)),Number(beforeTap)+1);checks.push('Keyboard slider adjustment remains available');
+ await swipe(horizontal.x,horizontal.y,-90,0);assert.ok(Number(await run(`document.querySelector('[data-pref=eqMid]').value`))<0);assert.ok(Math.abs(await run(`document.querySelector('#sheet-body').scrollTop`)-horizontal.scroll)<1);checks.push('A deliberate horizontal drag still adjusts the slider');
+ await run(`document.querySelector('#sheet-close').click();(async()=>{const {MobileReactor}=await import('/mobile-reactor.js');const original=MobileReactor.prototype.visualState;MobileReactor.prototype.visualState=function(dt){window.testReactor=this;return original.call(this,dt)};document.querySelector('#music-only').click()})()`);
+ for(let i=0;i<100;i++){if(await run('window.testReactor?.gpu?.warmed&&window.testReactor?.hadFrame'))break;await sleep(100);}assert.ok(await run('window.testReactor?.hadFrame'));assert.equal(await run('window.testReactor.appearance.bloom'),.18);checks.push('Phone bloom uses the softer 0.18 default');await sleep(1200);await run("window.touchTrace=[];document.addEventListener('touchstart',e=>window.touchTrace.push({type:e.type,target:e.target.outerHTML.slice(0,200),touches:e.touches.length}),true)");
+ const pose=()=>run('({yaw:window.testReactor.camera.yaw,pitch:window.testReactor.camera.pitch})');let before=await pose();
+ await swipe(120,220,130,0);let after=await pose();assert.ok(after.pitch<before.pitch-.5,JSON.stringify({before,after,trace:await run('window.touchTrace')}));assert.ok(Math.abs(after.yaw-before.yaw)<.01);
+ before=after;await swipe(150,180,0,160);after=await pose();assert.ok(after.yaw>before.yaw+.65);assert.ok(Math.abs(after.pitch-before.pitch)<.01);checks.push('One-finger swipes rotate both portrait camera axes with inertia');
+ const snapshot=()=>run(`(async()=>{const {rpc}=await import('/native.js');return await rpc('state')})()`);const initial=await snapshot();before=await pose();
+ await swipe(260,220,-120,0,2);assert.notEqual((await snapshot()).id,initial.id);after=await pose();assert.deepEqual(after,before);
+ const position=(await snapshot()).position;await swipe(150,350,0,-100,2);assert.equal((await snapshot()).position,position+10000);assert.deepEqual(await pose(),before);checks.push('Two-finger song and seek gestures do not rotate the scene');
+ await run(`document.querySelector('#visuals').click();document.querySelector('[data-pref=rollercoaster]').click();document.querySelector('#sheet-close').click()`);before=await pose();
+ await swipe(120,220,130,0);after=await pose();assert.ok(after.pitch<before.pitch-.5,JSON.stringify({before,after,trace:await run('window.touchTrace')}));checks.push('Swipe rotation remains available with Rollercoaster enabled');
+ await run(`document.querySelector('#visuals').click();document.querySelector('[data-action=camera-reset]').scrollIntoView({block:'center'});window.resetScroll=document.querySelector('#sheet-body').scrollTop;document.querySelector('[data-action=camera-reset]').click()`);assert.ok(await run(`document.querySelector('#sheet-body').scrollTop===window.resetScroll&&!window.testReactor.rollercoaster&&!window.testReactor.cameraZoom`));
+ await run(`document.querySelector('[data-pref=danceCompanion]').click();document.querySelector('#sheet-close').click()`);await sleep(350);
+ const sona=await run(`(()=>{const e=document.querySelector('.dance-companion'),r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,transform:e.style.transform}})()`);before=await pose();await swipe(sona.x,sona.y,sona.x<200?75:-75,-30);assert.deepEqual(await pose(),before);assert.notEqual(await run(`document.querySelector('.dance-companion').style.transform`),sona.transform);checks.push('Sona dragging stays separate from scene rotation');
+ win.setSize(915,500);await sleep(350);before=await pose();await swipe(150,200,120,80);after=await pose();assert.ok(after.yaw>before.yaw+.5&&after.pitch>before.pitch+.3);checks.push('Landscape swipes use the unrotated screen axes');
+ await run(`document.querySelector('#music-only').click()`);before=await pose();await swipe(150,150,80,80);assert.deepEqual(await pose(),before);checks.push('Music only ignores orbit gestures');
+ assert.deepEqual(errors,[]);await finish(true);
+}).catch(e=>finish(false,e.stack));setTimeout(()=>finish(false,'Timed out'),60000).unref();

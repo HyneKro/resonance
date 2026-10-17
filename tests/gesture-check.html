@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Gesture routing checks</title>
+<body style="background:#12131c;color:white;font:16px system-ui"><h1>Gesture checks</h1><pre id="result">Running…</pre>
+<div id="listening-room"><button class="dance-companion"><span id="sona-pixels">Sona</span></button><div class="room-dock"><button id="dock-test">Transport</button></div><div class="desktop-audio-dock">Desktop</div>
+<div id="volume-panel" hidden></div><button id="volume-details"></button><input id="volume-exact"><input id="volume"><input id="room-volume"><input id="precise-volume"><button id="volume-mute"></button><button id="volume-up"></button><button id="volume-down"></button><span id="volume-percent"></span><div id="gesture-hud" hidden><span id="gesture-label"></span><i id="gesture-level"></i></div><div class="visual-tools"></div><button id="room-visual-settings"></button></div><dialog id="dialog"></dialog>
+<script type="module">
+import {installListeningControls} from '/listening-controls.js';
+const $=s=>document.querySelector(s),room=$('#listening-room'),sona=$('#sona-pixels');let captured=false,skips=0,clicks=0,desktop=false;
+room.setPointerCapture=()=>captured=true;room.hasPointerCapture=()=>captured;room.releasePointerCapture=()=>captured=false;
+const audio={volume:.5,muted:false,currentTime:100,duration:300,currentSrc:'local-track',addEventListener(){}};
+installListeningControls({audio,isDesktop:()=>desktop,savePlayer(){},nextTrack:direction=>skips+=direction,safe:fn=>fn,libraryOpen(){},icon:()=>''});
+sona.parentElement.addEventListener('click',()=>clicks++);
+const send=(type,target=sona,extra={})=>target.dispatchEvent(new (type==='wheel'?WheelEvent:type==='mousedown'||type==='click'?MouseEvent:PointerEvent)(type,{bubbles:true,cancelable:true,pointerId:1,button:2,buttons:2,clientX:100,clientY:200,...extra}));
+const messages=[],check=(ok,message)=>{if(!ok)throw Error(message);messages.push('PASS · '+message);};
+try{
+ send('wheel',sona,{deltaY:-100});check(audio.volume===.52,'scroll over Sona changes music volume');
+ document.body.classList.add('visual-settings-open');send('wheel',sona,{deltaY:-100});check(audio.volume===.54,'Sona volume gesture also works with Visual settings open');
+ send('pointerdown');send('pointermove',sona,{clientY:78});send('mousedown',sona,{button:0,buttons:3});send('click',sona,{button:0});send('pointerup',sona,{clientY:78,buttons:0});check(audio.currentTime===100&&!captured&&clicks===0,'left-click cancels a pending seek and consumes the click');
+ send('pointerdown');send('pointermove',sona,{clientX:220,buttons:3});send('pointerup',sona,{clientX:220,buttons:0});check(skips===0&&!captured,'button-chord pointer events cancel pending skips too');
+ send('pointerdown');send('pointermove',sona,{clientY:78});send('pointerup',sona,{clientY:78,buttons:0});check(audio.currentTime===135,'right-drag seek over Sona works after cancellation');
+ send('pointerdown');send('pointerup',sona,{clientX:220,buttons:0});check(skips===1,'right-drag over Sona advances the queue');
+ send('pointerdown',$('#dock-test'));check(!captured,'actual transport controls remain protected');
+ send('pointerdown');desktop=true;send('pointerup',sona,{clientY:78,buttons:0});check(audio.currentTime===135&&!captured,'switching to desktop audio cancels a pending local gesture');
+ send('wheel',sona,{deltaY:-100});check(audio.volume===.54,'desktop gestures never alter the saved local volume');
+ document.querySelector('#result').textContent=messages.join('\n');document.querySelector('#result').dataset.status='passed';
+}catch(e){document.querySelector('#result').textContent=e.stack;document.querySelector('#result').dataset.status='failed';}
+</script>

@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+const file=new URL('../web/mobile.js',import.meta.url);let text=await fs.readFile(file,'utf8');
+const replace=(a,b)=>{if(!text.includes(a))throw Error('Missing edit anchor: '+a);text=text.replace(a,b);};
+replace('musicOnly:false,wifiOnly:true','musicOnly:false,eqLow:0,eqMid:0,eqHigh:0,wifiOnly:true');
+replace('function preferences(patch){Object.assign',"function preferences(patch){if(patch.musicOnly)void rpc('captureStop').catch(()=>{});Object.assign");
+replace('state.prefs={...defaults,...data.preferences};','state.prefs={...defaults,...data.preferences};reactor.displayRefreshRate=data.displayHz||60;');
+replace('function renderPlayback(){const s=audio.snapshot;',"function renderPlayback(){const s=audio.snapshot;reactor.desktopSource=s.capturing?{}:null;feedback.desktopListening=!!s.capturing;for(const id of ['seek','volume','next','previous','shuffle','repeat','volume-value'])$('#'+id).disabled=!!s.capturing;");
+replace("s.error|| (s.buffering?'Loading audio…':'')","s.error|| (s.capturing?'Listening to other apps':s.buffering?'Loading audio…':'')");
+replace("async function poll(){if(!state.active)return;try{audio.update(await rpc('state'));}","async function poll(){if(!state.active)return;try{const s=await rpc('state');if(s.capturing!==audio.snapshot.capturing)reactor.resetAnalysis();audio.update(s);}");
+replace('<h3>Sound & timing</h3>',`<h3>Sound & timing</h3><button class="secondary" data-action="capture">\${audio.snapshot.capturing?'Stop listening to other apps':'Listen to other apps'}</button><p>Android asks for audio-capture consent each time. Only apps that allow capture can be visualized; no audio is recorded. Local playback pauses while listening.</p>\${slider('Low EQ · dB','eqLow',-12,6,1)}\${slider('Mid EQ · dB','eqMid',-12,6,1)}\${slider('High EQ · dB','eqHigh',-12,6,1)}<p>Zero bypasses the equalizer. Boosting can clip; prefer small cuts.</p>`);
+replace('const actions={folder:',"const actions={capture:async()=>{if(audio.snapshot.capturing){await rpc('captureStop');toast('Other-app listening stopped');}else{const result=await rpc('captureStart');if(!result.cancelled){preferences({musicOnly:false});toast('Listening to permitted app audio');}}close();},folder:");
+replace('if(out)out.textContent=value;});',"if(out)out.textContent=value;if(['eqLow','eqMid','eqHigh'].includes(key))void rpc('equalizer',{values:[state.prefs.eqLow,state.prefs.eqMid,state.prefs.eqHigh]}).catch(e=>toast(e.message));});");
+replace('if(!gesture)return;const g=gesture;','if(!gesture||audio.snapshot.capturing)return;const g=gesture;');
+await fs.writeFile(file,text);

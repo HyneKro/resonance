@@ -1,0 +1,64 @@
+const {app,BrowserWindow,ipcMain,screen}=require('electron');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{pathToFileURL}=require('node:url');
+const root=path.resolve(__dirname,'..'),output=path.join(root,'test-output');fs.mkdirSync(output,{recursive:true});app.setPath('userData',path.join(output,'desktop-next-profile'));
+const {installSonaWindow}=require('../electron/sona-window.cjs'),{installWindowControls}=require('../electron/window-controls.cjs'),{installPortableUpdate}=require('../electron/portable-update.cjs');
+let service,win,sona,finished=false;const errors=[],checks=[];const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function finish(ok,error){if(finished)return;finished=true;fs.writeFileSync(path.join(output,'desktop-next-check.json'),JSON.stringify({ok,error,checks,errors},null,2));console.log(JSON.stringify({ok,error,checks,errors}));sona?.window?.destroy();win?.destroy();service?.server.close();app.exit(ok?0:1);}
+app.whenReady().then(async()=>{
+ const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')));const dataDir=fs.mkdtempSync(path.join(output,'desktop-next-data-'));service=await startServer({port:0,dataDir,autoScan:false});service.lib.config.sources=[];service.lib.config.preferences={...service.lib.config.preferences,quality:'eco',hdrMode:'off',sfx:false};service.lib.setSetting('config',service.lib.config);
+ win=new BrowserWindow({show:false,width:1100,height:820,webPreferences:{offscreen:true,preload:path.join(root,'electron/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
+ win.webContents.on('console-message',d=>{if(d.level==='error')errors.push(d.message);});
+ installWindowControls({ipcMain,win,url:service.url,screen});installPortableUpdate({app,ipcMain,win,root,url:service.url,dialog:{}});
+ ipcMain.handle('resonance:audio-output',()=>({id:'a'.repeat(24),label:'Test USB headset',transport:'direct'}));
+ let focused=true;win.isFocused=()=>focused;
+ class HiddenSona extends BrowserWindow{constructor(options){super({...options,show:false,webPreferences:{...options.webPreferences,offscreen:true}});this.visibleForTest=false;}showInactive(){this.visibleForTest=true;}hide(){this.visibleForTest=false;super.hide();}isVisible(){return this.visibleForTest;}}
+ sona=installSonaWindow({BrowserWindow:HiddenSona,ipcMain,win,url:service.url,screen,lib:service.lib});
+ await win.loadURL(service.url);await sleep(6000);
+ await win.webContents.executeJavaScript(`document.querySelector('[data-view=settings]').click()`);await sleep(500);
+ const settings=await win.webContents.executeJavaScript(`({update:!!document.querySelector('[data-portable-update]'),rail:!!document.querySelector('[data-preference=rollercoaster]'),floating:!!document.querySelector('[data-preference=sonaFloating]')})`);assert.ok(settings.update&&settings.rail&&settings.floating);checks.push('Settings update card and camera/Sona controls mounted');
+ const floatingHidden=await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('[data-sona-floating]')).display`);assert.equal(floatingHidden,'none');
+ const result=await win.webContents.executeJavaScript(`window.resonanceDesktop.installUpdate()`);assert.match(result.message,/workspace/);checks.push('Update action reaches native installer');
+ await win.webContents.executeJavaScript(`(async()=>{const {GPUScene}=await import('/gpu-scene.js');const original=GPUScene.prototype.renderFrame;GPUScene.prototype.renderFrame=function*(input,warm){window.cameraTestPose=input.dynamics.camera;window.cameraTestLens=input.dynamics.cameraFocalLength;if(window.kaleidoTestFrames)window.kaleidoTestFrames.push(Array.from(input.dynamics.kaleidoscopeWeights));yield* original.call(this,input,warm)};const {SceneCamera}=await import('/scene-camera.js');const update=SceneCamera.prototype.update;SceneCamera.prototype.update=function(dt,options){if(window.cameraTestAudio!=null)options={...options,features:{loudness:window.cameraTestAudio,bands:[0,window.cameraTestAudio]}};return update.call(this,dt,options)};document.querySelector('#close-library').click()})()`);await sleep(300);
+ const initial=await win.webContents.executeJavaScript('window.cameraTestPose?.[0]||0');
+ win.webContents.sendInputEvent({type:'mouseDown',x:500,y:420,button:'left',clickCount:1});
+ win.webContents.sendInputEvent({type:'mouseMove',x:650,y:460,button:'left',modifiers:['leftButtonDown']});
+ win.webContents.sendInputEvent({type:'mouseUp',x:650,y:460,button:'left',clickCount:1});await sleep(900);
+ assert.ok(Math.abs(await win.webContents.executeJavaScript('window.cameraTestPose[0]')-initial)>.3);checks.push('Real left-button drag changes rendered camera pose');
+ const railSettings=await win.webContents.executeJavaScript(`(()=>{const speed=document.querySelector('[data-preference=cameraSpeed]');document.querySelector('[data-preference=rollercoaster]').click();return {max:Number(speed.max),value:Number(speed.value)}})()`);assert.equal(railSettings.max,20);assert.equal(railSettings.value,2.22);await sleep(200);
+ const beforeRailDrag=await win.webContents.executeJavaScript('window.cameraTestPose.slice()');
+ for(let i=0;i<6;i++){
+  win.webContents.sendInputEvent({type:'mouseDown',x:500,y:250,button:'left',clickCount:1});
+  win.webContents.sendInputEvent({type:'mouseMove',x:600,y:600,button:'left',modifiers:['leftButtonDown']});
+  win.webContents.sendInputEvent({type:'mouseUp',x:600,y:600,button:'left',clickCount:1});await sleep(180);
+ }
+ await sleep(900);const afterRailDrag=await win.webContents.executeJavaScript('window.cameraTestPose.slice()');assert.ok(afterRailDrag[1]-beforeRailDrag[1]>Math.PI*2,JSON.stringify({beforeRailDrag,afterRailDrag}));assert.ok(afterRailDrag[0]-beforeRailDrag[0]>2);checks.push('With Rollercoaster active, real mouse drags orbit horizontally and past a complete vertical turn');
+ await win.webContents.executeJavaScript(`document.querySelector('[data-preference=rollercoaster]').click()`);
+ const zoomSettings=await win.webContents.executeJavaScript(`(()=>{const toggle=document.querySelector('[data-preference=cameraZoom]'),initial=toggle.checked;window.cameraTestAudio=1;toggle.click();return {initial,slider:!!document.querySelector('[data-preference=cameraZoomIntensity]')}})()`);assert.equal(zoomSettings.initial,false);assert.equal(zoomSettings.slider,false);await sleep(2600);
+ const closeView=await win.webContents.executeJavaScript('({depth:window.cameraTestPose[2],lens:window.cameraTestLens})');assert.ok(closeView.depth<-3&&closeView.depth>-3.7);assert.ok(closeView.lens<1.4&&closeView.lens>1.23);
+ const savedZoom=service.lib.getSetting('config').preferences;assert.equal(savedZoom.cameraZoom,true);assert.equal(savedZoom.cameraZoomIntensity,undefined);
+ await win.webContents.executeJavaScript(`document.querySelector('#room-visual-settings').click();document.querySelector('[data-preference=cameraZoom]').scrollIntoView({block:'center'})`);await sleep(200);fs.writeFileSync(path.join(output,'camera-zoom-settings.png'),(await win.webContents.capturePage()).toPNG());await win.webContents.executeJavaScript(`document.querySelector('#room-visual-settings').click();window.cameraTestAudio=0`);await sleep(3500);
+ assert.ok(await win.webContents.executeJavaScript('Math.abs(window.cameraTestPose[2])<.1&&window.cameraTestLens>1.85'),'quiet audio restores the wider framing');
+ await win.webContents.executeJavaScript(`document.querySelector('[data-camera-reset]').click()`);await sleep(3200);
+ assert.ok(await win.webContents.executeJavaScript('Math.abs(window.cameraTestPose[2])<.2'));assert.equal(await win.webContents.executeJavaScript(`document.querySelector('[data-preference=cameraZoom]').checked`),false);checks.push('Audio-only zoom and compensating FOV reach the renderer, restore on silence and reset; obsolete slider removed');
+ await win.webContents.executeJavaScript(`window.kaleidoTestFrames=[];document.querySelector('[data-preference=kaleidoscope]').click()`);await sleep(1300);
+ let fade=await win.webContents.executeJavaScript('window.kaleidoTestFrames');assert.ok(fade.some(w=>w[0]>.05&&w[0]<.95));assert.equal(fade.at(-1)[1],1);
+ await win.webContents.executeJavaScript(`window.kaleidoTestFrames=[];const select=document.querySelector('[data-preference=kaleidoscopeMode]');select.value='cathedral';select.dispatchEvent(new Event('change',{bubbles:true}))`);await sleep(1300);
+ fade=await win.webContents.executeJavaScript('window.kaleidoTestFrames');assert.ok(fade.some(w=>w[1]>.05&&w[1]<.95&&w[12]>.05));assert.equal(fade.at(-1)[12],1);
+ await win.webContents.executeJavaScript(`window.kaleidoTestFrames=[];document.querySelector('[data-preference=kaleidoscope]').click()`);await sleep(1300);
+ fade=await win.webContents.executeJavaScript('window.kaleidoTestFrames');assert.ok(fade.some(w=>w[12]>.05&&w[12]<.95&&w[0]>.05));assert.equal(fade.at(-1)[0],1);await win.webContents.executeJavaScript('window.kaleidoTestFrames=null');checks.push('Kaleidoscope toggle and pattern menu deliver smooth intermediate frames and settled endpoints to the renderer');
+ await win.webContents.executeJavaScript(`document.querySelector('#room-sound').click()`);await sleep(300);
+ const direct=await win.webContents.executeJavaScript(`({mode:document.querySelector('[data-output-mode]')?.value,label:document.querySelector('[data-output-label]')?.textContent})`);assert.equal(direct.mode,'auto');assert.match(direct.label,/Test USB/);checks.push('Sound settings show per-output device profile');
+ const lyrics=await win.webContents.executeJavaScript(`(()=>{const section=document.createElement('section');section.className='song-lyrics';section.innerHTML='<div data-lyrics-text></div>';document.querySelector('dialog').append(section);const text=section.firstElementChild;text.textContent=('Long lyrics line\\n').repeat(100);const style=getComputedStyle(text);return {maxHeight:style.maxHeight,overflow:style.overflow}})()`);assert.equal(lyrics.maxHeight,'none');assert.equal(lyrics.overflow,'visible');checks.push('Lyrics have no nested scroll area');
+ await win.webContents.executeJavaScript(`document.querySelector('dialog').close()`);
+ await win.webContents.executeJavaScript(`window.resonanceDesktop.publishSona({enabled:true,playing:true,title:'Floating companion test',colors:[[.9,.2,.4],[.3,.7,.8],[.8,.5,.9]]})`);assert.equal(sona.window,null);
+ focused=false;sona.sync();await sleep(1500);assert.ok(sona.window?.isVisible());
+ const child=sona.window;
+ const pixels=await child.webContents.executeJavaScript(`({title:document.querySelector('#title').textContent,painted:Array.from(document.querySelector('canvas').getContext('2d').getImageData(0,0,160,160).data).some((v,i)=>i%4===3&&v>0)})`);assert.equal(pixels.title,'Floating companion test');assert.ok(pixels.painted);fs.writeFileSync(path.join(output,'floating-sona.png'),(await child.webContents.capturePage()).toPNG());checks.push('Floating Sona loads and paints real sprite sheet while main window is unfocused');
+ await assert.rejects(child.webContents.executeJavaScript(`window.resonanceDesktop.publishSona({enabled:false})`));checks.push('Overlay cannot publish or override main app state');
+ await win.webContents.executeJavaScript(`window.sonaTestCommands=[];window.resonanceDesktop.onSonaCommand(a=>window.sonaTestCommands.push(a));void 0`);
+ await child.webContents.executeJavaScript(`window.resonanceDesktop.sonaCommand('previous')`);assert.deepEqual(await win.webContents.executeJavaScript('window.sonaTestCommands'),['previous']);checks.push('Overlay playback commands route to main player');
+ focused=true;sona.sync();assert.equal(child.isVisible(),false);checks.push('Floating Sona hides when returning to the app');
+ fs.writeFileSync(path.join(output,'desktop-next-settings.png'),(await win.webContents.capturePage()).toPNG());
+ if(errors.some(e=>/Uncaught|Failed to fetch dynamically imported|SyntaxError|ReferenceError|404/.test(e)))throw Error(errors.join('\n'));
+ await finish(true);
+}).catch(e=>finish(false,e.stack));setTimeout(()=>finish(false,'Integration test timed out'),45000).unref();
