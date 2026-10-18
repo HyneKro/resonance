@@ -1,13 +1,14 @@
-const { app, BrowserWindow, shell, dialog, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain, screen, Tray, Menu } = require('electron');
 const {installWindowControls}=require('./window-controls.cjs');
 const {installPortableUpdate}=require('./portable-update.cjs');
 const {installSonaWindow}=require('./sona-window.cjs');
 const {installAudioOutput}=require('./audio-output.cjs');
 const {installDesktopAudio}=require('./desktop-audio.cjs');
 const {showMainWindow,showWhenReady}=require('./window-activation.cjs');
+const {installTray}=require('./tray.cjs');
 const path = require('node:path');
 const fs = require('node:fs');
-let win, service;
+let win, service, trayController;
 const portableRoot=path.dirname(process.execPath);
 if(app.isPackaged&&fs.existsSync(path.join(portableRoot,'portable.flag'))){const profile=path.join(portableRoot,'data','browser');fs.mkdirSync(profile,{recursive:true});app.setPath('userData',profile);}
 if(!app.requestSingleInstanceLock())app.exit(0);
@@ -19,6 +20,7 @@ app.whenReady().then(async()=>{
   const dataDir=app.isPackaged?fs.existsSync(path.join(exeDir,'portable.flag'))?path.join(exeDir,'data'):path.join(exeDir,'..','..','data'):path.join(root,'data');
   win=new BrowserWindow({width:1520,height:980,minWidth:760,minHeight:620,title:'Resonance',titleBarStyle:'hidden',titleBarOverlay:{color:'#00000000',symbolColor:'#eee5fa',height:32},backgroundColor:'#111015',autoHideMenuBar:true,icon:path.join(root,'public','icon.ico'),show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});
   showWhenReady(win);
+  try{trayController=installTray({app,Tray,Menu,win,root});}catch(e){console.warn('Notification-area icon unavailable:',e.message);}
   try {
     await win.loadFile(path.join(root,'public','startup.html'));
     const { startServer } = await import(require('node:url').pathToFileURL(path.join(root,'server.mjs')).href);
@@ -34,11 +36,12 @@ app.whenReady().then(async()=>{
     win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(service.url+'/'))event.preventDefault();});
     installDesktopAudio({ipcMain,win,url:service.url});
     installAudioOutput({ipcMain,win,url:service.url});
-    installPortableUpdate({app,ipcMain,dialog,win,root,url:service.url,exitForUpdate:()=>{service?.sync.cancel();service?.server.close();app.exit(0);}});
+    installPortableUpdate({app,ipcMain,dialog,win,root,url:service.url,exitForUpdate:()=>{trayController?.dispose();service?.sync.cancel();service?.server.close();app.exit(0);}});
     installSonaWindow({BrowserWindow,ipcMain,win,url:service.url,screen,lib:service.lib});
-    let allowClose=false;
+    let allowClose=false,preparingClose=false;
     win.on('close',event=>{
       if(allowClose)return;event.preventDefault();
+      if(preparingClose)return;preparingClose=true;
       Promise.race([win.webContents.executeJavaScript('window.resonancePrepareClose?.()').catch(()=>{}),new Promise(resolve=>setTimeout(resolve,2500))]).finally(()=>{allowClose=true;if(!win.isDestroyed())win.close();});
     });
     await win.loadURL(service.url);

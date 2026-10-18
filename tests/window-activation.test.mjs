@@ -12,3 +12,5 @@ test('ordinary startup focuses once and the fallback respects user actions',()=>
  for(const action of ['alt-tab','minimize','close']){const w=window();let retry;showWhenReady(w,{schedule:fn=>retry=fn});w.emit('ready-to-show');if(action==='minimize'){w.minimized=true;w.visible=false;}if(action==='close')w.destroyed=true;retry();assert.deepEqual(w.calls,['show','top','focus']);}
 });
 test('opening a second instance restores and focuses the existing window',()=>{const w=window();w.minimized=true;showMainWindow(w);assert.deepEqual(w.calls,['restore','show','top','focus']);w.destroyed=true;showMainWindow(w);assert.equal(w.calls.length,4);});
+
+test('startup fallback respects a deliberate Hide window from the notification menu',()=>{const w=window();let retry;showWhenReady(w,{schedule:fn=>retry=fn});w.emit('ready-to-show');w.visible=false;w.emit('hide');retry();assert.equal(w.visible,false);assert.equal(w.calls.filter(c=>c==='show').length,1);assert.equal(w.listenerCount('hide'),0);});
