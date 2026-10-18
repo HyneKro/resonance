@@ -17,14 +17,16 @@ test('all selectable appearances have identical bundled PC/Android artwork and s
  assert.equal(appearanceCell(12,0),96);assert.equal(appearanceCell(11,7),119);
 });
 
-test('every guest plays eight twelve-pose routines for three full cycles at a fixed pace',()=>{
+test('every guest completes the reviewed pose order three times at both display and simulation rates',()=>{
+ const changes=items=>items.filter((item,i)=>i===0||items[i-1]!==item);
  for(const a of COMPANION_APPEARANCES.filter(a=>a.id!=='sona')){
+  for(const hz of [24,120]){
   const motion=new DanceMotion();motion.setAppearance(a.id);let previous,sequence=[];
-  const expected=SONA_ROUTINES.flatMap(name=>Array.from({length:3},()=>Array.from({length:12},(_,f)=>motion.clips[name].row+':'+f)).flat());
+  const expected=changes(SONA_ROUTINES.flatMap(name=>Array.from({length:3},()=>motion.clips[name].frames.map(f=>motion.clips[name].row+':'+f)).flat()));
   const duration=SONA_ROUTINES.reduce((sum,name)=>sum+motion.clips[name].beats*60/100*3,0);
   for(const name of SONA_ROUTINES)assert.ok(clipDurations(motion.clips[name],100).every(t=>t>=1/12),a.id+' frame budget');
-  for(let i=0;i<Math.ceil(duration*120)+3;i++){
-   const s=motion.update(1/120,{active:true,bpm:i%2?180:60,energy:i%2});const key=s.row+':'+s.frame;
+  for(let i=0;i<Math.ceil(duration*hz)+3;i++){
+   const s=motion.update(i?1/hz:0,{active:true,bpm:i%2?180:60,energy:i%2});const key=s.row+':'+s.frame;
    if(key!==previous){sequence.push(key);previous=key;}
    assert.equal(s.pose.scaleX,1);assert.equal(s.pose.scaleY,1);
   }
@@ -33,6 +35,7 @@ test('every guest plays eight twelve-pose routines for three full cycles at a fi
   motion.drop();assert.equal(motion.update(.01,{active:true}).state,'drop');for(let i=0;i<24;i++)motion.update(.05,{active:true});assert.ok(['listening','dancing'].includes(motion.state));
   for(let i=0;i<400;i++)motion.update(.1,{active:false});assert.equal(motion.state,'sleep');
   motion.click();assert.equal(motion.update(.01,{}).state,'clicked');
+  }
  }
 });
 

@@ -1,5 +1,6 @@
 import {SONA_CLIPS} from './companion-atlas.js';
 import {appearanceInfo} from './companion-appearances.js';
+import {guestFrames,GUEST_INTERACTIONS,SONA_REVIEWED_FRAMES} from './companion-choreography.js';
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number.isFinite(x)?x:a));
 export const SONA_ROUTINES=['two-step','side-sway','head-bob','hand-wave','shoulder-groove','cheer','soft-bounce','twirl'];
 const lift=[0,0,0,6,12,6,0,0];
@@ -21,7 +22,8 @@ export function sequenceFrame(seconds,times,frames=null,loop=true){
  }
 }
 export function clipDurations(clip,bpm){
- const count=clip.frameCount||8,duration=clip.beats*60/clamp(bpm,55,180),minimum=1/12,remaining=Math.max(0,duration-count*minimum),weights=clip.weights||Array(count).fill(1),weight=total(weights);
+ if(clip.times)return clip.times;
+ const count=clip.frames?.length||clip.frameCount||8,duration=clip.beats*60/clamp(bpm,55,180),minimum=1/12,remaining=Math.max(0,duration-count*minimum),weights=clip.weights||Array(count).fill(1),weight=total(weights);
  const times=weights.map(w=>minimum+remaining*w/weight);
  // Joyful eye-closes belong to one accent, never half a slow dance cycle.
  for(const index of clip.eyeClose||[]){const excess=Math.max(0,times[index]-.15);times[index]=Math.min(times[index],.15);times[(index+1)%count]+=excess;}
@@ -44,12 +46,21 @@ export class DanceMotion{
   const info=appearanceInfo(value);if(this.appearance===info.id)return;
   this.appearance=info.id;this.beats=0;this.routineStart=0;this.routineIndex=0;this.routineState='dancing';
   this.routines=SONA_ROUTINES;
-  this.clips=SONA_CLIPS;
+  this.clips={...SONA_CLIPS};
+  for(const [name,frames]of Object.entries(SONA_REVIEWED_FRAMES))this.clips[name]={...SONA_CLIPS[name],frames,weights:undefined};
   if(info.id!=='sona'){
-   const slow=Math.max(1.2,info.grooveSeconds*.5),quick=Math.max(1,info.danceSeconds*.65);
-   this.clips={...SONA_CLIPS};
-   for(const name of this.routines){const seconds=['head-bob','side-sway','hand-wave'].includes(name)?slow:quick;this.clips[name]={row:SONA_CLIPS[name].row,beats:seconds*SONA_PACE/60,frameCount:12};}
+   for(const name of this.routines){
+    const frames=guestFrames(info.id,name),slow=['head-bob','side-sway','hand-wave'].includes(name);
+    // Whole 24 Hz presentation ticks avoid alternating short/long holds.
+    // Removing a bad drawing must not make the whole gesture rush faster.
+    const seconds=slow?Math.max(1.2,info.grooveSeconds*.5):Math.max(1,info.danceSeconds*.65);
+    const ticks=Math.max(2,Math.round(seconds*24/frames.length));
+    const times=frames.map(()=>ticks/24);
+    if(name==='cheer')times[3]=Math.min(times[3],3/24);
+    this.clips[name]={row:SONA_CLIPS[name].row,beats:total(times)*SONA_PACE/60,frames,times};
+   }
   }
+  this.interactions=info.id==='sona'?null:GUEST_INTERACTIONS;
  }
  press(){this.action='pressed';this.elapsed=0;this.quiet=0;}
  click(){this.action='clicked';this.elapsed=0;this.quiet=0;}
@@ -62,8 +73,9 @@ export class DanceMotion{
  update(dt,{active=false,reduced=false,frozen=false,mode}={}){
   if(!this.clips)this.setAppearance('sona');
   dt=clamp(dt,0,.1);this.elapsed+=dt;
-  if(this.action==='pickup'&&this.elapsed>=total(SONA_TIMING.pickup)){this.elapsed-=total(SONA_TIMING.pickup);this.action='held';}
-  if(this.action==='drop'&&this.elapsed>=total(SONA_TIMING.drop)||this.action==='clicked'&&this.elapsed>=total(SONA_TIMING.clicked)){
+  const timing=name=>this.interactions?.[name]?.times||SONA_TIMING[name];
+  if(this.action==='pickup'&&this.elapsed>=total(timing('pickup'))){this.elapsed-=total(timing('pickup'));this.action='held';}
+  if(this.action==='drop'&&this.elapsed>=total(timing('drop'))||this.action==='clicked'&&this.elapsed>=total(timing('clicked'))){
    this.action='';this.elapsed=0;
    // Resume from the beginning of the current phrase after a greeting/landing,
    // rather than cutting from neutral into an arbitrary raised-arm pose.
@@ -95,7 +107,7 @@ export class DanceMotion{
   }else{pose.y=Math.sin(t*2)*.35;pose.rotation=Math.sin(t*.8)*.012;}
   if(this.state==='sleep'){row=8;frame=sequenceFrame(this.stateTime,SONA_TIMING.sleep).frame;pose.rotation=0;pose.sleep=1;pose.y=Math.sin(t*1.6)*.25;}
   if(this.state==='pressed'){row=12;frame=0;}
-  if(this.state==='clicked'){row=9;frame=sequenceFrame(this.elapsed,SONA_TIMING.clicked,null,false).frame;pose.spark=Math.sin(Math.PI*clamp(this.elapsed/total(SONA_TIMING.clicked)));}
+  if(this.state==='clicked'){row=9;frame=sequenceFrame(this.elapsed,SONA_TIMING.clicked,null,false).frame;pose.spark=Math.sin(Math.PI*clamp(this.elapsed/total(timing('clicked'))));}
   if(this.state==='pickup'){
    row=10;frame=sequenceFrame(this.elapsed,SONA_TIMING.pickup,null,false).frame;
    pose.y=-5*smooth(this.elapsed/.4);pose.rotation=this.dragLean*.04;pose.pivotY=36;
@@ -106,7 +118,12 @@ export class DanceMotion{
    // Landing is expressed by the drawn poses, keeping sprite proportions intact.
    pose.y=-5*(1-smooth(this.elapsed/(1/6)));pose.rotation=this.releaseRotation*(1-smooth(this.elapsed/.3));
   }
-  if(!moving){frame=this.state==='held'?3:0;Object.assign(pose,REST_POSE,{sleep:this.state==='sleep'?1:0});}
+  const interaction=this.interactions?.[this.state];
+  if(interaction){
+   const sample=sequenceFrame(this.action?this.elapsed:this.stateTime,interaction.times,interaction.frames,!['pickup','drop','clicked'].includes(this.state));
+   row=interaction.rows?.[sample.index]??interaction.row;frame=sample.frame;
+  }
+  if(!moving){frame=this.state==='held'?(this.interactions?2:3):0;Object.assign(pose,REST_POSE,{sleep:this.state==='sleep'?1:0});}
   this.lastPose=pose;return {state:this.state,name:this.name,bpm:this.bpm,beats:this.beats,time:this.clock,row,frame,pose};
  }
 }

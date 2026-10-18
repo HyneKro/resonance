@@ -23,7 +23,7 @@ export const companionAppearance=value=>COMPANION_APPEARANCES.some(item=>item.id
 export const appearanceInfo=value=>COMPANION_APPEARANCES.find(item=>item.id===companionAppearance(value));
 
 // Guest sheets have eight twelve-pose dances and six four-pose interactions.
-// Sona retains her original 104-pose sheet and exact authored sequences.
+// Sona retains her original 104-pose sheet. Playback order is reviewed separately.
 export function appearanceCell(row,frame){
  const f=Math.max(0,Math.trunc(frame)||0);
  if(row<8)return Math.max(0,row)*12+Math.min(11,f);

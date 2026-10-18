@@ -1,0 +1,11 @@
+// Isolated browser rendering of every reviewed pose, including silhouette bounds.
+const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-work/mascot-cleanup');fs.mkdirSync(out,{recursive:true});app.setPath('userData',path.join(out,'review-profile'));let win,server;
+app.whenReady().then(async()=>{
+ server=http.createServer((req,res)=>{try{const name=new URL(req.url,'http://localhost').pathname;const file=name==='/'?path.join(__dirname,'mascot-motion-review.html'):path.join(root,'public',name);res.setHeader('Content-Type',name==='/'?'text/html':name.endsWith('.js')?'text/javascript':'image/webp');res.end(fs.readFileSync(file));}catch{res.writeHead(404);res.end();}});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));win=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{offscreen:true,sandbox:true,backgroundThrottling:false}});const errors=[];win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message);});await win.loadURL('http://127.0.0.1:'+server.address().port);
+ const run=s=>win.webContents.executeJavaScript(s);for(let i=0;i<100;i++){if(await run('!!window.mascotPlate&&document.body.dataset.ready===\'sona\''))break;await new Promise(r=>setTimeout(r,50));}
+ const ids=await run(`Array.from(document.querySelector('#character').options,o=>o.value)`),stats=[];
+ for(const id of ids){const result=await run(`window.mascotPlate(${JSON.stringify(id)})`);fs.writeFileSync(path.join(out,id+'.png'),Buffer.from(result.png,'base64'));assert.equal(result.clipped,0,'cropped silhouette: '+id);stats.push({id,clipped:result.clipped});}
+ await run(`window.selectMascot('miku')`);fs.writeFileSync(path.join(out,'review.png'),(await win.webContents.capturePage()).toPNG());assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({characters:ids.length,stats,errors},null,2));console.log('All 30 characters: reviewed dance poses render without edge clipping or browser errors.');win.destroy();server.close();app.exit(0);
+}).catch(e=>{console.error(e);win?.destroy();server?.close();app.exit(1);});setTimeout(()=>app.exit(2),120000).unref();

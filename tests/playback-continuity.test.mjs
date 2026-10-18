@@ -45,13 +45,15 @@ test('Sona delays genuine playback edges, never rhythm or analyser-buffer resets
  assert.equal(p.update(true,0,10200),true);p.update(false,200,10300);assert.equal(p.update(true,200,10350),true);assert.equal(p.update(true,200,10600),true);
 });
 test('Sona shows every pose in order through irregular frames, without a catch-up burst',()=>{
- const clock=new CompanionClock(),motion=new DanceMotion();let t=0,previous,changes=0;
+ const clock=new CompanionClock(),motion=new DanceMotion();motion.setAppearance('sona');let t=0,previous,changes=0;
+ const order=motion.routines.flatMap(name=>Array.from({length:3},()=>{const clip=motion.clips[name];return (clip.frames||[0,1,2,3,4,5,6,7]).map(frame=>clip.row+':'+frame);}).flat());
+ const expected=order.filter((f,i)=>i===0||f!==order[i-1]);let cursor=0;
  for(let i=0;i<24000;i++){
   t+=i%137===0?280:i%31===0?95:1000/165;const dt=clock.step(t);if(dt===null)continue;
   assert.ok(dt<=1/24);const f=motion.update(dt,{active:true});
-  if(previous&&f.frame!==previous.frame&&f.row===previous.row){assert.equal(f.frame,(previous.frame+1)%8);changes++;}
-  if(previous&&f.row!==previous.row){assert.equal(previous.frame,7);assert.equal(f.frame,0);}
-  previous=f;
+  const key=f.row+':'+f.frame;
+  if(key!==previous){assert.equal(key,expected[cursor++%expected.length]);if(previous)changes++;}
+  previous=key;
  }
  assert.ok(changes>500);
 });

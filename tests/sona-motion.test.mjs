@@ -37,10 +37,10 @@ test('sprite idle, sleep, wake, greeting, pickup, held and landing remain interr
 test('dance cycles visit every authored pose and interactions use their own art',()=>{
  assert.equal(SONA_SHEETS.reduce((n,s)=>n+s.rows*s.columns,0),104);
  for(const name of SONA_ROUTINES){
-  const m=new DanceMotion(),phrase=SONA_ROUTINES.indexOf(name),clip=SONA_CLIPS[name],frames=[];
+  const m=new DanceMotion();m.setAppearance('sona');const phrase=SONA_ROUTINES.indexOf(name),clip=m.clips[name],frames=[];
   let elapsed=0;const durations=clipDurations(clip,m.bpm);
-  for(let i=0;i<8;i++){m.beats=phrase*16+(elapsed+durations[i]/2)*m.bpm/60;frames.push(m.update(0,{active:true,mode:'dancing',loudness:.7}).frame);elapsed+=durations[i];}
-  assert.equal(new Set(frames).size,8);assert.deepEqual(frames,clip.frames||[0,1,2,3,4,5,6,7]);
+  for(let i=0;i<durations.length;i++){m.beats=phrase*16+(elapsed+durations[i]/2)*m.bpm/60;frames.push(m.update(0,{active:true,mode:'dancing',loudness:.7}).frame);elapsed+=durations[i];}
+  assert.deepEqual(frames,clip.frames||[0,1,2,3,4,5,6,7]);
   if(['hand-wave','side-sway'].includes(name))assert.equal(clip.beats,4);
  }
  const m=new DanceMotion();for(const [method,row]of [['click',9],['pickUp',10],['drop',11]]){m[method]();assert.equal(m.update(0).row,row);}

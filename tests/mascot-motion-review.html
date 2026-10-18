@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Mascot movement review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:24px;background:#14121c;color:#eee6fa;font:14px system-ui}h1{font-size:25px;font-weight:500}p{color:#baafc7}button,select{font:inherit;background:#282133;color:inherit;border:1px solid #635473;border-radius:12px;padding:10px}header{display:flex;gap:12px;align-items:center;flex-wrap:wrap}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:20px;margin-top:24px}article{text-align:center}canvas{display:block;width:160px;height:160px;margin:auto}small{color:#ab9ab9}details{margin-top:30px}#strip{overflow:auto}figure{margin:0}
+</style>
+<h1>Mascot movement review</h1><p>All dance loops and reactions at their actual playback pace. Pause and step to inspect any pose.</p>
+<header><select aria-label="Character" id="character"></select><button id="pause">Pause</button><button id="step">Next frame</button><button id="restart">Replay</button></header>
+<main></main><details><summary>Dance pose sequences</summary><div id="strip"></div></details>
+<script type="module">
+import {COMPANION_APPEARANCES} from '/companion-appearances.js';
+import {CompanionRenderer} from '/companion-renderer.js';
+import {DanceMotion,CompanionClock,SONA_ROUTINES} from '/companion-motion.js';
+const colors=[[187,145,235],[105,205,220]],specs=[...SONA_ROUTINES,'idle','sleep','clicked','pickup','held','drop'],tiles=[];
+let playing=true,generation=0;
+const picker=document.querySelector('#character');for(const a of COMPANION_APPEARANCES)picker.add(new Option(a.label,a.id));
+for(const name of specs){const el=document.createElement('article'),canvas=document.createElement('canvas'),label=document.createElement('div'),caption=document.createElement('small');label.textContent=name.replaceAll('-',' ');el.append(canvas,label,caption);document.querySelector('main').append(el);tiles.push({name,renderer:new CompanionRenderer(canvas),caption});}
+function reset(tile){tile.motion=new DanceMotion();tile.motion.setAppearance(picker.value);tile.age=0;const i=SONA_ROUTINES.indexOf(tile.name);if(i>=0){tile.motion.routineIndex=i;tile.motion.routineState=i===2?'listening':'dancing';tile.motion.beats=1e-8;}else if(!['idle','sleep'].includes(tile.name))tile.motion.action=tile.name;}
+function paint(tile,dt){tile.age+=dt;const dance=SONA_ROUTINES.includes(tile.name);if(dance&&tile.motion.name!==tile.name&&tile.age>dt)reset(tile);if(!dance&&tile.age>5)reset(tile);const f=tile.motion.update(dt,{active:dance,mode:tile.name==='sleep'?'sleep':undefined});tile.renderer.draw(f,colors);tile.caption.textContent=f.state+' · '+f.row+':'+f.frame;}
+async function select(id){const gen=++generation;picker.value=id;await Promise.all(tiles.map(t=>t.renderer.setAppearance(id)));if(gen!==generation)return;for(const tile of tiles){reset(tile);paint(tile,0);}document.body.dataset.ready=id;}
+window.selectMascot=select;window.mascotTiles=tiles;
+window.mascotPlate=async id=>{await select(id);const canvas=document.createElement('canvas');canvas.width=2240;canvas.height=8*180;const c=canvas.getContext('2d');c.fillStyle='#14121c';c.fillRect(0,0,canvas.width,canvas.height);const r=tiles[0].renderer;let clipped=0;
+ for(const [i,name]of SONA_ROUTINES.entries()){const clip=tiles[0].motion.clips[name],frames=clip.frames||[0,1,2,3,4,5,6,7];c.fillStyle='#eee6fa';c.font='14px system-ui';c.fillText(name,4,i*180+16);for(const [j,frame]of frames.entries()){r.draw({row:clip.row,frame},colors);c.drawImage(r.canvas,j*160,i*180+20);const px=r.context.getImageData(0,0,160,160).data;for(let y=0;y<160;y++)for(const x of [0,159])if(px[(y*160+x)*4+3]>160)clipped++;}}
+ return {png:canvas.toDataURL().split(',')[1],clipped};};
+picker.onchange=()=>select(picker.value);document.querySelector('#pause').onclick=e=>{playing=!playing;e.target.textContent=playing?'Pause':'Play';};document.querySelector('#step').onclick=()=>{playing=false;document.querySelector('#pause').textContent='Play';tiles.forEach(t=>paint(t,1/24));};document.querySelector('#restart').onclick=()=>tiles.forEach(t=>{reset(t);paint(t,0);});
+document.querySelector('details').ontoggle=async e=>{if(e.target.open){const p=await window.mascotPlate(picker.value);const img=new Image();img.src='data:image/png;base64,'+p.png;document.querySelector('#strip').replaceChildren(img);}};
+await select('sona');const clock=new CompanionClock();function tick(now){const dt=clock.step(now);if(playing&&dt!==null)for(const tile of tiles)paint(tile,dt);requestAnimationFrame(tick);}requestAnimationFrame(tick);
+</script></html>

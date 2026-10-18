@@ -3,6 +3,7 @@ import {REST_POSE} from './companion-motion.js';
 import {SONA_SHEETS} from './companion-atlas.js';
 import {drawCompanionEmblem} from './companion-emblem.js';
 import {companionAppearance,appearanceInfo,appearanceCell} from './companion-appearances.js';
+import {COMPANION_FRAMING} from './companion-framing.js';
 
 // The painted sprite sheets stay untouched. Recoloring preserves their
 // line work, alpha, warm skin and shading. Exactly one pose is drawn per frame.
@@ -58,7 +59,8 @@ export class CompanionRenderer{
   if(!this.ready||!this.context)return false;const p=frame.pose||REST_POSE,c=this.context;
   const pivot=p.pivotY??143;
   const painted=this.painted(frame.row,frame.frame,colors,hairColors);
-  c.clearRect(0,0,160,160);c.save();c.translate(80+p.x,pivot+p.y);c.rotate(p.rotation);c.scale(p.scaleX,p.scaleY);c.drawImage(painted,-80,-pivot);c.restore();
+  const correction=COMPANION_FRAMING[this.appearance]?.[frame.row]?.[frame.frame]||0;
+  c.clearRect(0,0,160,160);c.save();c.translate(80+p.x,pivot+p.y);c.rotate(p.rotation);c.scale(p.scaleX,p.scaleY);c.drawImage(painted,-80+correction,-pivot);c.restore();
   if(p.sleep){c.save();c.fillStyle='rgba(232,224,255,.65)';c.font='12px system-ui';c.fillText('z',122,26);c.font='9px system-ui';c.fillText('z',132,15);c.restore();}
   if(p.spark>.05){c.save();c.globalAlpha=p.spark*.8;c.fillStyle=`rgb(${colors[1].map(Math.round).join(' ')})`;c.font='14px system-ui';c.fillText('♪',133,50-p.spark*7);c.restore();}
   return true;
