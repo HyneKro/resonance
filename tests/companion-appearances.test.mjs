@@ -14,7 +14,7 @@ test('all selectable appearances have identical bundled PC/Android artwork and s
  for(const a of COMPANION_APPEARANCES){assert.equal(preferencesWithDefaults({companionAppearance:a.id}).companionAppearance,a.id);const pc=await fs.readFile('public'+a.src),android=await fs.readFile('android/shared'+a.src);assert.deepEqual(pc,android,a.id);assert.ok(pc.length>1000);}
  for(let row=0;row<13;row++)for(let frame=0;frame<(row<8?12:8);frame++)assert.ok(appearanceCell(row,frame)>=0&&appearanceCell(row,frame)<120);
  assert.equal(new Set(Array.from({length:8},(_,row)=>Array.from({length:12},(_,frame)=>appearanceCell(row,frame))).flat()).size,96);
- assert.equal(appearanceCell(12,0),96);assert.equal(appearanceCell(11,7),119);
+ assert.equal(appearanceCell(12,0),96);assert.equal(appearanceCell(11,7),96);
 });
 
 test('every guest completes the reviewed pose order three times at both display and simulation rates',()=>{

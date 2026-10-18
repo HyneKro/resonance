@@ -11,11 +11,13 @@ app.whenReady().then(async()=>{
   const samples=Array.from({length:5},()=>{const c=document.createElement('canvas');c.width=960;c.height=1140;const x=c.getContext('2d');x.fillStyle='#11131e';x.fillRect(0,0,c.width,c.height);return c;});
   const stats=[];for(const [i,a] of COMPANION_APPEARANCES.entries()){
    if(!await renderer.setAppearance(a.id))throw Error('Cannot load '+a.id);
+   renderer.draw({row:0,frame:1},colors);const before=renderer.canvas.toDataURL();
    for(let row=0;row<13;row++)for(let frame=0;frame<(a.id!=='sona'&&row<8?12:8);frame++){
     const data=renderer.frame(row,frame).data;let count=0;for(let p=3;p<data.length;p+=4)if(data[p]>100)count++;
     if(count<250||count>160*160*.9)throw Error('Empty/opaque pose '+a.id+':'+row+':'+frame);
     renderer.draw({row,frame},colors);
    }
+   renderer.draw({row:0,frame:1},colors);if(renderer.canvas.toDataURL()!==before)throw Error('Pose changed after cache eviction: '+a.id);
    const x=(i%6)*200,y=Math.floor(i/6)*216;ctx.drawImage(renderer.painted(12,0,colors),x+20,y+10);ctx.fillStyle='#e9e7f7';ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText(a.label,x+100,y+192,192);
    const sc=samples[Math.floor(i/6)].getContext('2d'),sy=(i%6)*190;sc.fillStyle='#e9e7f7';sc.font='13px system-ui';sc.fillText(a.label,8,sy+18);[[0,0],[0,2],[1,1],[1,5],[8,0],[11,2]].forEach(([r,f],j)=>sc.drawImage(renderer.painted(r,f,colors),j*160,sy+22));
    if(renderer.frames.size>32||renderer.tints.size>16)throw Error('Unbounded cache');stats.push({id:a.id,sampledStates:a.id==='sona'?104:136,authoredPoses:a.id==='sona'?104:120});
