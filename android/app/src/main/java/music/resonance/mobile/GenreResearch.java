@@ -6,7 +6,7 @@ import java.util.regex.*;
 
 /** Genre evidence only. Does not change recording identity or overwrite edits. */
 public final class GenreResearch {
-    public static final int VERSION=7;
+    public static final int VERSION=8;
     public interface Reader { JSONObject read(String url) throws Exception; }
     private final Reader reader;
     private final JSONObject taxonomy;
@@ -69,9 +69,11 @@ public final class GenreResearch {
         }
         if(evidence.length()==0&&track.optDouble("duration",0)>0&&!track.optString("kind").equals("mix"))for(JSONObject lookup:variants(track)){
             List<String> lookupNames=artists(lookup);if(lookupNames.isEmpty())continue;
-            JSONArray results=get("https://itunes.apple.com/search?media=music&entity=song&country=US&limit=25&term="+Research.encode(lookupNames.get(0)+" "+title(lookup))).optJSONArray("results");LinkedHashMap<String,JSONObject> matched=new LinkedHashMap<>();
-            if(results!=null)for(int i=0;i<results.length();i++){JSONObject r=results.optJSONObject(i);if(r==null||!r.optString("kind").equals("song")||!storeUrl(r.optString("trackViewUrl")))continue;JSONObject c=Json.object("title",r.optString("trackName"),"artist",r.optString("artistName"),"duration",r.optDouble("trackTimeMillis",0)/1000);if(same(lookup,c)&&c.optDouble("duration",0)>0&&!r.optString("primaryGenreName").isBlank())matched.put(r.optString("primaryGenreName"),r);}
-            if(matched.size()==1){JSONObject r=matched.values().iterator().next();add(evidence,r.optString("primaryGenreName"),"recording","Apple Music catalogue",r.optString("trackViewUrl"),true);break;}
+            String region=(lookup.optString("title")+lookup.optString("artist")).matches(".*[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}].*")?"JP":(lookup.optString("title")+lookup.optString("artist")).matches("(?i).*[àâçéèêëîïôùûüÿœ].*")?"FR":"GB";
+            for(String country:List.of("US",region)){
+                JSONArray results=get("https://itunes.apple.com/search?media=music&entity=song&lang=en_us&country="+country+"&limit=25&term="+Research.encode(lookupNames.get(0)+" "+title(lookup))).optJSONArray("results");
+                catalogue(evidence,lookup,results);if(evidence.length()>0)break;
+            }if(evidence.length()>0)break;
         }
         List<String> researchNames=researchArtists(track);if(artistIds.isEmpty())for(String name:researchNames.subList(0,Math.min(4,researchNames.size()))){
             if(key(name).equals(key(track.optString("channel")))&&track.optString("artistCreditSource").isEmpty())continue;
@@ -80,9 +82,11 @@ public final class GenreResearch {
         int count=0;for(String id:artistIds){if(count++>=4)break;JSONObject artist=entity("artist",id,"genres+tags+url-rels");int before=evidence.length();collect(evidence,artist,"artist","artist",id);if(before==evidence.length())wikidata(evidence,artist);}
         if(evidence.length()==0)for(String name:researchNames.subList(0,Math.min(2,researchNames.size()))){
             if(artistIds.isEmpty()&&key(name).equals(key(track.optString("channel")))&&track.optString("artistCreditSource").isBlank())continue;
-            JSONArray results=get("https://itunes.apple.com/search?media=music&entity=musicArtist&attribute=artistTerm&country=US&limit=25&term="+Research.encode(name)).optJSONArray("results");
+            JSONArray results=get("https://itunes.apple.com/search?media=music&entity=musicArtist&attribute=artistTerm&country=US&lang=en_us&limit=25&term="+Research.encode(name)).optJSONArray("results");
             LinkedHashMap<Long,JSONObject> exact=new LinkedHashMap<>();if(results!=null)for(int i=0;i<results.length();i++){JSONObject r=results.optJSONObject(i);if(r!=null&&r.optString("wrapperType").equals("artist")&&key(name).equals(key(r.optString("artistName")))&&r.optLong("artistId")>0&&storeUrl(r.optString("artistLinkUrl",r.optString("artistViewUrl"))))exact.put(r.optLong("artistId"),r);}
-            if(exact.size()==1){JSONObject r=exact.values().iterator().next();add(evidence,r.optString("primaryGenreName"),"artist","Apple Music artist catalogue",r.optString("artistLinkUrl",r.optString("artistViewUrl")),true);}
+            if(exact.size()==1){JSONObject r=exact.values().iterator().next();add(evidence,r.optString("primaryGenreName"),"artist","Apple Music artist catalogue",r.optString("artistLinkUrl",r.optString("artistViewUrl")),true);
+                if(evidence.length()==0)albumGenres(evidence,name,r,get("https://itunes.apple.com/lookup?entity=album&limit=25&lang=en_us&id="+r.optLong("artistId")).optJSONArray("results"));
+            }
         }
         LinkedHashSet<String> chosen=new LinkedHashSet<>();boolean specific=false;for(int i=0;i<evidence.length();i++)if(!evidence.optJSONObject(i).optString("scope").equals("artist"))specific=true;
         for(int i=0;i<evidence.length();i++){JSONObject e=evidence.optJSONObject(i);if((!specific||!e.optString("scope").equals("artist"))&&chosen.size()<6)chosen.add(e.optString("name"));}
@@ -99,7 +103,19 @@ public final class GenreResearch {
             }break;
         }
     }
-    private static List<String> researchArtists(JSONObject t){Matcher m=Pattern.compile("(?i)[\\[(]([^()\\[\\]]{1,65})\\s+(?:remix|rework|bootleg)[)\\]]").matcher(t.optString("rawTitle",t.optString("title")));return m.find()?List.of(m.group(1).trim()):artists(t);}
+    private static List<String> researchArtists(JSONObject t){Matcher m=Pattern.compile("(?i)[\\[(]([^()\\[\\]]{1,65})\\s+(?:remix|rework|bootleg)[)\\]]").matcher(t.optString("rawTitle",t.optString("title")));if(m.find())return List.of(m.group(1).trim());LinkedHashSet<String> names=new LinkedHashSet<>(artists(t));for(String name:new ArrayList<>(names)){Matcher alias=Pattern.compile("^([^()\\[\\]]+)\\s*[\\[(]([^()\\[\\]]+)[)\\]]$").matcher(name);if(alias.find()&&latin(alias.group(1))!=latin(alias.group(2))){names.add(alias.group(1).trim());names.add(alias.group(2).trim());}}return new ArrayList<>(names);}
+    private void catalogue(JSONArray evidence,JSONObject track,JSONArray results){
+        if(results==null)return;LinkedHashMap<String,JSONObject> matches=new LinkedHashMap<>();
+        for(int i=0;i<results.length();i++){JSONObject r=results.optJSONObject(i);if(r==null||!r.optString("kind").equals("song")||!storeUrl(r.optString("trackViewUrl"))||r.optString("primaryGenreName").isBlank())continue;
+            double duration=r.optDouble("trackTimeMillis",0)/1000;JSONObject candidate=Json.object("title",r.optString("trackName"),"artist",r.optString("artistName"),"duration",duration);
+            boolean direct=same(track,candidate);double delta=Math.abs(duration-track.optDouble("duration"));JSONObject adjusted=Json.parse(track.toString());Json.put(adjusted,"duration",duration);
+            if(duration>0&&(direct||!track.optString("youtubeId").isBlank()&&delta<=Math.min(20,track.optDouble("duration")*.08)&&same(adjusted,candidate)))matches.put(r.optString("primaryGenreName"),Json.object("row",r,"direct",direct));
+        }if(matches.size()==1){JSONObject m=matches.values().iterator().next(),r=m.optJSONObject("row");add(evidence,r.optString("primaryGenreName"),m.optBoolean("direct")?"recording":"release",m.optBoolean("direct")?"Apple Music catalogue":"Apple Music · video-length match",r.optString("trackViewUrl"),true);}
+    }
+    private void albumGenres(JSONArray evidence,String artist,JSONObject identity,JSONArray results){
+        if(results==null)return;Map<String,JSONObject> albums=new HashMap<>();for(int i=0;i<results.length();i++){JSONObject r=results.optJSONObject(i);if(r!=null&&r.optString("wrapperType").equals("collection")&&r.optLong("artistId")==identity.optLong("artistId")&&key(r.optString("artistName")).equals(key(artist))&&!r.optString("primaryGenreName").isBlank()&&storeUrl(r.optString("collectionViewUrl")))albums.put(key(r.optString("collectionName")),r);}
+        Map<String,Integer> counts=new TreeMap<>();for(JSONObject r:albums.values())counts.merge(r.optString("primaryGenreName"),1,Integer::sum);for(Map.Entry<String,Integer> e:counts.entrySet())if(e.getValue()>=2&&e.getValue()>=albums.size()*.6)add(evidence,e.getKey(),"artist","Apple Music artist releases",identity.optString("artistLinkUrl",identity.optString("artistViewUrl")),true);
+    }
     private static boolean storeUrl(String value){return value.startsWith("https://music.apple.com/")||value.startsWith("https://itunes.apple.com/");}
     private static List<JSONObject> variants(JSONObject t){List<JSONObject> out=new ArrayList<>();out.add(t);if(Set.of("manual","confirmed").contains(t.optString("metadataStatus"))||t.optJSONObject("metadataLocks")!=null&&t.optJSONObject("metadataLocks").optBoolean("artist"))return out;if(artists(t).isEmpty()&&!t.optString("channel").isBlank()){String artist=t.optString("channel").replaceFirst("(?i)\\s+-\\s+Topic$","").replaceFirst("(?i)\\s+official$","").trim();out.add(Json.object("title",t.optString("title"),"rawTitle",t.optString("rawTitle",t.optString("title")),"artist",artist,"duration",t.optDouble("duration")));}String[] parts=t.optString("rawTitle").split("\\s+[-–—]\\s+");if(parts.length==2&&t.optDouble("duration",0)>0&&key(parts[0]).equals(key(t.optString("artist")))&&key(parts[1]).equals(key(t.optString("title"))))out.add(Json.object("title",parts[0],"artist",parts[1],"duration",t.optDouble("duration")));for(JSONObject candidate:new ArrayList<>(out)){List<String> names=artists(candidate);if(names.size()!=1||candidate.optDouble("duration",0)<=0)continue;Matcher m=Pattern.compile("^([^()\\[\\]]+)\\s*[\\[(]([^()\\[\\]]+)[)\\]]$").matcher(names.get(0));if(!m.find())continue;String left=m.group(1).trim(),right=m.group(2).trim();if(latin(left)==latin(right))continue;for(String artist:List.of(left,right))out.add(Json.object("title",candidate.optString("title"),"rawTitle",candidate.optString("rawTitle",candidate.optString("title")),"artist",artist,"duration",candidate.optDouble("duration")));}return out;}
     private static boolean latin(String s){return s.matches("[\\p{IsLatin}\\p{N}\\p{P}\\p{Zs}]+");}

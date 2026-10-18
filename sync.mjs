@@ -1,4 +1,4 @@
-import {downloadFailure,fallbackCandidates} from './public/recording-fallback.js';
+import {downloadFailure,fallbackCandidates,recordingQueries,reviewRecordings} from './public/recording-fallback.js';
 import {spotifyEntries} from './spotify.mjs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -53,23 +53,42 @@ export class PlaylistSync {
     }
     if(this.preview)this.lib.setSetting('syncPreview',this.preview);this.lib.applyPlaylistOrder(this.preview);
   }
+  async searchAlternatives(sourceId,id,query=''){
+    if(this.job.running)throw Error('Wait for the playlist update to finish.');
+    const entry=this.preview?.entries.find(e=>e.sourceId===sourceId&&e.id===id&&e.status!=='existing');if(!entry)throw Error('This playlist entry changed. Reopen Downloads.');
+    this.cancelled=false;const entries=[],previous=this.job;this.alternativeReview=null;
+    this.job={...previous,running:true,phase:'searching',message:'Finding another upload…'};
+    try{for(const target of recordingQueries(entry,String(query).slice(0,300))){const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20',target],null,60000);entries.push(...JSON.parse(output).entries||[]);}
+      const choices=reviewRecordings(entry,entries);this.alternativeReview={sourceId,id,choices};return choices;
+    }finally{this.job={...previous,running:false};}
+  }
+  selectAlternative(sourceId,id,videoId){
+    if(this.job.running)throw Error('Wait for the playlist update to finish.');
+    const review=this.alternativeReview,choice=review?.sourceId===sourceId&&review.id===id&&review.choices.find(c=>c.id===videoId);
+    const entry=this.preview?.entries.find(e=>e.sourceId===sourceId&&e.id===id&&e.status!=='existing');if(!choice||!entry)throw Error('Search again before choosing this recording.');
+    if(entry.provider!=='spotify')entry.originalYoutubeId??=entry.id;
+    Object.assign(entry,{id:choice.id,alternativeTitle:choice.title,matchedTitle:choice.title,matchedChannel:choice.channel,matchedDuration:choice.duration,alternativeSelected:true,status:'review',reason:'Alternative selected by you'});delete entry.downloadError;
+    if(entry.provider==='spotify'&&!entry.candidates?.some(c=>c.id===choice.id))entry.candidates=[...(entry.candidates||[]),{...choice,score:0}];
+    this.lib.setSetting('syncPreview',this.preview);this.alternativeReview=null;return entry;
+  }
   async alternative(entry,args,onLine){
-    this.job.message='Looking for another recording of '+entry.title+'…';
-    const query=[entry.channel,entry.title,'audio'].join(' ').slice(0,450);
-    const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20','ytsearch5:'+query],null,60000);
-    if(this.cancelled)throw Error('Cancelled');
-    const candidates=fallbackCandidates(entry,JSON.parse(output).entries||[]);
-    for(const candidate of candidates){
-      try{await this.run([...args.slice(0,-1),'https://www.youtube.com/watch?v='+candidate.id],onLine,7200000);
-        entry.originalYoutubeId=entry.id;entry.id=candidate.id;entry.alternativeTitle=candidate.title;
-        return true;
-      }catch(error){if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;}
+    if(entry.originalYoutubeId)return false;
+    this.job.message='Looking for another upload of '+entry.title+'…';const tried=new Set();
+    for(const target of recordingQueries(entry)){
+      const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20',target],null,60000);
+      if(this.cancelled)throw Error('Cancelled');
+      for(const candidate of fallbackCandidates(entry,JSON.parse(output).entries||[])){
+        if(tried.has(candidate.id)||tried.size>=3)continue;tried.add(candidate.id);
+        try{await this.run([...args.slice(0,-1),'https://www.youtube.com/watch?v='+candidate.id],onLine,7200000);
+          entry.originalYoutubeId=entry.id;entry.id=candidate.id;entry.alternativeTitle=candidate.title;return true;
+        }catch(error){if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;}
+      }
     }return false;
   }
   saveAlternativeLinks(){
     for(const entry of this.preview?.entries||[]){if(!entry.originalYoutubeId||entry.status!=='existing')continue;
       const track=this.lib.list().find(t=>t.youtubeId===entry.id&&t.sourceId===entry.sourceId);
-      if(track){this.lib.save({...track,originalYoutubeId:entry.originalYoutubeId,alternativeRecording:true});entry.trackId=track.id;}
+      if(track){this.lib.save({...track,originalYoutubeId:entry.originalYoutubeId,alternativeRecording:true,alternativeSelected:!!entry.alternativeSelected});entry.trackId=track.id;}
     }
   }
   async cacheCovers(){
@@ -94,9 +113,9 @@ export class PlaylistSync {
           if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;
           if(!await this.alternative(entry,args,onLine))throw Error('Recording unavailable; no sufficiently close alternative was found. Skipped.');
         }
-        entry.status='existing';entry.reason=entry.originalYoutubeId?'Downloaded alternative: '+entry.alternativeTitle:'Downloaded';this.job.downloaded++;
+        entry.status='existing';delete entry.downloadError;entry.reason=entry.originalYoutubeId?'Downloaded alternative: '+entry.alternativeTitle:'Downloaded';this.job.downloaded++;
         this.lib.setSetting('syncPreview',this.preview);
-      }catch(e){if(!this.cancelled)this.job.errors.push(`${entry.title}: ${e.message}`);if(downloadFailure(e.message)==='pause'){this.job.paused=true;break;}}this.job.done++;
+      }catch(e){if(!this.cancelled){entry.downloadError=e.message.slice(0,400);this.job.errors.push(`${entry.title}: ${e.message}`);this.lib.setSetting('syncPreview',this.preview);}if(downloadFailure(e.message)==='pause'){this.job.paused=true;break;}}this.job.done++;
     }}finally{this.job.running=false;this.job.phase=this.cancelled?'cancelled':this.job.paused?'paused':'complete';this.job.message=this.cancelled?'Update cancelled — completed downloads are kept':this.job.paused?'Downloads paused. Finished songs are saved; wait before retrying.':`Update complete · ${this.job.downloaded} downloaded`;this.job.progress='';await this.lib.scan();this.saveAlternativeLinks();this.saveSpotifyLinks();}
   }
 }

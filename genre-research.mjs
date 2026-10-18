@@ -1,5 +1,5 @@
 import {sameGenreRecording,genreTitle,genreArtists,genreKey} from './public/genre-identity.js';
-export const GENRE_RESEARCH_VERSION=7;
+export const GENRE_RESEARCH_VERSION=8;
 export function trustedRecording(track,candidates=[]){
  const matches=candidates.filter(c=>sameGenreRecording(track,c));
  if(!matches.length)return null;
@@ -31,9 +31,9 @@ export function catalogueArtistGenre(name,results=[]){
  if(new Set(exact.map(r=>r.artistId)).size!==1)return [];
  const r=exact[0];return r.primaryGenreName?[{name:r.primaryGenreName,scope:'artist',source:'Apple Music artist catalogue',artist:r.artistName,url:r.artistLinkUrl||r.artistViewUrl,confidence:'suggested'}]:[];
 }
-export function searchCatalogue(track,artistOnly=false){
+export function searchCatalogue(track,artistOnly=false,country='US'){
  const task=async()=>{await new Promise(r=>setTimeout(r,Math.max(0,catalogueAt-Date.now())));catalogueAt=Date.now()+3200;
-  const query=new URLSearchParams({term:artistOnly?track.artist:(genreArtists(track)[0]||track.artist)+' '+genreTitle(track),country:'US',media:'music',entity:artistOnly?'musicArtist':'song',limit:'25',...(artistOnly?{attribute:'artistTerm'}:{})});
+  const query=new URLSearchParams({term:artistOnly?track.artist:(genreArtists(track)[0]||track.artist)+' '+genreTitle(track),country,lang:'en_us',media:'music',entity:artistOnly?'musicArtist':'song',limit:'25',...(artistOnly?{attribute:'artistTerm'}:{})});
   const response=await fetch('https://itunes.apple.com/search?'+query,{signal:AbortSignal.timeout(15000)});
   if(response.status===429)catalogueAt=Date.now()+Math.max(60000,(Number(response.headers.get('retry-after'))||60)*1000);
   if(!response.ok)throw Error('Apple catalogue returned '+response.status);
@@ -45,4 +45,28 @@ export function readWikidata(id){
  if(!/^Q\d+$/.test(id))throw Error('Invalid Wikidata item');
  const task=async()=>{await new Promise(r=>setTimeout(r,Math.max(0,1100-(Date.now()-last))));last=Date.now();const response=await fetch('https://www.wikidata.org/wiki/Special:EntityData/'+id+'.json',{headers:{'User-Agent':'Resonance/1.3 (local music metadata research)'},signal:AbortSignal.timeout(15000)});if(response.status===429)last=Date.now()+Math.max(60000,(Number(response.headers.get('retry-after'))||60)*1000);if(!response.ok)throw Error('Wikidata returned '+response.status);if(Number(response.headers.get('content-length'))>3e6)throw Error('Wikidata response too large');const text=await response.text();if(text.length>3e6)throw Error('Wikidata response too large');return JSON.parse(text);};
  const result=wikidataQueue.then(task,task);wikidataQueue=result.catch(()=>{});return result;
+}
+
+// A music video's intro/outro can differ from the catalogue recording. This
+// wider window is only for genre evidence; it never selects replacement audio.
+export function videoCatalogueGenre(track,results=[]){
+ if(!(track.duration>0)||!track.youtubeId)return [];
+ const evidence=results.flatMap(r=>{
+  const duration=r.trackTimeMillis/1000,delta=Math.abs(duration-track.duration);
+  if(delta>Math.min(20,track.duration*.08)||!sameGenreRecording({...track,duration:duration},{title:r.trackName,artist:r.artistName,duration}))return [];
+  return catalogueGenre({...track,duration},[r]).map(e=>({...e,scope:'release',confidence:'catalogued',source:'Apple Music · video-length match'}));
+ }).filter((e,i,a)=>a.findIndex(x=>x.name===e.name)===i);
+ return evidence.length===1?evidence:[];
+}
+export const catalogueRegion=track=>/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test([track.artist,track.title].join(' '))?'JP':/[àâçéèêëîïôùûüÿœ]/i.test([track.artist,track.title].join(' '))?'FR':'GB';
+export function artistAlbumGenres(name,artist,results=[]){
+ const albums=results.filter(r=>r.wrapperType==='collection'&&r.artistId===artist.artistId&&genreKey(r.artistName)===genreKey(name)&&r.primaryGenreName&&/^https:\/\/(music|itunes)\.apple\.com\//.test(r.collectionViewUrl||''));
+ const unique=[...new Map(albums.map(r=>[genreKey(r.collectionName),r])).values()];if(unique.length<2)return [];
+ const counts=new Map();for(const r of unique)counts.set(r.primaryGenreName,(counts.get(r.primaryGenreName)||0)+1);
+ return [...counts].filter(([,n])=>n>=2&&n>=unique.length*.6).map(([name])=>({name,scope:'artist',source:'Apple Music artist releases',url:artist.artistLinkUrl||artist.artistViewUrl,confidence:'suggested'}));
+}
+export function lookupArtistAlbums(id){
+ if(!Number.isSafeInteger(id)||id<=0)throw Error('Invalid catalogue artist');
+ const task=async()=>{await new Promise(r=>setTimeout(r,Math.max(0,catalogueAt-Date.now())));catalogueAt=Date.now()+3200;const response=await fetch('https://itunes.apple.com/lookup?entity=album&limit=25&lang=en_us&id='+id,{signal:AbortSignal.timeout(15000)});if(response.status===429)catalogueAt=Date.now()+60000;if(!response.ok)throw Error('Apple catalogue returned '+response.status);const body=await response.text();if(body.length>1e6)throw Error('Catalogue response too large');return JSON.parse(body).results||[];};
+ const result=catalogueQueue.then(task,task);catalogueQueue=result.catch(()=>{});return result;
 }

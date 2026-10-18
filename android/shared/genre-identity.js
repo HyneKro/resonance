@@ -23,7 +23,10 @@ export function sameGenreRecording(track,candidate){
 
 export function genreResearchArtists(track){
  const remix=String(track.rawTitle||track.title||'').match(/[([]([^()[\]]{1,65})\s+(?:remix|rework|bootleg)[)\]]/i)?.[1]?.trim();
- return remix?[remix]:genreArtists(track);
+ if(remix)return [remix];
+ const names=genreArtists(track),out=[...names];
+ for(const name of names){const m=name.match(/^([^()[\]]+)\s*[([]([^()[\]]+)[)\]]$/);if(!m)continue;const latin=s=>/^[\p{Script=Latin}\p{N}\p{P}\p{Zs}]+$/u.test(s);if(latin(m[1])!==latin(m[2]))out.push(m[1].trim(),m[2].trim());}
+ return [...new Map(out.map(n=>[genreKey(n),n])).values()];
 }
 export function genreSearchTracks(track){
  const variants=[track];if(track.metadataLocks?.artist||['manual','confirmed'].includes(track.metadataStatus))return variants;

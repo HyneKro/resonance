@@ -80,3 +80,7 @@
 .cx-map-controls{padding:5px;border:1px solid #d6dfff16;border-radius:23px;background:#090e1866;backdrop-filter:blur(8px);gap:10px}.cx-map-controls span{padding-right:9px}.cx-map-hint{opacity:.7;font-size:9px}
 @media(max-width:1100px){.cx-command{flex-wrap:wrap}.cx-navigation{flex-basis:100%}.cx-command h2{display:none}.cx-search{flex:1}.cx-track-panel,.cx-inspector{top:calc(var(--cx-top,100px) + 98px)}}
 @media(max-width:750px){.cx-command{display:flex;gap:7px}.cx-navigation{order:2;flex-basis:100%}.cx-navigation .cx-trail{max-width:100%}.cx-search{width:auto}.cx-track-panel{top:auto;padding:14px 16px}.cx-track-panel:before{display:none}.cx-track-panel .cx-song h3{font-size:15px}.cx-track-panel .cx-song img{width:42px;height:42px}.cx-inspector{top:calc(var(--cx-top,110px) + 88px)}.cx-track-panel .cx-identity{margin:10px 0}.cx-map-controls{padding:2px;gap:5px}.cx-inspector .cx-route-tools{opacity:1}}
+
+.constellation .cx-groups .cx-waypoint{border-color:color-mix(in srgb,var(--group-color) 60%,transparent);background:linear-gradient(135deg,#18212cd9,#0c101be6);box-shadow:0 0 22px color-mix(in srgb,var(--group-color) 12%,transparent);font-weight:600}
+.constellation .cx-groups .cx-waypoint[data-cx-group="home"]{padding-left:28px}
+.constellation .cx-groups .cx-waypoint[data-cx-group="home"]::before{content:"◎";font-size:15px;left:8px;top:5px;width:14px;height:22px;background:none;box-shadow:none;text-align:center}

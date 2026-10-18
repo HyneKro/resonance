@@ -10,12 +10,12 @@ import java.util.*;
 import java.util.regex.*;
 
 public final class Downloads {
-    private final ResonanceApp app;private final DownloaderTools tools;private volatile boolean cancelled;private DownloadBatch batch;
+    private final ResonanceApp app;private final DownloaderTools tools;private volatile boolean cancelled;private boolean searching;private DownloadBatch batch;
     public volatile JSONObject progress=Json.object("running",false,"message","Ready to check playlists");
     public volatile JSONArray preview=new JSONArray();
     public volatile long previewRevision=System.currentTimeMillis();private long operation=System.currentTimeMillis();
     Downloads(ResonanceApp app){this.app=app;this.tools=new DownloaderTools(app);JSONArray saved=app.library.setting("syncPreview").optJSONArray("entries");if(saved!=null)preview=saved;JSONObject previous=app.library.setting("syncState");if(previous.length()>0){progress=previous;if(previous.optString("phase").equals("error")){String raw=previous.optString("details",previous.optString("message"));Json.put(progress,"details",raw);Json.put(progress,"message",DownloadMessages.explain(raw));}if(previous.optBoolean("running"))publish(false,"cancelled","Previous update was interrupted. Check again or retry the remaining downloads.",0,0,-1);}}
-    public synchronized void begin(String kind) throws IOException {if(progress.optBoolean("running")||DownloadService.active)throw new IOException("An update is already running. Wait or cancel it first.");cancelled=false;batch=null;operation++;publish(true,"queued",kind.equals("check")?"Reading your playlist…":kind.equals("update")?"Updating the downloader…":"Preparing your downloads…",0,0,-1);}
+    public synchronized void begin(String kind) throws IOException {if(searching||progress.optBoolean("running")||DownloadService.active)throw new IOException("An update is already running. Wait or cancel it first.");cancelled=false;reviewedKey="";reviewedChoices=new JSONArray();batch=null;operation++;publish(true,"queued",kind.equals("check")?"Reading your playlist…":kind.equals("update")?"Updating the downloader…":"Preparing your downloads…",0,0,-1);}
     private void publish(boolean running,String phase,String message,int done,int total,float percent){progress=Json.object("operation",operation,"running",running,"phase",phase,"message",message,"done",done,"total",total,"percent",Float.isFinite(percent)?percent:-1);if(batch!=null){Json.put(progress,"skipped",batch.skipped);Json.put(progress,"processed",batch.processed);}if(!running||phase.equals("queued"))app.library.setting("syncState",progress);}
     public void fail(Exception e){String raw=Json.error(e);publish(false,cancelled?"cancelled":"error",cancelled?"Paused. Finished songs are saved; retry to continue.":DownloadMessages.explain(raw),progress.optInt("done"),progress.optInt("total"),-1);if(!cancelled){JSONObject detailed=Json.parse(progress.toString());Json.put(detailed,"details",raw.length()>16000?raw.substring(0,16000):raw);progress=detailed;app.library.setting("syncState",detailed);}}
     private synchronized void savePreview(JSONArray entries){preview=entries;previewRevision++;app.library.setting("syncPreview",Json.object("entries",entries));}
@@ -78,7 +78,27 @@ public final class Downloads {
             else publish(false,"ready",preview.length()==0?"Everything from these playlists is already in your library.":ready+" songs ready"+(skipped>0?" · "+skipped+" previously skipped":"")+". Tap Download to save your selection.",0,ready,-1);
         }catch(Exception e){fail(e);throw e;}
     }
-    public synchronized JSONArray matches(JSONObject entry) throws Exception {if(progress.optBoolean("running"))throw new IOException("Wait for the current playlist update to finish first");network();init();YoutubeDLRequest req=new YoutubeDLRequest("ytsearch5:"+entry.optString("artist")+" "+entry.optString("title")+" audio");req.addOption("--dump-single-json");req.addOption("--skip-download");req.addOption("--flat-playlist");JSONArray list=execute(req).optJSONArray("entries");return list==null?new JSONArray():list;}
+    private String reviewedKey="";private JSONArray reviewedChoices=new JSONArray();
+    public JSONArray matches(JSONObject entry) throws Exception {
+        synchronized(this){if(searching||progress.optBoolean("running")||DownloadService.active)throw new IOException("Wait for the current playlist update to finish first");searching=true;reviewedChoices=new JSONArray();}
+        try{network();init();cancelled=false;
+        JSONArray choices=new JSONArray();Set<String> seen=new HashSet<>();
+        for(String target:RecordingFallback.queries(entry)){
+            YoutubeDLRequest req=new YoutubeDLRequest(target);req.addOption("--dump-single-json");req.addOption("--flat-playlist");req.addOption("--socket-timeout","20");req.addOption("--retries","1");
+            JSONArray list=execute(req).optJSONArray("entries");if(list==null)continue;
+            for(int i=0;i<list.length();i++){JSONObject c=list.optJSONObject(i);if(c!=null&&c.optString("id").matches("[A-Za-z0-9_-]{11}")&&!c.optString("id").equals(entry.optString("youtubeId"))&&!c.optBoolean("is_live")&&seen.add(c.optString("id")))choices.put(c);}
+        }synchronized(this){reviewedKey=entry.optString("key");reviewedChoices=choices;}return choices;
+        }finally{synchronized(this){searching=false;}}
+    }
+    public synchronized JSONObject selectMatch(String key,String video) throws Exception {
+        if(searching||progress.optBoolean("running"))throw new IOException("Wait for the current playlist update to finish first");
+        boolean allowed=false;for(int i=0;i<reviewedChoices.length();i++)if(reviewedChoices.getJSONObject(i).optString("id").equals(video))allowed=true;
+        if(!key.equals(reviewedKey)||!allowed)throw new IOException("Search again before choosing a recording.");
+        for(int i=0;i<preview.length();i++){JSONObject item=preview.getJSONObject(i);if(!item.optString("key").equals(key))continue;
+            if(!item.optString("type").equals("spotify")&&!item.has("originalYoutubeId"))item.put("originalYoutubeId",item.optString("youtubeId"));
+            item.put("youtubeId",video).put("selected",true).put("alternativeSelected",true);item.remove("skipReason");item.remove("failedVideoId");savePreview(preview);reviewedChoices=new JSONArray();return item;
+        }throw new IOException("The playlist changed. Reopen Downloads.");
+    }
     public void cancel(){cancelled=true;YoutubeDL.INSTANCE.destroyProcessById("resonance");}
     private void completed(JSONObject item,String trackId){
         JSONArray remaining=new JSONArray();for(int p=0;p<preview.length();p++){JSONObject entry=preview.optJSONObject(p);if(entry==null)continue;if(entry.optString("key").equals(item.optString("key"))||entry.optString("youtubeId").equals(item.optString("youtubeId"))){app.library.link(trackId,entry.optString("sourceId"),entry.optInt("playlistIndex"));}else remaining.put(entry);}savePreview(remaining);
@@ -105,14 +125,15 @@ public final class Downloads {
     private boolean alternative(JSONObject item,String format,JSONObject destination,int total) throws Exception {
         if(item.has("originalYoutubeId"))return false;
         publish(true,"downloading","Looking for another recording of "+item.optString("title")+"…",batch.saved,total,-1);
-        String query=item.optString("artist")+" "+item.optString("title")+" audio";
-        YoutubeDLRequest request=new YoutubeDLRequest("ytsearch5:"+query.substring(0,Math.min(450,query.length())));
-        request.addOption("--flat-playlist");request.addOption("--dump-single-json");request.addOption("--socket-timeout","20");request.addOption("--retries","1");
-        JSONArray choices=execute(request).optJSONArray("entries");if(choices==null)return false;int tried=0;
-        for(int i=0;i<choices.length()&&!cancelled&&tried<2;i++){
-            JSONObject choice=choices.optJSONObject(i);if(choice==null||!RecordingFallback.matches(item,choice))continue;tried++;
-            JSONObject alternate=new JSONObject(item.toString());alternate.put("originalYoutubeId",item.optString("youtubeId")).put("youtubeId",choice.optString("id"));
-            try{downloadOne(alternate,format,destination,total);return true;}catch(DownloadBatch.RecordingUnavailable ignored){/* A bounded second close match may still be available. */}
+        Set<String> tried=new HashSet<>();
+        for(String target:RecordingFallback.queries(item)){
+            YoutubeDLRequest request=new YoutubeDLRequest(target);request.addOption("--flat-playlist");request.addOption("--dump-single-json");request.addOption("--socket-timeout","20");request.addOption("--retries","1");
+            JSONArray choices=execute(request).optJSONArray("entries");if(choices==null)continue;
+            for(int i=0;i<choices.length()&&!cancelled&&tried.size()<3;i++){
+                JSONObject choice=choices.optJSONObject(i);if(choice==null||!RecordingFallback.matches(item,choice)||!tried.add(choice.optString("id")))continue;
+                JSONObject alternate=new JSONObject(item.toString());alternate.put("originalYoutubeId",item.optString("youtubeId")).put("youtubeId",choice.optString("id"));
+                try{downloadOne(alternate,format,destination,total);return true;}catch(DownloadBatch.RecordingUnavailable ignored){}
+            }
         }return false;
     }
     private void downloadOne(JSONObject item,String format,JSONObject destination,int total) throws Exception {
@@ -124,7 +145,7 @@ public final class Downloads {
             catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;if(RecordingFallback.unavailable(raw)&&alternative(item,format,destination,total))return;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
             File[] files=app.library.music.listFiles((dir,name)->name.startsWith(video+".")&&LibraryStore.isAudio(name));if(files==null||files.length==0)throw new DownloadBatch.RecordingUnavailable("No usable audio file was returned. Try updating the downloader before retrying this song.");File file=files[0];JSONObject info=new JSONObject();File infoFile=new File(app.library.music,video+".info.json");if(infoFile.isFile())info=Json.parse(new String(java.nio.file.Files.readAllBytes(infoFile.toPath()),StandardCharsets.UTF_8));
             JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
-            if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true);}
+            if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true).put("alternativeSelected",item.optBoolean("alternativeSelected"));}
             GenreResearch.sourceLabels(supplied,info);
             JSONObject track;
             if(!destination.optString("uri").isEmpty()){

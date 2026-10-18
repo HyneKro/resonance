@@ -1,4 +1,4 @@
-import {GENRE_RESEARCH_VERSION,trustedRecording,wikidataGenres,readWikidata,catalogueGenre,catalogueArtistGenre,searchCatalogue} from './genre-research.mjs';
+import {GENRE_RESEARCH_VERSION,trustedRecording,wikidataGenres,readWikidata,catalogueGenre,catalogueArtistGenre,searchCatalogue,videoCatalogueGenre,catalogueRegion,artistAlbumGenres,lookupArtistAlbums} from './genre-research.mjs';
 // Genre evidence is kept separately from editable track metadata. Artist genres
 // are suggestions, never presented as a verified classification of a recording.
 import { normalize } from './metadata.mjs';
@@ -76,7 +76,7 @@ export function localGenreEvidence(track){
 }
 const DAY=86400000, uuid=/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i;
 export class GenreDiscovery {
-  constructor(lib){this.lib=lib;this.inflight=new Map();this.readWikidata=readWikidata;this.searchCatalogue=searchCatalogue;this.job={running:false,done:0,total:0,found:0,errors:0,phase:'idle',message:''};lib.db.exec('CREATE TABLE IF NOT EXISTS genre_cache(key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched INTEGER NOT NULL)');}
+  constructor(lib){this.lib=lib;this.inflight=new Map();this.readWikidata=readWikidata;this.searchCatalogue=searchCatalogue;this.lookupArtistAlbums=lookupArtistAlbums;this.job={running:false,done:0,total:0,found:0,errors:0,phase:'idle',message:''};lib.db.exec('CREATE TABLE IF NOT EXISTS genre_cache(key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched INTEGER NOT NULL)');}
   async cached(key,fetcher,days=30){const row=this.lib.db.prepare('SELECT * FROM genre_cache WHERE key=?').get(key);if(row&&row.fetched>=(this.refreshSince||0)&&Date.now()-row.fetched<days*DAY)return JSON.parse(row.data);const value=await fetcher();if(!this.lib.closed)this.lib.db.prepare('INSERT OR REPLACE INTO genre_cache VALUES(?,?,?)').run(key,JSON.stringify(value),Date.now());return value;}
   entity(type,id,inc='genres+tags'){if(!uuid.test(id||''))return Promise.resolve(null);return this.cached(`${type}:${id}:${inc}`,()=>this.lib.mbFetch(`https://musicbrainz.org/ws/2/${type}/${id}?inc=${inc}&fmt=json`));}
   async artistByName(name){
@@ -123,6 +123,8 @@ export class GenreDiscovery {
       if(!ids.length&&genreKey(name)===genreKey(t.channel)&&!t.artistCreditSource&&!t.recordingArtists?.length)continue;
       const results=await attempt(()=>this.cached('catalogue-artist-v6:'+genreKey(name),()=>this.searchCatalogue({artist:name},true)));
       evidence.push(...catalogueArtistGenre(name,results||[]));
+      if(!evidence.length){const exact=(results||[]).filter(r=>r.wrapperType==='artist'&&genreKey(r.artistName)===genreKey(name)&&Number.isSafeInteger(r.artistId)&&/^https:\/\/(music|itunes)\.apple\.com\//.test(r.artistLinkUrl||r.artistViewUrl||''));if(new Set(exact.map(r=>r.artistId)).size===1){const albums=await attempt(()=>this.cached('catalogue-albums-v8:'+exact[0].artistId,()=>this.lookupArtistAlbums(exact[0].artistId)));evidence.push(...artistAlbumGenres(name,exact[0],albums||[]));}}
+
     }
     if(!evidence.length&&errors.length)throw errors[0];
     return evidence;
@@ -169,7 +171,9 @@ export class GenreDiscovery {
       }
     }
     if(deep&&t.kind!=='mix'&&t.duration>0&&!evidence.some(e=>e.scope!=='artist')){
-      for(const query of genreSearchTracks(t).filter(q=>genreArtists(q).length)){const results=await attempt(()=>this.cached('catalogue-v6:'+genreKey(query.artist)+':'+genreKey(genreTitle(query)),()=>this.searchCatalogue(query)));const found=catalogueGenre(query,results||[]);evidence.push(...found);if(found.length)break;}
+      for(const query of genreSearchTracks(t).filter(q=>genreArtists(q).length)){const results=await attempt(()=>this.cached('catalogue-v6:'+genreKey(query.artist)+':'+genreKey(genreTitle(query)),()=>this.searchCatalogue(query)));const found=catalogueGenre(query,results||[]);evidence.push(...found.length?found:videoCatalogueGenre(query,results||[]));if(evidence.some(e=>e.scope!=='artist'))break;
+        const country=catalogueRegion(query),regional=await attempt(()=>this.cached('catalogue-v8:'+country+':'+genreKey(query.artist)+':'+genreKey(genreTitle(query)),()=>this.searchCatalogue(query,false,country)));
+        const matched=catalogueGenre(query,regional||[]);evidence.push(...matched.length?matched:videoCatalogueGenre(query,regional||[]));if(evidence.some(e=>e.scope!=='artist'))break;}
     }
     evidence.push(...await attempt(()=>this.artistEvidence(t))||[]);
     const current=this.lib.tracks.get(id);if(this.lib.closed||!current)return current;

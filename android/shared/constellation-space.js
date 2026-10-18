@@ -48,6 +48,7 @@ export function starAppearance(track){
 }
 function groupOf(key,name,kind,points,color){
  const position=[0,1,2].map(i=>points.reduce((sum,p)=>sum+p.position[i],0)/points.length);
+ if(kind==='artist'){position[0]-=80;position[1]+=70;}
  return {id:key,name,kind,color,position,count:points.length,ids:points.map(p=>p.id)};
 }
 export function buildSpace(nodes,stored={}){
@@ -56,6 +57,12 @@ export function buildSpace(nodes,stored={}){
  const artists=new Map();for(const p of points)for(const name of p.signature.names){const key=fold(name);if(!artists.has(key))artists.set(key,{name,points:[]});artists.get(key).points.push(p);}
  const artistGroups=[...artists].map(([key,a])=>groupOf('artist:'+key,a.name,'artist',a.points,a.points[0].region.color));
  return {points,groups,artistGroups,links:[]};
+}
+// A group hub connects every member, including a single-song artist. These
+// edges use world positions and are independent of on-screen sprite culling.
+export function groupConnections(data,id,visible){
+ const group=data.artistGroups.find(g=>g.id===id);if(!group)return [];
+ return group.ids.filter(id=>!visible||visible.has(id)).map(id=>({hub:group,node:data.points.find(p=>p.id===id)})).filter(e=>e.node);
 }
 export function sameArtistIds(points,id){const node=points.find(p=>p.id===id);if(!node)return new Set();const names=new Set(node.signature.names.map(fold));return new Set(points.filter(p=>p.signature.names.some(n=>names.has(fold(n)))).map(p=>p.id));}
 export function connections(points,id){

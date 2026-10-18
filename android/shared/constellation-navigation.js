@@ -28,3 +28,12 @@ export class MapTrail{
  enter(path,camera){this.capture(camera);this.entries.splice(this.index+1);this.entries.push({path,camera:null});this.index++;if(this.entries.length>40){this.entries.shift();this.index--;}}
  move(delta,camera){this.capture(camera);this.index=Math.max(0,Math.min(this.entries.length-1,this.index+delta));return this.current;}
 }
+
+export function groupTrail(data,id,previous=[]){
+ const home={id:'home',label:'All music'},group=[...data.groups,...data.artistGroups].find(g=>g.id===id);
+ if(!group)return [home];if(group.kind==='genre')return [home,{id,label:group.name}];
+ const counts=data.groups.map(g=>({group:g,count:g.ids.filter(n=>group.ids.includes(n)).length})).filter(g=>g.count);
+ const prior=previous.find(p=>p.id.startsWith('genre:'));
+ const genre=counts.find(g=>g.group.id===prior?.id)?.group||counts.sort((a,b)=>b.count-a.count)[0]?.group;
+ return [home,...(genre?[{id:genre.id,label:genre.name}]:[]),{id,label:group.name}];
+}

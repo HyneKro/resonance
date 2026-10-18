@@ -1,6 +1,6 @@
 import {StarAtmosphere,drawJourneyThread,drawStarFlare} from './constellation-effects.js';
 import {hash} from './constellation-model.js';
-import {buildSpace,connections,OrbitCamera,SceneCadence,createProjector,pickSphere,flowingPosition,sameArtistIds,placeMapLabels,projectSegment} from './constellation-space.js';
+import {buildSpace,connections,OrbitCamera,SceneCadence,createProjector,pickSphere,flowingPosition,sameArtistIds,placeMapLabels,projectSegment,groupConnections} from './constellation-space.js';
 import {ConstellationSky,backdropStars} from './constellation-sky.js';
 
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
@@ -15,8 +15,8 @@ export class ConstellationScene {
   this.dust=backdropStars(this.coarse);this.atmosphere=new StarAtmosphere(this.coarse);
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas);this.bind();this.resize();this.tick=this.tick.bind(this);this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;this.cadence.reset();}else this.wake();};document.addEventListener('visibilitychange',this.visibility);this.wake();
  }
- setData(nodes,positions){this.data=buildSpace(nodes,positions);this.byId=new Map(this.data.points.map(p=>[p.id,p]));this.visible=new Set(nodes.map(n=>n.id));this.selectedLinks=null;this.setSelection(this.selected);}
- setSelection(id){if(this.selected===id&&this.selectedLinks)return;this.selected=id;if(id)this.focusedGroup='';this.selectedLinks=connections(this.data.points,id);this.artistPeers=sameArtistIds(this.data.points,id);}
+ setData(nodes,positions){this.data=buildSpace(nodes,positions);this.byId=new Map(this.data.points.map(p=>[p.id,p]));this.visible=new Set(nodes.map(n=>n.id));this.selectedLinks=null;this.setSelection(this.selected);this.groupEdges=groupConnections(this.data,this.focusedGroup);}
+ setSelection(id){if(this.selected===id&&this.selectedLinks)return;this.selected=id;if(id){this.focusedGroup='';this.groupEdges=[];}this.selectedLinks=connections(this.data.points,id);this.artistPeers=sameArtistIds(this.data.points,id);}
  focus(id,zoom){const p=this.byId?.get(id);if(p)this.camera.focus(flowingPosition(p,this.time),zoom);}
  fit(points,reset=false){
   if(!points.length)return;if(reset)this.camera.home();
@@ -25,8 +25,8 @@ export class ConstellationScene {
   let distance=260;for(const p of points){const [x,y,z]=p.map((v,i)=>v-center[i]),xx=x*cy-z*sy,zz=x*sy+z*cy,yy=y*cp-zz*sp,depth=y*sp+zz*cp;distance=Math.max(distance,Math.max((Math.abs(xx)+55)*f/(w*.39),(Math.abs(yy)+55)*f/(h*.34))-depth);}
   this.camera.focus(center,1250/distance);
  }
- focusGroup(id){const group=[...this.data.groups,...this.data.artistGroups].find(g=>g.id===id);if(!group)return;this.focusedGroup=id;this.setSelection('');this.fit(group.ids.filter(id=>this.visible.has(id)).map(id=>this.byId.get(id).position));return group;}
- home(){this.focusedGroup='';this.fit(this.data.points.filter(p=>this.visible.has(p.id)).map(p=>p.position),true);}
+ focusGroup(id){const group=[...this.data.groups,...this.data.artistGroups].find(g=>g.id===id);if(!group)return;this.focusedGroup=id;this.groupEdges=groupConnections(this.data,id);this.setSelection('');this.fit([group.position,...group.ids.filter(id=>this.visible.has(id)).map(id=>this.byId.get(id).position)]);return group;}
+ home(){this.focusedGroup='';this.groupEdges=[];this.fit(this.data.points.filter(p=>this.visible.has(p.id)).map(p=>p.position),true);}
  resize(){this.insets=null;const r=this.canvas.getBoundingClientRect();this.width=r.width;this.height=r.height;this.ratio=Math.min(devicePixelRatio||1,this.coarse?1.5:2);this.canvas.width=Math.round(r.width*this.ratio);this.canvas.height=Math.round(r.height*this.ratio);}
  wake(){if(!this.active||document.hidden||this.frame)return;this.frame=requestAnimationFrame(this.tick);}
  tick(now){this.frame=0;if(!this.active||document.hidden)return;const dt=this.cadence.step(now,this.reduced.matches?100:this.coarse?1000/30:0);if(dt!==null){if(!this.reduced.matches)this.time+=dt;this.focusMix+=(Number(!!this.selected)-this.focusMix)*(this.reduced.matches?1:1-Math.exp(-dt*3));this.draw(this.camera.update(dt,this.reduced.matches));}this.wake();}
@@ -68,6 +68,11 @@ export class ConstellationScene {
   const segment=(a,b)=>projectSegment(flowingPosition(a,this.time),flowingPosition(b,this.time),pose,sceneWidth,vh,{top,clipWidth:w,clipHeight:h});
   const line=([a,b,type],strong=false)=>{if(!this.visible.has(a)||!this.visible.has(b))return;const first=this.byId.get(a),last=this.byId.get(b);if(!first||!last)return;const edge=segment(first,last);if(!edge)return;const {a:p,b:q}=edge;c.strokeStyle=type==='artist'?'#f5ecffce':strong?'#b7d7eb90':first.region.color+'18';c.lineWidth=type==='artist'?1.3:strong?.8:.6;c.setLineDash(type==='sound'?[3,6]:[]);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(q.x,q.y);c.stroke();c.setLineDash([]);};
   for(const link of this.data.links.slice(0,700))line(link);for(const link of this.selectedLinks||[])line(link,true);for(let i=1;i<this.route.length;i++){const a=this.byId.get(this.route[i-1]),b=this.byId.get(this.route[i]);if(!a||!b)continue;const edge=segment(a,b);if(edge)drawJourneyThread(c,edge,this.time,i,this.reduced.matches);}
+  for(const {hub,node} of this.groupEdges||[]){
+   if(!this.visible.has(node.id))continue;
+   const edge=projectSegment(hub.position,flowingPosition(node,this.time),pose,sceneWidth,vh,{top,clipWidth:w,clipHeight:h});if(!edge)continue;
+   c.strokeStyle=hub.color+'a8';c.lineWidth=1.1;c.beginPath();c.moveTo(edge.a.x,edge.a.y);c.lineTo(edge.b.x,edge.b.y);c.stroke();
+  }
   const linked=this.artistPeers||new Set(),groupArtist=this.focusedGroup.startsWith('artist:')?new Set(this.data.artistGroups.find(g=>g.id===this.focusedGroup)?.ids):null,ordered=[...projected.values()].sort((a,b)=>b.depth-a.depth);
   for(const p of ordered){const {node:n,x,y,radius:r}=p,special=n.id===this.selected||n.id===this.current||n.id===this.hover||routeSet.has(n.id),peer=linked.has(n.id)||groupArtist?.has(n.id),dim=(this.selected||groupArtist)&&!special&&!peer;
    c.globalAlpha=dim?.17:peer||special?1:Math.max(.65,Math.min(1,1500/p.depth));const size=r*(special?7:peer?5.8:4.4),detail=special||peer||r>2.4,sprite=detail?this.sprite(n.region.color,n.appearance.type,this.coarse?0:n.appearance.variant):null;
@@ -82,6 +87,10 @@ export class ConstellationScene {
   this.atmosphere.drawComets(c,project,this.time,this.reduced.matches);
   // Captions and cluster labels share one collision grid and stay outside chrome.
   const bounds={x:18,y:top,width:Math.max(0,w-(inset.right||0)-36),height:Math.max(0,h-top-(inset.bottom||0))},boxes=[];
+  const home={id:'home',name:'All music',count:this.visible.size,color:'#b9c8df',position:[0,0,0]},genreId=this.navigationPath?.find(g=>g.id.startsWith('genre:'))?.id;
+  const genre=this.data.groups.find(g=>g.id===(genreId||this.focusedGroup));
+  const nav=[home,...(genre?[genre]:[])].map(g=>{const p=project(g.position)||{x:sceneWidth/2,y:top+vh/2};return {...g,navigation:true,x:p.x,y:p.y-44,width:g.id==='home'?108:Math.min(205,44+g.name.length*6.2),height:34,anchor:p};});
+  const navigation=placeMapLabels(nav,bounds,[],2);boxes.push(...navigation);
   for(const id of new Set([this.hover,this.selected,this.current])){
    const p=projected.get(id);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
    c.font='11px system-ui';const text=p.node.title.slice(0,38),width=Math.min(240,c.measureText(text).width+20),placed=placeMapLabels([{x:p.x,y:p.y+p.radius*3+7,width,height:26}],bounds,boxes,1)[0];
@@ -92,12 +101,12 @@ export class ConstellationScene {
   const groups=overview?this.data.groups:this.data.artistGroups.filter(g=>this.selected?g.ids.some(id=>linked.has(id)):g.id===this.focusedGroup||memberSet&&g.ids.some(id=>memberSet.has(id)));
   const candidates=[];
   for(const g of [...groups].sort((a,b)=>b.count-a.count)){
-   if(!g.ids.some(id=>this.visible.has(id)))continue;const p=project(g.position);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
+   if(g.id===genre?.id||!g.ids.some(id=>this.visible.has(id)))continue;const p=project(g.position);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
    candidates.push({...g,x:p.x,y:p.y-37,width:Math.min(compact?156:205,38+g.name.length*(compact?5.5:6.2)),height:32,anchor:p});
   }
   const markers=placeMapLabels(candidates,bounds,boxes,compact?4:8);
   for(const m of markers)if(Math.hypot(m.x+m.width/2-m.anchor.x,m.y+16-m.anchor.y)>32){c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.x+m.width/2,m.y+16);c.stroke();}
-  this.onGroups?.(markers);
+  this.onGroups?.([...navigation,...markers]);
 
  }
  bind(){const canvas=this.canvas,point=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};

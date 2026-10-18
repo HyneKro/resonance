@@ -5,6 +5,15 @@ import java.util.*;
 import static org.junit.Assert.*;
 
 public class GenreResearchTest {
+ @Test public void videoIntroCanMatchRegionalCatalogueButWrongVersionsCannot(){
+  GenreResearch r=new GenreResearch(url->url.contains("entity=song")&&url.contains("country=GB")?Json.object("results",new JSONArray().put(Json.object("kind","song","trackName","Night","artistName","Aster","trackTimeMillis",180000,"primaryGenreName","Ambient","trackViewUrl","https://music.apple.com/gb/song/night/1"))):new JSONObject(),taxonomy());
+  JSONObject t=Json.object("title","Night","artist","Aster","duration",192,"youtubeId","AAAAAAAAAAA");assertEquals("Ambient",r.discover(t).optString("genre"));assertEquals("release",t.optJSONArray("genreEvidence").optJSONObject(0).optString("scope"));
+  assertEquals("",r.discover(Json.object("title","Night (Remix)","artist","Aster","duration",192,"youtubeId","AAAAAAAAAAA")).optString("genre"));
+ }
+ @Test public void albumConsensusIsAnArtistSuggestionAndIgnoresDifferentArtists(){
+  GenreResearch r=new GenreResearch(url->{if(url.contains("entity=musicArtist"))return Json.object("results",new JSONArray().put(Json.object("wrapperType","artist","artistName","Aster","artistId",42,"artistLinkUrl","https://music.apple.com/us/artist/aster/42")));if(url.contains("entity=album"))return Json.object("results",new JSONArray().put(Json.object("wrapperType","collection","artistName","Aster","artistId",42,"collectionName","One","primaryGenreName","Ambient","collectionViewUrl","https://music.apple.com/us/album/one/1")).put(Json.object("wrapperType","collection","artistName","Aster","artistId",42,"collectionName","Two","primaryGenreName","Ambient","collectionViewUrl","https://music.apple.com/us/album/two/2")).put(Json.object("wrapperType","collection","artistName","Another","artistId",43,"collectionName","Three","primaryGenreName","Rock","collectionViewUrl","https://music.apple.com/us/album/three/3")));return new JSONObject();},taxonomy());
+  JSONObject t=r.discover(Json.object("title","Rare song","artist","Aster","duration",200));assertEquals("Ambient",t.optString("genre"));assertEquals("artist",t.optString("genreBasis"));
+ }
  @Test public void decoratedLabelsAndBilingualNamesStayIntact(){
   JSONObject t=Json.object("id","x","artist","KARDI(카디)","title","Eclipse (MusicVideo) (Clip Officiel)","description","🎵 Genre: Future Bounce\n• Styles：Artcore / Colour Bass");
   assertEquals(List.of("KARDI(카디)"),GenreResearch.artists(t));assertEquals("Eclipse",GenreResearch.title(t));

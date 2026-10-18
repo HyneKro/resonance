@@ -125,6 +125,7 @@ public final class MainActivity extends Activity {
             case "syncCheck":return startDownloadJob("check",data);
             case "syncPreview":return app.downloads.preview;
             case "syncMatch":return app.downloads.matches(data);
+            case "syncChooseMatch":return app.downloads.selectMatch(data.optString("key"),data.optString("videoId"));
             case "syncDownload":return startDownloadJob("download",data);
             case "syncCancel":app.downloads.cancel();return Json.object("ok",true);
             case "updateDownloader":return startDownloadJob("update",data);
