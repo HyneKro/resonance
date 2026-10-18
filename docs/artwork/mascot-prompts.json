@@ -1,0 +1,152 @@
+{
+  "tool": "built-in image_gen",
+  "prompt": "Use case: stylized-concept. Production animation sprite sheet for a tiny desktop music companion. Single subject: CHARACTER. Cute super-deformed chibi, large head and tiny body, refined hand-painted game illustration, clean silhouettes, soft shaded volume, expressive face, detailed recognizable costume, readable at 120 pixels. One character only, repeated EXACTLY 24 times in a precise uniform FOUR COLUMNS by SIX ROWS grid on a truly TRANSPARENT background, no guides, no borders, no text, no labels, no ground, no cast shadows. Portrait sheet aspect 2:3. Every tile square. Character fills about 75% of its tile, horizontally centered, feet baseline at 90% tile height, generous empty gaps, no figure overlaps another tile. Same scale, face and outfit across all cells.\nOrdered left-to-right, top-to-bottom:\nTiles 1-8 (rows 1-2): a complete gentle listening groove LOOP: neutral, lean slightly left, left downbeat with knees bent, recover left, neutral, lean slightly right, right downbeat, recover right. Arms naturally follow. Eyes open.\nTiles 9-16 (rows 3-4): a complete cheerful dancing LOOP: neutral, step left with left arm raised, soft bend both knees, return center, neutral, step right with right arm raised, soft bend both knees, return center. Characters with no arms move only their real limbs. Keep accessories stable.\nTiles 17-20 (row 5): relaxed standing eyes open; same standing eyes closed blink; peaceful sleeping eyes closed; friendly hello wave (or head tilt for armless subject).\nTiles 21-24 (row 6): being picked up with surprised face and dangling legs; relaxed dangling with open eyes; little landing crouch with eyes briefly closed; recovered relaxed standing.\nNo added humans or objects holding the character. Anatomically consistent, no extra limbs, no detached hands, no body redesign. Preserve exact iconic palette. Draw each complete figure fully within its own tile.",
+  "characters": [
+    {
+      "id": "miku",
+      "name": "Hatsune Miku",
+      "description": "Hatsune Miku, turquoise twin tails and eyes, grey sleeveless top, turquoise tie, pleated black skirt, detached black sleeves, black thigh-high boots, red hair clips"
+    },
+    {
+      "id": "kirby",
+      "name": "Kirby",
+      "description": "Kirby, round pink body, small oval arms, red oval feet, blue expressive oval eyes; retain the iconic spherical silhouette"
+    },
+    {
+      "id": "frieren",
+      "name": "Frieren",
+      "description": "Frieren, silver twin tails, pointed elf ears, green eyes, white gold-trimmed short cape and dress, black tights and brown boots"
+    },
+    {
+      "id": "2b",
+      "name": "2B",
+      "description": "2B from NieR Automata, white bob, black eye-covering visor, black high-collar long-sleeve dress, gloves and boots; cute modest chibi proportions"
+    },
+    {
+      "id": "neco-arc",
+      "name": "Neco-Arc",
+      "description": "Neco-Arc, blonde cat ears and bob haircut, red cat eyes, oversized mischievous mouth, cream sweater, dark pleated skirt and brown shoes"
+    },
+    {
+      "id": "creeper",
+      "name": "Minecraft Creeper",
+      "description": "Minecraft Creeper, cubic green pixel-textured head and body, four stubby rectangular feet, black square eyes and downturned pixel mouth; retain rigid block anatomy and no arms"
+    },
+    {
+      "id": "jinx",
+      "name": "Jinx",
+      "description": "Jinx from Arcane, blue extremely long braids, bright blue eyes, blue cloud arm tattoos, dark cropped vest, purple striped trousers, fingerless gloves and boots; chibi modest costume"
+    },
+    {
+      "id": "vi",
+      "name": "Vi",
+      "description": "Vi from Arcane, pink undercut hair, strong eyebrows, red jacket, dark vest and trousers, sturdy brown gloves and boots, tiny VI cheek tattoo"
+    },
+    {
+      "id": "jayce",
+      "name": "Jayce",
+      "description": "Jayce from Arcane, swept dark brown hair, clean jaw, white and gold Piltovan jacket with dark shirt, dark trousers and boots; no weapon"
+    },
+    {
+      "id": "heimerdinger",
+      "name": "Heimerdinger",
+      "description": "Heimerdinger from Arcane, tiny furry yordle with huge cream moustache and bushy hair, round goggles resting on head, warm brown academy coat and tiny boots"
+    },
+    {
+      "id": "ekko",
+      "name": "Ekko",
+      "description": "Ekko from Arcane, dark brown skin, white short dreadlocks, white hourglass face paint, green scarf and brown cropped jacket, dark trousers and boots"
+    },
+    {
+      "id": "goku",
+      "name": "Son Goku",
+      "description": "Son Goku, iconic tall black spiky hair, orange martial arts gi over blue undershirt, blue belt and wristbands and boots"
+    },
+    {
+      "id": "chopper",
+      "name": "Tony Tony Chopper",
+      "description": "Tony Tony Chopper, tiny brown reindeer, rounded muzzle, blue nose, short antlers, blue and pink hat with white X, orange shorts and striped shirt"
+    },
+    {
+      "id": "gojo",
+      "name": "Gojo",
+      "description": "Satoru Gojo, spiky snow-white hair, black blindfold, dark high-collar jacket and trousers, black shoes, cheeky smile; eyes remain covered"
+    },
+    {
+      "id": "rem",
+      "name": "Rem",
+      "description": "Rem from Re Zero, short pale blue bob covering one eye, visible blue eye, black and white maid dress with white headband and flower clip, white stockings and black shoes; modest chibi proportions"
+    },
+    {
+      "id": "sailor-moon",
+      "name": "Sailor Moon",
+      "description": "Sailor Moon, golden twin hair buns with long tails, blue eyes, gold crescent tiara, white and blue sailor suit, red chest bow and knee-high red boots"
+    },
+    {
+      "id": "totoro",
+      "name": "Totoro",
+      "description": "Totoro, large round grey forest spirit with cream belly and grey chevron markings, pointed ears, short arms, big round eyes and tiny feet"
+    },
+    {
+      "id": "saitama",
+      "name": "Saitama",
+      "description": "Saitama, bald round head, calm simple face, yellow zipped jumpsuit, white cape, red gloves and red boots"
+    },
+    {
+      "id": "asuka",
+      "name": "Asuka",
+      "description": "Asuka Langley from Evangelion, long orange-red hair with red clips, blue eyes, red pilot plugsuit with black green accents; modest cute chibi proportions"
+    },
+    {
+      "id": "guts",
+      "name": "Guts",
+      "description": "Guts from Berserk, black short spiky hair, scarred serious face with closed right eye, dark charcoal armour and black cape, metal left gauntlet, boots; no huge sword, no gore"
+    },
+    {
+      "id": "sasuke",
+      "name": "Sasuke",
+      "description": "Sasuke Uchiha, dark spiky hair with long side bangs, black eyes, grey high-collar short-sleeve shirt, purple rope belt, navy trousers and shinobi sandals"
+    },
+    {
+      "id": "naruto",
+      "name": "Naruto",
+      "description": "Naruto Uzumaki, golden spiky hair, blue eyes, three whisker lines each cheek, metal Leaf forehead protector, orange and black jacket and trousers, shinobi sandals"
+    },
+    {
+      "id": "luffy",
+      "name": "Monkey D. Luffy",
+      "description": "Monkey D. Luffy, straw hat with red band, short black hair, small scar under left eye, red open vest, blue shorts and sandals"
+    },
+    {
+      "id": "astro-boy",
+      "name": "Astro Boy",
+      "description": "Astro Boy, black pointed hair with iconic two spikes, big expressive eyes, shiny black shorts with green belt and red boots, classic friendly robot boy proportions"
+    },
+    {
+      "id": "megumin",
+      "name": "Megumin",
+      "description": "Megumin, brown bob and red eyes, oversized dark red wizard hat with gold trim and orange diamond markings, red gold-trimmed dress, dark cape, black stockings and brown boots"
+    },
+    {
+      "id": "zero-two",
+      "name": "Zero Two",
+      "description": "Zero Two, long pink hair, two small red horns, teal eyes, red high-collar military dress, white tights and boots, cute modest chibi"
+    },
+    {
+      "id": "fern",
+      "name": "Fern",
+      "description": "Fern from Frieren, long straight purple hair with bangs, violet eyes, white long dress and dark purple long coat, brown shoes"
+    },
+    {
+      "id": "aang",
+      "name": "Aang · Avatar",
+      "description": "Aang from Avatar The Last Airbender, bald head with blue arrow tattoo, big grey eyes, orange and yellow Air Nomad robes, brown belt and boots"
+    },
+    {
+      "id": "sung-jin-woo",
+      "name": "Sung Jin Woo",
+      "description": "Sung Jin Woo from Solo Leveling, tousled black hair with long bangs, violet-blue glowing eyes, black long coat over dark shirt and trousers, black boots"
+    }
+  ],
+  "cleanupPrompt": "For 2B and Asuka: remove all background to full alpha transparency, preserve the 24 complete character poses, exact costume, face, colours, expressions and arrangement. No pose changes, shadows or painted backdrop."
+}

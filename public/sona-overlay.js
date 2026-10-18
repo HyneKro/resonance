@@ -1,3 +1,4 @@
+import {appearanceInfo} from './companion-appearances.js';
 import {CompanionRenderer} from './companion-renderer.js';
 import {DanceMotion,CompanionClock} from './companion-motion.js';
 import {interfaceAccents} from './interface-accent.js';
@@ -5,9 +6,9 @@ import {companionHairColors} from './companion-model.js';
 const bridge=window.resonanceDesktop,motion=new DanceMotion(),clock=new CompanionClock(),canvas=document.querySelector('canvas'),renderer=new CompanionRenderer(canvas),button=document.querySelector('#sona');
 let state={playing:false,colors:null},pointer=null,picked=false,hold,interactive=false;
 const command=action=>bridge.sonaCommand(action).catch(()=>{});
-bridge.onSonaState(next=>{state=next;document.querySelector('#title').textContent=next.desktop?'Desktop audio':next.title;const play=document.querySelector('[data-command=play]');play.textContent=next.playing?'Ⅱ':'▶';play.setAttribute('aria-label',next.playing?'Pause music':'Play music');for(const b of document.querySelectorAll('[data-command=play],[data-command=previous],[data-command=next]'))b.disabled=next.desktop;});
+bridge.onSonaState(next=>{state=next;const appearance=appearanceInfo(next.appearance);button.setAttribute('aria-label',appearance.label+' · drag to move');void renderer.setAppearance(appearance.id);document.querySelector('#title').textContent=next.desktop?'Desktop audio':next.title;const play=document.querySelector('[data-command=play]');play.textContent=next.playing?'Ⅱ':'▶';play.setAttribute('aria-label',next.playing?'Pause music':'Play music');for(const b of document.querySelectorAll('[data-command=play],[data-command=previous],[data-command=next]'))b.disabled=next.desktop;});
 await renderer.load();
-function tick(now){const dt=clock.step(now);if(dt!==null)renderer.draw(motion.update(dt,{active:state.playing,reduced:state.reduced}),interfaceAccents(state.colors),companionHairColors(state.colors));requestAnimationFrame(tick);}requestAnimationFrame(tick);
+function tick(now){const dt=clock.step(now);if(dt!==null){motion.setAppearance(renderer.appearance);renderer.draw(motion.update(dt,{active:state.playing,reduced:state.reduced}),interfaceAccents(state.colors),companionHairColors(state.colors));}requestAnimationFrame(tick);}requestAnimationFrame(tick);
 document.addEventListener('mousemove',e=>{const hit=!!e.target.closest('button,nav');if(hit!==interactive){interactive=hit;void command(hit?'interactive':'passthrough');}});
 document.addEventListener('mouseleave',()=>{if(!pointer){interactive=false;void command('passthrough');}});
 document.querySelector('nav').addEventListener('click',e=>{const action=e.target.closest('[data-command]')?.dataset.command;if(action)void command(action);});

@@ -1,4 +1,5 @@
 import {SONA_CLIPS} from './companion-atlas.js';
+import {appearanceInfo} from './companion-appearances.js';
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number.isFinite(x)?x:a));
 export const SONA_ROUTINES=['two-step','side-sway','head-bob','hand-wave','shoulder-groove','cheer','soft-bounce','twirl'];
 const lift=[0,0,0,6,12,6,0,0];
@@ -39,6 +40,15 @@ export const COMPANION_FPS=24;
 // an extra transition effect, crossfade or skeletal deformation.
 export class DanceMotion{
  constructor(){this.bpm=SONA_PACE;this.beats=0;this.clock=0;this.stateTime=0;this.quiet=0;this.action='';this.elapsed=0;this.hover=false;this.dragLean=0;this.dragTarget=0;this.releaseRotation=0;this.lastPose=REST_POSE;this.state='idle';this.name='idle';this.group='';this.routineIndex=0;this.routineStart=0;this.routineState='dancing';}
+ setAppearance(value){
+  const info=appearanceInfo(value);if(this.appearance===info.id)return;
+  this.appearance=info.id;this.beats=0;this.routineStart=0;this.routineIndex=0;this.routineState='dancing';
+  this.routines=info.id==='sona'?SONA_ROUTINES:['head-bob','dance'];
+  this.clips=info.id==='sona'?SONA_CLIPS:{...SONA_CLIPS,
+   'head-bob':{row:0,beats:info.grooveSeconds*SONA_PACE/60,weights:[2,1,1,1,2,1,1,1]},
+   dance:{row:1,beats:info.danceSeconds*SONA_PACE/60,weights:[2,1,1,1,2,1,1,1]},
+  };
+ }
  press(){this.action='pressed';this.elapsed=0;this.quiet=0;}
  click(){this.action='clicked';this.elapsed=0;this.quiet=0;}
  pickUp(){this.action='pickup';this.elapsed=0;this.quiet=0;}
@@ -48,6 +58,7 @@ export class DanceMotion{
  resume(){this.cancel();}
  look(_x,_y,hover=false){this.hover=hover;if(hover)this.quiet=0;}
  update(dt,{active=false,reduced=false,frozen=false,mode}={}){
+  if(!this.clips)this.setAppearance('sona');
   dt=clamp(dt,0,.1);this.elapsed+=dt;
   if(this.action==='pickup'&&this.elapsed>=total(SONA_TIMING.pickup)){this.elapsed-=total(SONA_TIMING.pickup);this.action='held';}
   if(this.action==='drop'&&this.elapsed>=total(SONA_TIMING.drop)||this.action==='clicked'&&this.elapsed>=total(SONA_TIMING.clicked)){
@@ -64,19 +75,19 @@ export class DanceMotion{
   this.dragLean+=(this.dragTarget-this.dragLean)*(1-Math.exp(-dt*10));this.dragTarget*=Math.exp(-dt*3);
   if(this.beats<this.routineStart)this.routineStart=this.beats;
   let boundary=false;
-  if(active&&!this.action&&!mode){const clip=SONA_CLIPS[this.routineState==='listening'?'head-bob':SONA_ROUTINES[this.routineIndex]],span=clip.beats*3;if(this.beats-this.routineStart>=span){this.routineStart+=span;this.routineIndex=(this.routineIndex+1)%SONA_ROUTINES.length;boundary=true;}}
-  const phrase=mode?Math.floor(this.beats/16)%SONA_ROUTINES.length:this.routineIndex;
-  const musicState=phrase===2?'listening':'dancing';
+  if(active&&!this.action&&!mode){const clip=this.clips[this.routineState==='listening'?'head-bob':this.routines[this.routineIndex]],span=clip.beats*3;if(this.beats-this.routineStart>=span-1e-9){this.routineStart+=span;this.routineIndex=(this.routineIndex+1)%this.routines.length;boundary=true;}}
+  const phrase=mode?Math.floor(this.beats/16)%this.routines.length:this.routineIndex;
+  const musicState=phrase===(this.appearance==='sona'?2:0)?'listening':'dancing';
   if(boundary||this.beats===0)this.routineState=musicState;
   this.state=this.action||(mode||(active?this.routineState:this.quiet>35?'sleep':'idle'));
-  const music=this.state.startsWith('dancing')||this.state==='listening';this.name=this.state==='listening'?'head-bob':music?SONA_ROUTINES[phrase]:this.state;
+  const music=this.state.startsWith('dancing')||this.state==='listening';this.name=this.state==='listening'?'head-bob':music?this.routines[phrase]:this.state;
   const group=this.action||(music?(this.state==='listening'?'listening':this.name):this.state),changed=group!==this.group;
   if(changed){this.group=group;this.stateTime=0;}else if(moving)this.stateTime+=dt;
   const pose={...REST_POSE},t=this.clock;let row=SONA_CLIPS.idle.row,frame=sequenceFrame(this.stateTime,SONA_TIMING.idle).frame;
   if(music){
    // Small sways/waves linger; larger pose changes use a quicker two-beat
    // cycle so the turn and alternating cheer do not crawl through eight poses.
-   const clip=SONA_CLIPS[this.name],sample=danceFrame(clip,mode?this.beats:this.beats-this.routineStart,this.bpm);
+   const clip=this.clips[this.name],sample=danceFrame(clip,mode?this.beats:Math.max(0,this.beats-this.routineStart),this.bpm);
    row=clip.row;frame=sample.frame;
    if(this.name==='soft-bounce')pose.y-=lift[sample.index]+(lift[(sample.index+1)%8]-lift[sample.index])*smooth(sample.progress);
   }else{pose.y=Math.sin(t*2)*.35;pose.rotation=Math.sin(t*.8)*.012;}

@@ -1,13 +1,14 @@
 import {interfaceAccents} from './interface-accent.js';
 import {companionPosition,companionBounds,companionPoint,companionPlacement,companionHairColors} from './companion-model.js';
 import {CompanionRenderer} from './companion-renderer.js';
+import {appearanceInfo} from './companion-appearances.js';
 import {DanceMotion,CompanionClock,CompanionPlayback} from './companion-motion.js';
 export {DanceMotion} from './companion-motion.js';
 export function installDanceCompanion({reactor,audio,savePosition=async()=>{},onError=()=>{}}){
  const room=document.querySelector('#listening-room'),element=document.createElement('button');element.type='button';element.className='dance-companion';element.setAttribute('aria-label','Sona · dance companion');element.setAttribute('aria-describedby','companion-help');element.setAttribute('aria-pressed','false');element.hidden=true;
  element.innerHTML='<span class="dance-sprite"><canvas aria-hidden="true"></canvas></span>';
- const help=document.createElement('span');help.id='companion-help';help.className='companion-help';help.textContent='Click Sona to say hello. Hold or drag to pick her up; release to set her down. Space or Enter picks up and drops; arrow keys move, Shift moves finely, Escape cancels. Scroll and right-drag still control your music. Your placement is remembered.';room.append(element,help);
- const sprite=element.firstElementChild,motion=new DanceMotion(),clock=new CompanionClock(),playback=new CompanionPlayback(),renderer=new CompanionRenderer(sprite.firstElementChild,()=>render(0),onError);
+ const help=document.createElement('span');help.id='companion-help';help.className='companion-help';help.textContent='Click your companion to say hello. Hold or drag to pick up; release to set down. Space or Enter picks up and drops; arrow keys move, Shift moves finely, Escape cancels. Scroll and right-drag still control your music. Your placement is remembered.';room.append(element,help);
+ const sprite=element.firstElementChild,motion=new DanceMotion(),clock=new CompanionClock(),playback=new CompanionPlayback(),renderer=new CompanionRenderer(sprite.firstElementChild,()=>{motion.setAppearance(renderer.appearance);render(0);},onError);
  let enabled=false,position=null,savedKey='',bounds=companionBounds(1280,720,124),point={x:0,y:0},drag=null,keyboardOrigin,followTheme=true,paletteSource,colors=interfaceAccents(null),targetColors=colors,hairColors=companionHairColors(null),raf=0,holdTimer,saveTimer;
  function place(){point=companionPoint(position,bounds);element.style.transform=`translate3d(${point.x.toFixed(2)}px,${point.y.toFixed(2)}px,0)`;}
  function resize(){
@@ -72,6 +73,7 @@ export function installDanceCompanion({reactor,audio,savePosition=async()=>{},on
  new MutationObserver(syncClock).observe(room,{attributes:true,attributeFilter:['hidden']});
  return {apply(p){
   enabled=p.danceCompanion===true;const hidden=!enabled||p.musicOnly===true;if(hidden)cancel();element.hidden=help.hidden=hidden;followTheme=p.coverInterface!==false;
+  const appearance=appearanceInfo(p.companionAppearance);renderer.wantedAppearance=appearance.id;element.setAttribute('aria-label',appearance.label+' · dance companion');element.dataset.appearance=appearance.id;
   const incoming=companionPosition(p.dancePosition),key=JSON.stringify(incoming);if(key!==savedKey){savedKey=key;if(!drag&&keyboardOrigin===undefined)position=incoming;}
   if(!hidden){renderer.load();resize();render(0);}syncClock();
  },reset(){cancel();position=null;savedKey='null';place();persist();}};

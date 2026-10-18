@@ -35,7 +35,7 @@ function installSonaWindow({BrowserWindow,ipcMain,win,url,screen,lib}){
  ipcMain.handle('resonance:sona-publish',(e,value)=>{
   if(!main(e))throw Error('Sona publisher rejected');
   const palette=Array.isArray(value.colors)&&value.colors.length>=3&&value.colors.every(c=>Array.isArray(c)&&c.length===3&&c.every(n=>Number.isFinite(n)&&n>=0&&n<=1))?value.colors.slice(0,6):null;
-  state={enabled:value.enabled===true,playing:value.playing===true,desktop:value.desktop===true,title:String(value.title||'Resonance').slice(0,200),colors:palette,reduced:value.reduced===true};sync();return true;
+  state={enabled:value.enabled===true,playing:value.playing===true,desktop:value.desktop===true,title:String(value.title||'Resonance').slice(0,200),colors:palette,reduced:value.reduced===true,appearance:typeof value.appearance==='string'&&/^[a-z0-9-]{1,40}$/.test(value.appearance)?value.appearance:'sona'};sync();return true;
  });
  ipcMain.handle('resonance:sona-command',(e,action)=>{
   if(!child(e))throw Error('Sona command rejected');

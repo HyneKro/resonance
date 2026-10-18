@@ -26,11 +26,12 @@ export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,ap
 
 export function organizeVisualMenu(panel){
  const root=panel.querySelector('.signature-controls'),sections=[...root.querySelectorAll(':scope > .signature-section')];
- const [character,light,motion,performance,camera,extras]=sections;
- const heading=root.querySelector('.signature-heading');heading.querySelector('span')?.remove();heading.querySelector('b').textContent='Visuals & Sona';
+ const [character,light,motion,performance,camera,extrasDetails]=sections;
+ const heading=root.querySelector('.signature-heading');heading.querySelector('span')?.remove();heading.querySelector('b').textContent='Visuals & mascot';
  const close=document.createElement('button');close.type='button';close.className='icon-button';close.textContent='×';close.setAttribute('aria-label','Close visual settings');close.onclick=()=>document.querySelector('#room-visual-settings').click();heading.append(close);
  // The tab is the disclosure; a second nested Bonus effects disclosure is redundant.
- extras.open=true;extras.querySelector('summary')?.remove();
+ const extras=document.createElement('section');extras.className=extrasDetails.className;
+ extras.append(...[...extrasDetails.childNodes].filter(n=>n.nodeName!=='SUMMARY'));extrasDetails.replaceWith(extras);
  const groups=document.createElement('div');root.append(groups);
  sectionTabs(groups,[['style','Style',[character,light]],['motion','Motion',[motion,camera]],['display','Display',[performance]],['extras','Extras',[extras]]],{label:'Visual settings sections',scroller:panel});
  for(const [node,title] of [[motion,'Response & movement'],[camera,'Camera'],[performance,'Display & performance']]){const h=document.createElement('h3');h.textContent=title;node.prepend(h);}
