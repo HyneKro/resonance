@@ -1,0 +1,7 @@
+# Resonance 1.15.2 · Music-video audio fallback
+
+When a playlist recording is genuinely unavailable, Resonance now also searches for its music video after checking audio uploads. A close artist, title, version and duration match can be downloaded automatically, with only its sound saved. The original playlist identity stays linked so the same missing entry does not download again on the next check.
+
+Video labels such as “Official Music Video”, “Official MV”, “Clip officiel” and resolution tags no longer hide otherwise matching recordings. Find another upload includes music videos, an audio-only label and duration comparison. Longer clips, live versions and remixes remain available for explicit review rather than being silently substituted. Clip dialogue and intros are not automatically removed. Requests remain bounded, reserve a final attempt for the video search, and stop on rate limits or connection restrictions.
+
+Validation: all 324 JavaScript tests pass, including unavailable-to-video recovery, audio extraction options, original playlist linkage, version rejection, request limits and throttling. Both real frontend selection flows pass with isolated provider responses. A live search matched the studio-length upload of “The Racket” and rejected its live alternatives; a two-second sample saved as Opus with no video stream. This does not guarantee that every unavailable song has a usable alternative.

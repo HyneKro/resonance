@@ -57,7 +57,7 @@ export class PlaylistSync {
     if(this.job.running)throw Error('Wait for the playlist update to finish.');
     const entry=this.preview?.entries.find(e=>e.sourceId===sourceId&&e.id===id&&e.status!=='existing');if(!entry)throw Error('This playlist entry changed. Reopen Downloads.');
     this.cancelled=false;const entries=[],previous=this.job;this.alternativeReview=null;
-    this.job={...previous,running:true,phase:'searching',message:'Finding another upload…'};
+    this.job={...previous,running:true,phase:'searching',message:'Finding audio uploads and music videos…'};
     try{for(const target of recordingQueries(entry,String(query).slice(0,300))){const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20',target],null,60000);entries.push(...JSON.parse(output).entries||[]);}
       const choices=reviewRecordings(entry,entries);this.alternativeReview={sourceId,id,choices};return choices;
     }finally{this.job={...previous,running:false};}
@@ -67,7 +67,7 @@ export class PlaylistSync {
     const review=this.alternativeReview,choice=review?.sourceId===sourceId&&review.id===id&&review.choices.find(c=>c.id===videoId);
     const entry=this.preview?.entries.find(e=>e.sourceId===sourceId&&e.id===id&&e.status!=='existing');if(!choice||!entry)throw Error('Search again before choosing this recording.');
     if(entry.provider!=='spotify')entry.originalYoutubeId??=entry.id;
-    Object.assign(entry,{id:choice.id,alternativeTitle:choice.title,matchedTitle:choice.title,matchedChannel:choice.channel,matchedDuration:choice.duration,alternativeSelected:true,status:'review',reason:'Alternative selected by you'});delete entry.downloadError;
+    Object.assign(entry,{id:choice.id,alternativeTitle:choice.title,matchedTitle:choice.title,matchedChannel:choice.channel,matchedDuration:choice.duration,alternativeKind:choice.musicVideo?'music-video':'upload',alternativeSelected:true,status:'review',reason:'Alternative selected by you'});delete entry.downloadError;
     if(entry.provider==='spotify'&&!entry.candidates?.some(c=>c.id===choice.id))entry.candidates=[...(entry.candidates||[]),{...choice,score:0}];
     this.lib.setSetting('syncPreview',this.preview);this.alternativeReview=null;return entry;
   }
@@ -75,12 +75,17 @@ export class PlaylistSync {
     if(entry.originalYoutubeId)return false;
     this.job.message='Looking for another upload of '+entry.title+'…';const tried=new Set();
     for(const target of recordingQueries(entry)){
+      if(this.cancelled)throw Error('Cancelled');
+      if(tried.size>=3)break;
+      const videoSearch=target.endsWith('official music video'),attemptLimit=videoSearch?3:2;
+      if(tried.size>=attemptLimit)continue;
+      this.job.message=videoSearch?'Looking for a music video of '+entry.title+'…':'Looking for another upload of '+entry.title+'…';
       const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20',target],null,60000);
       if(this.cancelled)throw Error('Cancelled');
       for(const candidate of fallbackCandidates(entry,JSON.parse(output).entries||[])){
-        if(tried.has(candidate.id)||tried.size>=3)continue;tried.add(candidate.id);
+        if(tried.has(candidate.id)||tried.size>=attemptLimit)continue;tried.add(candidate.id);
         try{await this.run([...args.slice(0,-1),'https://www.youtube.com/watch?v='+candidate.id],onLine,7200000);
-          entry.originalYoutubeId=entry.id;entry.id=candidate.id;entry.alternativeTitle=candidate.title;return true;
+          entry.originalYoutubeId=entry.id;entry.id=candidate.id;entry.alternativeTitle=candidate.title;entry.alternativeKind=candidate.musicVideo?'music-video':'upload';return true;
         }catch(error){if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;}
       }
     }return false;
@@ -88,7 +93,7 @@ export class PlaylistSync {
   saveAlternativeLinks(){
     for(const entry of this.preview?.entries||[]){if(!entry.originalYoutubeId||entry.status!=='existing')continue;
       const track=this.lib.list().find(t=>t.youtubeId===entry.id&&t.sourceId===entry.sourceId);
-      if(track){this.lib.save({...track,originalYoutubeId:entry.originalYoutubeId,alternativeRecording:true,alternativeSelected:!!entry.alternativeSelected});entry.trackId=track.id;}
+      if(track){this.lib.save({...track,originalYoutubeId:entry.originalYoutubeId,alternativeRecording:true,alternativeKind:entry.alternativeKind||'upload',alternativeSelected:!!entry.alternativeSelected});entry.trackId=track.id;}
     }
   }
   async cacheCovers(){

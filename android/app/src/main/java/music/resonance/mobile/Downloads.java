@@ -86,17 +86,17 @@ public final class Downloads {
         for(String target:RecordingFallback.queries(entry)){
             YoutubeDLRequest req=new YoutubeDLRequest(target);req.addOption("--dump-single-json");req.addOption("--flat-playlist");req.addOption("--socket-timeout","20");req.addOption("--retries","1");
             JSONArray list=execute(req).optJSONArray("entries");if(list==null)continue;
-            for(int i=0;i<list.length();i++){JSONObject c=list.optJSONObject(i);if(c!=null&&c.optString("id").matches("[A-Za-z0-9_-]{11}")&&!c.optString("id").equals(entry.optString("youtubeId"))&&!c.optBoolean("is_live")&&seen.add(c.optString("id")))choices.put(c);}
+            for(int i=0;i<list.length();i++){JSONObject c=list.optJSONObject(i);if(c!=null&&c.optString("id").matches("[A-Za-z0-9_-]{11}")&&!c.optString("id").equals(entry.optString("youtubeId"))&&!c.optBoolean("is_live")&&seen.add(c.optString("id"))){c.put("musicVideo",RecordingFallback.musicVideo(c));c.put("safe",RecordingFallback.matches(entry,c));choices.put(c);}}
         }synchronized(this){reviewedKey=entry.optString("key");reviewedChoices=choices;}return choices;
         }finally{synchronized(this){searching=false;}}
     }
     public synchronized JSONObject selectMatch(String key,String video) throws Exception {
         if(searching||progress.optBoolean("running"))throw new IOException("Wait for the current playlist update to finish first");
-        boolean allowed=false;for(int i=0;i<reviewedChoices.length();i++)if(reviewedChoices.getJSONObject(i).optString("id").equals(video))allowed=true;
-        if(!key.equals(reviewedKey)||!allowed)throw new IOException("Search again before choosing a recording.");
+        JSONObject choice=null;for(int i=0;i<reviewedChoices.length();i++)if(reviewedChoices.getJSONObject(i).optString("id").equals(video))choice=reviewedChoices.getJSONObject(i);
+        if(!key.equals(reviewedKey)||choice==null)throw new IOException("Search again before choosing a recording.");
         for(int i=0;i<preview.length();i++){JSONObject item=preview.getJSONObject(i);if(!item.optString("key").equals(key))continue;
             if(!item.optString("type").equals("spotify")&&!item.has("originalYoutubeId"))item.put("originalYoutubeId",item.optString("youtubeId"));
-            item.put("youtubeId",video).put("selected",true).put("alternativeSelected",true);item.remove("skipReason");item.remove("failedVideoId");savePreview(preview);reviewedChoices=new JSONArray();return item;
+            item.put("youtubeId",video).put("selected",true).put("alternativeSelected",true).put("alternativeKind",RecordingFallback.musicVideo(choice)?"music-video":"upload");item.remove("skipReason");item.remove("failedVideoId");savePreview(preview);reviewedChoices=new JSONArray();return item;
         }throw new IOException("The playlist changed. Reopen Downloads.");
     }
     public void cancel(){cancelled=true;YoutubeDL.INSTANCE.destroyProcessById("resonance");}
@@ -127,27 +127,37 @@ public final class Downloads {
         publish(true,"downloading","Looking for another recording of "+item.optString("title")+"…",batch.saved,total,-1);
         Set<String> tried=new HashSet<>();
         for(String target:RecordingFallback.queries(item)){
+            if(cancelled)throw new InterruptedIOException("Update cancelled");if(tried.size()>=3)break;
+            boolean videoSearch=target.endsWith("official music video");int attemptLimit=videoSearch?3:2;if(tried.size()>=attemptLimit)continue;
+            if(videoSearch)publish(true,"downloading","Looking for a music video of "+item.optString("title")+"…",batch.saved,total,-1);
             YoutubeDLRequest request=new YoutubeDLRequest(target);request.addOption("--flat-playlist");request.addOption("--dump-single-json");request.addOption("--socket-timeout","20");request.addOption("--retries","1");
             JSONArray choices=execute(request).optJSONArray("entries");if(choices==null)continue;
-            for(int i=0;i<choices.length()&&!cancelled&&tried.size()<3;i++){
+            for(int i=0;i<choices.length()&&!cancelled&&tried.size()<attemptLimit;i++){
                 JSONObject choice=choices.optJSONObject(i);if(choice==null||!RecordingFallback.matches(item,choice)||!tried.add(choice.optString("id")))continue;
-                JSONObject alternate=new JSONObject(item.toString());alternate.put("originalYoutubeId",item.optString("youtubeId")).put("youtubeId",choice.optString("id"));
+                JSONObject alternate=new JSONObject(item.toString());alternate.put("originalYoutubeId",item.optString("youtubeId")).put("youtubeId",choice.optString("id")).put("alternativeKind",RecordingFallback.musicVideo(choice)?"music-video":"upload");
                 try{downloadOne(alternate,format,destination,total);return true;}catch(DownloadBatch.RecordingUnavailable ignored){}
             }
         }return false;
     }
+    static void audioOptions(YoutubeDLRequest request,String format){
+        // Prefer the separate audio stream. If only a combined clip exists,
+        // extract its sound and discard the temporary video file.
+        request.addOption("-f","bestaudio/best");request.addOption("-x");request.addOption("--no-keep-video");
+        request.addOption("--audio-format",format.equals("compact")?"opus":"best");
+        if(format.equals("compact"))request.addOption("--audio-quality","128K");
+    }
     private void downloadOne(JSONObject item,String format,JSONObject destination,int total) throws Exception {
         if(cancelled)throw new InterruptedIOException("Update cancelled");
         String video=item.optString("youtubeId");if(!video.matches("[A-Za-z0-9_-]{11}"))throw new DownloadBatch.RecordingUnavailable("Choose a recording for this song first.");
-            String title=item.optString("title");final int done=batch.saved;JSONObject existing=app.library.track(LibraryStore.id("youtube:"+video));if(existing.length()>0&&readable(existing)){app.library.link(existing.optString("id"),item.optString("sourceId"),item.optInt("playlistIndex"));if(item.has("originalYoutubeId")){Json.put(existing,"originalYoutubeId",item.optString("originalYoutubeId"));app.library.save(existing);}completed(item,existing.optString("id"));return;}publish(true,"downloading",title,done,total,-1);YoutubeDLRequest req=new YoutubeDLRequest("https://www.youtube.com/watch?v="+video);req.addOption("--ignore-config");req.addOption("--no-playlist");req.addOption("--check-formats");req.addOption("--extractor-retries","3");req.addOption("--fragment-retries","3");req.addOption("--continue");req.addOption("--no-overwrites");req.addOption("--socket-timeout","20");req.addOption("--retries","3");req.addOption("--download-archive",new File(app.library.music,"downloaded.txt").getAbsolutePath());req.addOption("-f","bestaudio");req.addOption("--write-info-json");req.addOption("-o",new File(app.library.music,"%(id)s.%(ext)s").getAbsolutePath());
-            if(format.equals("compact")){req.addOption("-x");req.addOption("--audio-format","opus");req.addOption("--audio-quality","128K");}else req.addOption("--remux-video","m4a>m4a/webm>opus");
+            String title=item.optString("title");final int done=batch.saved;JSONObject existing=app.library.track(LibraryStore.id("youtube:"+video));if(existing.length()>0&&readable(existing)){app.library.link(existing.optString("id"),item.optString("sourceId"),item.optInt("playlistIndex"));if(item.has("originalYoutubeId")){Json.put(existing,"originalYoutubeId",item.optString("originalYoutubeId"));app.library.save(existing);}completed(item,existing.optString("id"));return;}publish(true,"downloading",title,done,total,-1);YoutubeDLRequest req=new YoutubeDLRequest("https://www.youtube.com/watch?v="+video);req.addOption("--ignore-config");req.addOption("--no-playlist");req.addOption("--check-formats");req.addOption("--extractor-retries","3");req.addOption("--fragment-retries","3");req.addOption("--continue");req.addOption("--no-overwrites");req.addOption("--socket-timeout","20");req.addOption("--retries","3");req.addOption("--download-archive",new File(app.library.music,"downloaded.txt").getAbsolutePath());req.addOption("--write-info-json");req.addOption("-o",new File(app.library.music,"%(id)s.%(ext)s").getAbsolutePath());
+            audioOptions(req,format);
             try{YoutubeDL.INSTANCE.execute(req,"resonance",(percent,eta,line)->{publish(true,"downloading",title,done,total,percent);return kotlin.Unit.INSTANCE;});}
             catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;if(RecordingFallback.unavailable(raw)&&alternative(item,format,destination,total))return;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
             File[] files=app.library.music.listFiles((dir,name)->name.startsWith(video+".")&&LibraryStore.isAudio(name));if(files==null||files.length==0)throw new DownloadBatch.RecordingUnavailable("No usable audio file was returned. Try updating the downloader before retrying this song.");File file=files[0];JSONObject info=new JSONObject();File infoFile=new File(app.library.music,video+".info.json");if(infoFile.isFile())info=Json.parse(new String(java.nio.file.Files.readAllBytes(infoFile.toPath()),StandardCharsets.UTF_8));
             JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
             Json.put(supplied,"rawTitle",info.optString("title",title));Json.put(supplied,"channel",info.optString("channel",info.optString("uploader")));
             Json.put(supplied,"recordingArtists",info.optJSONArray("artists")!=null?info.optJSONArray("artists"):new JSONArray().put(info.optString("artist",info.optString("uploader",item.optString("artist")))));
-            if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true).put("alternativeSelected",item.optBoolean("alternativeSelected"));}
+            if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true).put("alternativeSelected",item.optBoolean("alternativeSelected")).put("alternativeKind",item.optString("alternativeKind","upload"));}
             GenreResearch.sourceLabels(supplied,info);
             JSONObject track;
             if(!destination.optString("uri").isEmpty()){
