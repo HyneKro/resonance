@@ -1,5 +1,5 @@
 import {metadataSnapshot,selectedMetadata} from './public/metadata-review.js';
-import {repairArtistCredits} from './public/artist-credits.js';
+import {repairArtistCredits,ARTIST_CREDIT_VERSION} from './public/artist-credits.js';
 import {preferencesWithDefaults} from './public/default-preferences.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -32,7 +32,7 @@ export class Library {
     // One transaction keeps the initial credit migration from making thousands
     // of individual disk commits during startup.
     this.db.exec('BEGIN');
-    try{for(const t of this.tracks.values())if(t.artistCreditVersion!==1)this.save(t);this.db.exec('COMMIT');}catch(error){this.db.exec('ROLLBACK');throw error;}
+    try{for(const t of this.tracks.values())if(t.artistCreditVersion!==ARTIST_CREDIT_VERSION)this.save(t);this.db.exec('COMMIT');}catch(error){this.db.exec('ROLLBACK');throw error;}
     this.genres=new GenreDiscovery(this);this.genres.seed();this.applyPlaylistOrder();
   }
   getSetting(key) {const r=this.db.prepare('SELECT value FROM settings WHERE key=?').get(key);return r?JSON.parse(r.value):null;}

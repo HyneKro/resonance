@@ -1,0 +1,21 @@
+[
+ {"case":"self-uploaded collaboration retains both performers","track":{"artist":"Aster, Nova","recordingArtists":["Aster","Nova"],"channel":"Aster","title":"Never Lost","artists":["Nova"],"artistCreditVersion":1},"artist":"Aster, Nova","names":["Aster","Nova"]},
+ {"case":"version suffix repairs a prior false artist","track":{"artist":"Move","artistBeforeCreditRepair":"Aster","artistCreditSource":"Upload title","artistCreditVersion":1,"recordingArtists":["Aster"],"channel":"Aster","title":"Move - VIP","rawTitle":"Move - VIP"},"artist":"Aster","names":["Aster"]},
+ {"case":"combined tag separates uploader from the explicitly credited artist","track":{"artist":"Label Records, Aster","recordingArtists":["Label Records, Aster"],"channel":"Label Records","title":"Aster - Think","rawTitle":"Aster - Think"},"artist":"Aster","names":["Aster"]},
+ {"case":"combined collaboration keeps its uploading performer","track":{"artist":"Aster, Nova","recordingArtists":["Aster, Nova"],"channel":"Aster","rawTitle":"Aster, Nova - Night","title":"Night"},"artist":"Aster, Nova","names":["Aster","Nova"]},
+ {"case":"feature before the dash never includes the song title","track":{"artist":"Channel","channel":"Channel","recordingArtists":["Channel"],"rawTitle":"Aster feat. Nova - Moonrise","title":"Aster feat. Nova - Moonrise"},"artist":"Aster, Nova","names":["Aster","Nova"]},
+ {"case":"feature after the song stays bounded by video labels","track":{"artist":"Aster","title":"Moonrise feat. Nova - Official Video"},"artist":"Aster","names":["Aster","Nova"]},
+ {"case":"numbered uploads are not artist names","track":{"artist":"Song title","artistBeforeCreditRepair":"Aster","artistCreditSource":"Upload title","artistCreditVersion":1,"channel":"Aster","rawTitle":"Song title - day 58 (extended)"},"artist":"Aster","names":["Aster"]},
+ {"case":"quoted song and music-video suffix","track":{"artist":"Aster","recordingArtists":["Aster"],"channel":"Aster","rawTitle":"'Artificial Love' - MUSIC VIDEO [one take]"},"artist":"Aster","names":["Aster"]},
+ {"case":"named remix is credited","track":{"artist":"Original Band","channel":"Aster","recordingArtists":["Aster"],"rawTitle":"Original Band - Night (Aster Bootleg Remix)"},"artist":"Original Band","names":["Original Band","Aster"]},
+ {"case":"instrumental remix is not a person","track":{"artist":"Aster","title":"Night (Instrumental Remix)"},"artist":"Aster","names":["Aster"]},
+ {"case":"live event uploader stays separate","track":{"artist":"Festival Channel","channel":"Festival Channel","recordingArtists":["Festival Channel"],"title":"Aster | Festival Winter 2024"},"artist":"Aster","names":["Aster"]},
+ {"case":"bands preserve punctuation","track":{"artist":"Earth, Wind & Fire","recordingArtists":["Earth, Wind & Fire"]},"artist":"Earth, Wind & Fire","names":["Earth, Wind & Fire"]},
+ {"case":"comma inside a name is not a feature","track":{"artist":"Tyler, The Creator","recordingArtists":["Tyler, The Creator"]},"artist":"Tyler, The Creator","names":["Tyler, The Creator"]},
+ {"case":"provider artist objects stay atomic","track":{"artist":"Other","musicbrainzArtists":[{"name":"A, B","id":"a"}],"title":"Song"},"artist":"A, B","names":["A, B"]},
+ {"case":"manual corrections win","track":{"artist":"My correction","metadataStatus":"manual","musicbrainzArtists":[{"name":"Wrong"}],"recordingArtists":["Wrong"],"rawTitle":"Wrong feat. Another - Song"},"artist":"My correction","names":["My correction"]},
+ {"case":"confirmed edits win over stale structured credits","track":{"artist":"My correction","metadataStatus":"confirmed","artists":["Wrong"],"musicbrainzArtists":[{"name":"Wrong"}]},"artist":"My correction","names":["My correction"]},
+ {"case":"empty locked artist remains empty","track":{"artist":"","metadataLocks":{"artist":true},"recordingArtists":["Wrong"],"rawTitle":"Wrong - Song"},"artist":"","names":[]},
+ {"case":"explicit artist is stronger than an unrelated hyphenated title","track":{"artist":"Aster","rawTitle":"Words - More Words"},"artist":"Aster","names":["Aster"]},
+ {"case":"song then performer on the artist channel","track":{"artist":"Song","artistBeforeCreditRepair":"Aster","artistCreditSource":"Upload title","artistCreditVersion":1,"channel":"Aster","recordingArtists":["Aster"],"rawTitle":"Song - Aster"},"artist":"Aster","names":["Aster"]}
+]

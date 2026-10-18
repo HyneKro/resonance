@@ -1,4 +1,4 @@
-import {artistNames,splitArtistCredit} from './artist-credits.js';
+import {artistNames,titleArtistCredits} from './artist-credits.js';
 export const genreKey=s=>String(s||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
 export function genreTitle(track){
  let title=String(track.title||'').replace(/\s*\[[\w-]{11}\]$/,'').replace(/\s*[\[(](?:(?:4k|hd)\s+)?(?:official(?:\s+(?:music|audio|video|lyrics?|visuali[sz]er))*|music\s*video|clip officiel|official m\.?v\.?|lyrics?(?: video)?|audio|visuali[sz]er|[^)\]]{1,35} release)[\])]/gi,'').replace(/\s+official (?:music video|lyric video|audio|visuali[sz]er)$/i,'').trim();
@@ -6,8 +6,8 @@ export function genreTitle(track){
  return title.replace(/\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s*[^)\]]+[)\]]/gi,'').replace(/\s+(?:feat\.?|ft\.?|featuring)\s*.*$/i,'').trim();
 }
 export function genreArtists(track){
- const names=track.artistIds?.length?track.artistIds.map(a=>a.name):artistNames(track),guest=String(track.title||'').match(/\b(?:feat\.?|ft\.?|featuring)\s*([^)[\]]+)/i)?.[1];
- return [...new Map([...names,...(guest?splitArtistCredit(guest):[])].filter(Boolean).map(n=>[genreKey(n),n])).values()];
+ const names=track.artistIds?.length?track.artistIds.map(a=>a.name):artistNames(track);
+ return [...new Map([...names,...titleArtistCredits(track)].filter(Boolean).map(n=>[genreKey(n),n])).values()];
 }
 const versions=s=>[...String(s||'').toLowerCase().matchAll(/\b(remix|live|cover|acoustic|instrumental|nightcore|slowed|sped|remaster)\b/g)].map(x=>x[1]).sort().join(',');
 export function sameGenreRecording(track,candidate){

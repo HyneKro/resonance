@@ -14,11 +14,7 @@ public final class GenreResearch {
     public GenreResearch(Reader reader,JSONObject taxonomy){this.reader=reader;this.taxonomy=taxonomy;}
     public static String key(String s){return Research.normalize(s);}
     public static List<String> artists(JSONObject t){
-        LinkedHashMap<String,String> out=new LinkedHashMap<>();JSONArray names=t.optJSONArray("artists");
-        if(names!=null&&names.length()>0&&!t.optString("metadataStatus").equals("manual")&&!(t.optJSONObject("metadataLocks")!=null&&t.optJSONObject("metadataLocks").optBoolean("artist"))){for(int i=0;i<names.length();i++){Object n=names.opt(i);String name=n instanceof JSONObject?((JSONObject)n).optString("name"):String.valueOf(n);if(!name.isBlank())out.put(key(name),name);}}
-        else for(String part:t.optString("artist").replaceFirst("(?i)\\s+-\\s+Topic$","").split("(?i)\\s*[\\[(]?\\b(?:feat\\.?|ft\\.?|featuring)\\s*|\\s+[x×]\\s+|\\s*;\\s*"))for(String n:part.contains("&")?new String[]{part}:part.split(",\\s+")){String name=n.trim();if(name.endsWith(")")&&!name.contains("(")||name.endsWith("]")&&!name.contains("["))name=name.substring(0,name.length()-1).trim();if(!name.isBlank())out.put(key(name),name);}
-        Matcher m=Pattern.compile("(?i)\\b(?:feat\\.?|ft\\.?|featuring)\\s*([^)\\]]+)").matcher(t.optString("title"));if(m.find())for(String n:m.group(1).split(",\\s+"))out.put(key(n),n.trim());
-        return new ArrayList<>(out.values());
+        LinkedHashMap<String,String> out=new LinkedHashMap<>();List<String> names=ArtistCredits.names(t);names.addAll(ArtistCredits.titleNames(t));for(String n:names)out.put(key(n),n);return new ArrayList<>(out.values());
     }
     public static String title(JSONObject t){
         String title=t.optString("title").replaceFirst("\\s*\\[[\\w-]{11}\\]$","").replaceAll("(?i)\\s*[\\[(](?:(?:4k|hd)\\s+)?(?:official(?:\\s+(?:music|audio|video|lyrics?|visuali[sz]er))*|music\\s*video|clip officiel|official m\\.?v\\.?|lyrics?(?: video)?|audio|visuali[sz]er|[^)\\]]{1,35} release)[\\])]","").replaceFirst("(?i)\\s+official (?:music video|lyric video|audio|visuali[sz]er)$","").trim();
@@ -136,11 +132,13 @@ public final class GenreResearch {
     public static JSONObject sourceLabels(JSONObject track,JSONObject info){
         Json.put(track,"channel",info.optString("channel",info.optString("uploader")));Json.put(track,"rawTitle",info.optString("title",track.optString("title")));
         String description=info.optString("description");Json.put(track,"description",description.substring(0,Math.min(20000,description.length())));JSONArray tags=info.optJSONArray("tags"),safe=new JSONArray();if(tags!=null)for(int i=0;i<Math.min(100,tags.length());i++)safe.put(tags.optString(i));Json.put(track,"sourceTags",safe);
-        if(!Set.of("manual","confirmed").contains(track.optString("metadataStatus"))){
-            JSONArray artists=info.optJSONArray("artists");if(artists!=null&&artists.length()>0)Json.put(track,"artists",artists);
-            if(!info.optString("artist").isBlank()){Json.put(track,"artist",info.optString("artist"));Json.put(track,"artistCreditSource","Recording credits");}
-            else{String[] parts=track.optString("rawTitle").replaceFirst("^\\[[^\\]]+\\]\\s*","").split("\\s+[-–—]\\s+",2);if(parts.length==2&&!key(parts[0]).equals(key(track.optString("channel")))){Json.put(track,"artist",parts[0].trim());Json.put(track,"artistCreditSource","Upload title");if(info.optString("track").isBlank())Json.put(track,"title",parts[1].trim());}}
+        if(!Set.of("manual","confirmed").contains(track.optString("metadataStatus"))&&!(track.optJSONObject("metadataLocks")!=null&&track.optJSONObject("metadataLocks").optBoolean("artist"))){
+            JSONArray artists=info.optJSONArray("artists");if(artists!=null&&artists.length()>0)Json.put(track,"recordingArtists",artists);
+            else if(!info.optString("artist").isBlank())Json.put(track,"recordingArtists",new JSONArray().put(info.optString("artist")));
+            if(!info.optString("artist").isBlank())Json.put(track,"artist",info.optString("artist"));
         }
+        ArtistCredits.repair(track);
+        if(!Set.of("manual","confirmed").contains(track.optString("metadataStatus"))&&!(track.optJSONObject("metadataLocks")!=null&&track.optJSONObject("metadataLocks").optBoolean("title"))&&info.optString("track").isBlank()&&track.optString("title").equals(track.optString("rawTitle")))Json.put(track,"title",ArtistCredits.sourceTitle(track));
         return track;
     }
 }
