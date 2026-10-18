@@ -36,10 +36,21 @@ The helper confirms the destination repository, checks the clean Windows configu
 
 5. After both uploads pass verification, publish both drafts. Set Windows as a stable release and Latest; keep Android preview as a prerelease with Latest disabled. Drafts are ignored by app update checks, so leaving drafts is not a completed release.
 6. Verify public download access and platform-specific updater discovery without credentials. An older installed version should find the corresponding new release; the current version should not offer itself again. Wait for the download-page workflow to succeed and verify both buttons on https://hynekro.github.io/resonance/ show the new versions. Return the shareable download-page link and both published release links. Report any remaining build or publication blocker explicitly.
+7. Complete the release with `npm run release:finish`. This is the mandatory local cleanup step, after successful publication and verification of **both** platforms. Do not run it early during packaging or draft uploads. `npm run release:cleanup` previews the plan without deleting files. Release-tooling-only changes do not require app builds or new binary versions.
 
 Keep the exact platform tag and asset filename conventions shown above. Do not overwrite a published artifact with changed contents; ship a new version instead.
 
 Never upload a used portable folder or its `data` directory. Send only the original clean ZIP. Do not include an owner's GitHub token, password or signing key in an app, repository or release.
+
+## Local retention after releases
+
+Keep the two newest published versions independently for PC and Android: the current versioned ZIP/APK and one previous version for rollback. The approved `CHECKPOINT.json` snapshot remains separate and is never pruned. Git history and GitHub Releases are unchanged, so older source and downloads remain available online. This policy starts with the files currently present; it does not automatically download versions removed by the earlier one-time cleanup.
+
+`release:finish` first verifies that the source versions match the newest public platform releases, their local files match GitHub's SHA-256 digests and sizes, downloads are anonymously reachable, and the public page links to both versions. Missing artifacts, an incomplete release or a stale/unavailable page stop cleanup. The underlying PowerShell remover validates the complete plan before deletion, rejects paths outside the project or through filesystem links, protects tracked source and checkpoint paths, checks retained hashes again, and skips running installations or folders containing user data/signing material. Skipped files are reported for review; do not force-delete them or stop the owner's app.
+
+Cleanup removes older published versioned archives/checksum folders, redundant timestamped ZIPs, obsolete clean Windows extractions, staging output, Android build output, and recognized disposable test fixtures. It retains the latest clean Windows extraction and updates `releases/latest.json` to its versioned ZIP. Unpublished or unrecognized build files are left for investigation. SDKs, Gradle caches, emulator data, the installed `desktop-build`, personal library/settings, original skybox assets, original Sona artwork and design backups stay untouched.
+
+Put new release-specific extracted apps and temporary verification profiles under **`test-output/release-work/`**, so they are removed after release. Save reusable artwork or other source inputs elsewhere; never put them in this disposable directory. Keep concise verification findings in the release notes before cleanup. The latest cleanup plan/result are saved locally in `.private/release-cleanup/` and overwritten on the next run rather than accumulating reports. This is a local release-completion step, not a scheduled task or a GitHub-hosted cleanup job.
 
 ## Local development
 
