@@ -18,7 +18,7 @@ export class CompanionRenderer{
   if(this.loading&&this.loadingId===id)return this.loading;
   const generation=++this.generation;
   if(this.ready&&this.appearance===id){this.loading=null;return Promise.resolve(true);}
-  const info=appearanceInfo(id),sheet=id==='sona'?SONA_SHEETS[0]:{src:info.src,columns:4,rows:6};
+  const info=appearanceInfo(id),sheet=id==='sona'?SONA_SHEETS[0]:{src:info.src,columns:12,rows:10};
   this.loadingId=id;
   const pending=new Promise((resolve,reject)=>{
    const image=new Image();image.onload=()=>image.naturalWidth!==sheet.columns*160||image.naturalHeight!==sheet.rows*160?reject(Error('Invalid sprite grid')):resolve(image);image.onerror=reject;image.src=sheet.src;
@@ -35,7 +35,7 @@ export class CompanionRenderer{
   if(!this.readback){const buffer=document.createElement('canvas');buffer.width=buffer.height=this.size;this.readback=buffer.getContext('2d',{willReadFrequently:true});}
   const ctx=this.readback;ctx.clearRect(0,0,this.size,this.size);
   // Whole poses are measured and registered once when the texture is built.
-  const cell=appearanceCell(row,frame),x=this.appearance==='sona'?frame:cell%4,y=this.appearance==='sona'?row:Math.floor(cell/4);
+  const cell=appearanceCell(row,frame),x=this.appearance==='sona'?frame:cell%12,y=this.appearance==='sona'?row:Math.floor(cell/12);
   ctx.drawImage(this.images[0],x*160,y*160,160,160,0,0,160,160);
   let data=ctx.getImageData(0,0,this.size,this.size);
   if(this.appearance==='sona'&&drawCompanionEmblem(ctx,data,row,frame))data=ctx.getImageData(0,0,this.size,this.size);

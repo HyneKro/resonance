@@ -22,14 +22,15 @@ export const COMPANION_APPEARANCES=Object.freeze([
 export const companionAppearance=value=>COMPANION_APPEARANCES.some(item=>item.id===value)?value:'sona';
 export const appearanceInfo=value=>COMPANION_APPEARANCES.find(item=>item.id===companionAppearance(value));
 
-// New sheets contain two complete eight-pose dance loops and eight interaction
-// poses. Sona retains her original 104-pose sheet and exact authored sequences.
+// Guest sheets have eight twelve-pose dances and six four-pose interactions.
+// Sona retains her original 104-pose sheet and exact authored sequences.
 export function appearanceCell(row,frame){
- const f=Math.max(0,Math.min(7,Math.trunc(frame)||0));
- if(row<8)return (row===1?8:0)+f;
- if(row===8)return 18;
- if(row===9)return [16,19,19,19,19,19,16,16][f];
- if(row===10)return f<2?20:21;
- if(row===11)return [21,22,22,22,23,23,16,16][f];
- return [16,16,17,17,17,16,16,16][f];
+ const f=Math.max(0,Math.trunc(frame)||0);
+ if(row<8)return Math.max(0,row)*12+Math.min(11,f);
+ const i=Math.min(7,f);
+ if(row===8)return [100,101,102,103,102,101,100,100][i];
+ if(row===9)return [104,105,106,106,107,107,104,104][i];
+ if(row===10)return 108+i;
+ if(row===11)return [116,116,117,117,118,118,119,119][i];
+ return [96,96,96,97,98,99,96,96][i];
 }

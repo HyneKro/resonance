@@ -21,10 +21,10 @@ export function sequenceFrame(seconds,times,frames=null,loop=true){
  }
 }
 export function clipDurations(clip,bpm){
- const duration=clip.beats*60/clamp(bpm,55,180),minimum=1/12,remaining=Math.max(0,duration-8*minimum),weights=clip.weights||Array(8).fill(1),weight=total(weights);
+ const count=clip.frameCount||8,duration=clip.beats*60/clamp(bpm,55,180),minimum=1/12,remaining=Math.max(0,duration-count*minimum),weights=clip.weights||Array(count).fill(1),weight=total(weights);
  const times=weights.map(w=>minimum+remaining*w/weight);
  // Joyful eye-closes belong to one accent, never half a slow dance cycle.
- for(const index of clip.eyeClose||[]){const excess=Math.max(0,times[index]-.15);times[index]=Math.min(times[index],.15);times[(index+1)%8]+=excess;}
+ for(const index of clip.eyeClose||[]){const excess=Math.max(0,times[index]-.15);times[index]=Math.min(times[index],.15);times[(index+1)%count]+=excess;}
  return times;
 }
 export function danceFrame(clip,beats,bpm){
@@ -43,11 +43,13 @@ export class DanceMotion{
  setAppearance(value){
   const info=appearanceInfo(value);if(this.appearance===info.id)return;
   this.appearance=info.id;this.beats=0;this.routineStart=0;this.routineIndex=0;this.routineState='dancing';
-  this.routines=info.id==='sona'?SONA_ROUTINES:['head-bob','dance'];
-  this.clips=info.id==='sona'?SONA_CLIPS:{...SONA_CLIPS,
-   'head-bob':{row:0,beats:info.grooveSeconds*SONA_PACE/60,weights:[2,1,1,1,2,1,1,1]},
-   dance:{row:1,beats:info.danceSeconds*SONA_PACE/60,weights:[2,1,1,1,2,1,1,1]},
-  };
+  this.routines=SONA_ROUTINES;
+  this.clips=SONA_CLIPS;
+  if(info.id!=='sona'){
+   const slow=Math.max(1.2,info.grooveSeconds*.5),quick=Math.max(1,info.danceSeconds*.65);
+   this.clips={...SONA_CLIPS};
+   for(const name of this.routines){const seconds=['head-bob','side-sway','hand-wave'].includes(name)?slow:quick;this.clips[name]={row:SONA_CLIPS[name].row,beats:seconds*SONA_PACE/60,frameCount:12};}
+  }
  }
  press(){this.action='pressed';this.elapsed=0;this.quiet=0;}
  click(){this.action='clicked';this.elapsed=0;this.quiet=0;}
@@ -77,7 +79,7 @@ export class DanceMotion{
   let boundary=false;
   if(active&&!this.action&&!mode){const clip=this.clips[this.routineState==='listening'?'head-bob':this.routines[this.routineIndex]],span=clip.beats*3;if(this.beats-this.routineStart>=span-1e-9){this.routineStart+=span;this.routineIndex=(this.routineIndex+1)%this.routines.length;boundary=true;}}
   const phrase=mode?Math.floor(this.beats/16)%this.routines.length:this.routineIndex;
-  const musicState=phrase===(this.appearance==='sona'?2:0)?'listening':'dancing';
+  const musicState=phrase===2?'listening':'dancing';
   if(boundary||this.beats===0)this.routineState=musicState;
   this.state=this.action||(mode||(active?this.routineState:this.quiet>35?'sleep':'idle'));
   const music=this.state.startsWith('dancing')||this.state==='listening';this.name=this.state==='listening'?'head-bob':music?this.routines[phrase]:this.state;
@@ -89,7 +91,7 @@ export class DanceMotion{
    // cycle so the turn and alternating cheer do not crawl through eight poses.
    const clip=this.clips[this.name],sample=danceFrame(clip,mode?this.beats:Math.max(0,this.beats-this.routineStart),this.bpm);
    row=clip.row;frame=sample.frame;
-   if(this.name==='soft-bounce')pose.y-=lift[sample.index]+(lift[(sample.index+1)%8]-lift[sample.index])*smooth(sample.progress);
+   if(this.appearance==='sona'&&this.name==='soft-bounce')pose.y-=lift[sample.index]+(lift[(sample.index+1)%8]-lift[sample.index])*smooth(sample.progress);
   }else{pose.y=Math.sin(t*2)*.35;pose.rotation=Math.sin(t*.8)*.012;}
   if(this.state==='sleep'){row=8;frame=sequenceFrame(this.stateTime,SONA_TIMING.sleep).frame;pose.rotation=0;pose.sleep=1;pose.y=Math.sin(t*1.6)*.25;}
   if(this.state==='pressed'){row=12;frame=0;}
