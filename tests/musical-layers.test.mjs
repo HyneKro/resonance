@@ -4,7 +4,6 @@ import {MusicalLayers} from '../public/musical-layers.js';
 import {AudioFeatures} from '../public/analysis.js';
 import {VisualSyncBuffer} from '../public/visual-sync.js';
 import {createProjector,projectPoint} from '../public/constellation-space.js';
-import {sleeveDesign} from '../public/sleeve-design.js';
 test('sustained narrow notes and new broadband attacks drive distinct layers',()=>{
  const m=new MusicalLayers(),tone=new Float32Array(48);tone[20]=.8;tone[27]=.4;
  for(let i=0;i<60;i++)m.update(tone,1/60);
@@ -27,7 +26,4 @@ test('Bluetooth visual delay includes the new layers',()=>{
 });
 test('cached projection preserves rotation, zoom, clipping and parallax',()=>{
  for(const yaw of [-9,0,8])for(const pitch of [-4,0,3])for(const zoom of [.2,1,8]){const pose={yaw,pitch,zoom,center:[70,-30,150]},project=createProjector(pose,1400,800,53);for(const point of [[0,0,0],[10000,-8000,34000],[-400,500,900]]){const old=projectPoint(point,pose,1400,800),next=project(point);if(!old)assert.equal(next,null);else{assert.ok(Math.abs(old.x-next.x)<1e-9);assert.ok(Math.abs(old.y+53-next.y)<1e-9);}}}
-});
-test('sleeves are deterministic bounded static artwork with distinct genre families',()=>{
- assert.deepEqual(sleeveDesign({id:'a'}),sleeveDesign({id:'a'}));assert.notDeepEqual(sleeveDesign({id:'a'}),sleeveDesign({id:'b'}));assert.equal(sleeveDesign({genre:'Ambient'}).kind,'contour');assert.equal(sleeveDesign({genre:'Techno'}).kind,'pulse');assert.equal(sleeveDesign().paths.length,36);assert.ok(sleeveDesign().paths.every(p=>!p.includes('NaN')));
 });

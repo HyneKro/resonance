@@ -100,15 +100,27 @@ export function createProjector(pose,width,height,top=0){
 }
 // Clip a whole world-space connection, not its endpoint sprites. A route can
 // cross the view even when both stars are offscreen or one is behind the camera.
-export function projectSegment(a,b,pose,width,height){
+export function projectSegment(a,b,pose,width,height,{top=0,clipWidth=width,clipHeight=height}={}){
  const cy=Math.cos(pose.yaw),sy=Math.sin(pose.yaw),cp=Math.cos(pose.pitch),sp=Math.sin(pose.pitch);
  const camera=p=>{const [x,y,z]=p.map((v,i)=>v-pose.center[i]),xx=x*cy-z*sy,zz=x*sy+z*cy;return [xx,y*cp-zz*sp,y*sp+zz*cp+1250/pose.zoom];};
  let p=camera(a),q=camera(b);if(p[2]<35&&q[2]<35)return null;
  if(p[2]<35||q[2]<35){const t=(35-p[2])/(q[2]-p[2]),cut=p.map((v,i)=>v+(q[i]-v)*t);if(p[2]<35)p=cut;else q=cut;}
- const f=Math.min(width,height*1.55)*1.12,screen=v=>({x:width/2+v[0]*f/v[2],y:height/2+v[1]*f/v[2]});
+ const f=Math.min(width,height*1.55)*1.12,screen=v=>({x:width/2+v[0]*f/v[2],y:top+height/2+v[1]*f/v[2]});
  p=screen(p);q=screen(q);const dx=q.x-p.x,dy=q.y-p.y;let lo=0,hi=1;
- for(const [d,n] of [[-dx,p.x],[dx,width-p.x],[-dy,p.y],[dy,height-p.y]]){if(Math.abs(d)<1e-9){if(n<0)return null;continue;}const t=n/d;if(d<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);if(lo>hi)return null;}
+ for(const [d,n] of [[-dx,p.x],[dx,clipWidth-p.x],[-dy,p.y],[dy,clipHeight-p.y]]){if(Math.abs(d)<1e-9){if(n<0)return null;continue;}const t=n/d;if(d<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);if(lo>hi)return null;}
  return {a:{x:p.x+dx*lo,y:p.y+dy*lo},b:{x:p.x+dx*hi,y:p.y+dy*hi},start:lo,end:hi};
+}
+// Desktop follows display cadence. Mobile/reduced-motion caps retain the
+// fractional remainder instead of falling to 24/55 FPS on 120/165 Hz screens.
+export class SceneCadence {
+ constructor(){this.reset();}
+ reset(){this.last=null;this.deadline=null;}
+ step(now,interval=0){
+  if(this.deadline!==null&&now+.1<this.deadline)return null;
+  const dt=this.last===null?1/60:Math.min(.05,Math.max(0,(now-this.last)/1000));this.last=now;
+  this.deadline=interval?this.deadline===null?now+interval:this.deadline+(Math.floor(Math.max(0,now-this.deadline)/interval)+1)*interval:now;
+  return dt;
+ }
 }
 export function pickSphere(hits,x,y,touch=false){
  // The frontmost sphere wins overlapping silhouettes. Larger touch targets

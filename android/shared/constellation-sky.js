@@ -4,9 +4,12 @@ import {hash} from './constellation-model.js';
 import {projectPoint} from './constellation-space.js';
 import {skyTexture} from './constellation-sky-texture.js';
 export function backdropStars(coarse=false){
- return [34000,10000,2600].flatMap((distance,layer)=>Array.from({length:(coarse?[440,250,110]:[850,500,220])[layer]},(_,i)=>{
-  const key=`backdrop:${layer}:${i}`,a=hash(key+'az')*Math.PI*2,z=hash(key+'z')*2-1,r=Math.sqrt(1-z*z);
-  return {point:[Math.cos(a)*r*distance,z*distance,Math.sin(a)*r*distance],layer,size:.45+layer*.24+hash(key+'size')*.5,phase:hash(key+'phase')*6.28};
+ return Array.from({length:12},(_,depth)=>depth).flatMap(depth=>Array.from({length:coarse?65:130},(_,i)=>{
+  const key=`volume:${depth}:${i}`,a=hash(key+'az')*Math.PI*2,z=hash(key+'z')*2-1,r=Math.sqrt(1-z*z);
+  // Every point has its own distance, with a continuous logarithmic spread.
+  // No surface/shell radius is shared; nearby dust gives real travel parallax.
+  const distance=650*Math.pow(75,(depth+hash(key+'distance'))/12),layer=depth<4?2:depth<8?1:0;
+  return {point:[Math.cos(a)*r*distance,z*distance,Math.sin(a)*r*distance],layer,size:.32+hash(key+'size')*.42,phase:hash(key+'phase')*6.28};
  }));
 }
 export function projectBackdrop(star,pose,width,height){return projectPoint(star.point,pose,width,height);}

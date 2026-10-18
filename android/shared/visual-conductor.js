@@ -37,10 +37,15 @@ export class VisualConductor {
     const energy=audible?clamp((features.db-this.floor)/Math.max(16,this.ceiling-this.floor)) : 0;
     this.energy=clamp(this.energyMotion.update(energy,dt));
     for(let i=0;i<48;i++)this.spectrum[i]=clamp(this.spectralMotion[i].update(audible?(features.spectrum?.[i]||0):0,dt));
-    const layerSpeed=Math.sqrt(response);
+    // Notes keep their own envelopes, but don't shake the entire sculpture at
+    // FFT-frame speed. Fast attack preserves articulation; a longer release
+    // connects adjacent observations of the same note without flicker.
+    const layerSpeed=Math.min(1.8,Math.sqrt(response));
     for(let i=0;i<48;i++){
-      this.harmonic[i]=follow(this.harmonic[i],audible?(features.harmonic?.[i]||0):0,dt,.09/layerSpeed);
-      this.percussive[i]=follow(this.percussive[i],audible?(features.percussive?.[i]||0):0,dt,.024/layerSpeed);
+      const h=audible?clamp((features.harmonic?.[i]||0)-.025)/.975:0;
+      const p=audible?clamp((features.percussive?.[i]||0)-.055)/.945:0;
+      this.harmonic[i]=follow(this.harmonic[i],h,dt,(h>this.harmonic[i]?.10:.24)/layerSpeed);
+      this.percussive[i]=follow(this.percussive[i],p,dt,(p>this.percussive[i]?.045:.20)/layerSpeed);
     }
     const spectrum=features.timbreBands||features.bands;
     for(let i=0;i<8;i++){

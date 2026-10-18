@@ -268,9 +268,11 @@ const displaySettings=installDisplaySettings({reactor});
 const visualSyncUI=installVisualSyncUI({reactor,state,setPreferences,onError:toast});
 const syncReview=installSyncReview({entries:()=>state.syncPreview?.entries||[],getTrack,esc,duration});
 const sourceUI=installSourceUI({state,api,esc,icon,showDialog,closeDialog,refresh,navigate,closeRoom,toast});
+await yieldSceneWork();
 const immersive=installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,queueDialog,soundDialog,openRoom,closeRoom,closeDialog,savePlayer,details});
 const settingsMenu=installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress});
 installBrand();installPortableUpdateUI({toast,state,openUpdates:()=>settingsMenu.open('updates')});
+await yieldSceneWork();
 const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast,getSongProfile:id=>listening.track?.id===id?listening.profile:null});
 organizeVisualMenu($('.visual-tools'));
 installSonaDesktop({state,reactor,audio,togglePlay,nextTrack,setPreferences,toast});
@@ -327,4 +329,5 @@ async function setListeningMode(mode){const request=++modeRequest;
 }
 $('#room-constellation').onclick=safe(()=>setListeningMode('constellation'));
 $('#room-visualizer').onclick=safe(()=>setListeningMode('visualizer'));
+await yieldSceneWork();
 init();

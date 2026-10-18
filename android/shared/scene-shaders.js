@@ -14,6 +14,7 @@ uniform float u_particleStyle,u_spectrum[48];
 uniform vec4 u_harmonic[12],u_percussive[12];
 float harmonicAt(int i){return u_harmonic[i/4][i%4];}
 float percussiveAt(int i){return u_percussive[i/4][i%4];}
+float spectral(float lane){float x=clamp(lane,0.,1.)*47.;int i=int(floor(x));return mix(u_spectrum[i],u_spectrum[min(47,i+1)],fract(x));}
 uniform vec3 u_accents,u_transients,u_colorA,u_colorB,u_colorC,u_palette[6];
 const float PI=3.14159265359;
 const float TAU=6.28318530718;
@@ -127,9 +128,11 @@ void main(){
  float frequency=u_particleStyle>2.5?max(0.,a_birth.z):lane;
  int musicalLane=int(clamp(floor(frequency*47.+.5),0.,47.));
  float role=step(.68,a_seed.z);
- float resonance=mix(harmonicAt(musicalLane)*1.25,percussiveAt(musicalLane)*1.6,role);
+ float resonance=mix(harmonicAt(musicalLane)*1.15,percussiveAt(musicalLane)*1.25,role);
  float bass=u_low.x*.4+u_low.y*.6,mid=u_low.z*.25+u_low.w*.35+u_high.x*.4;
- vec3 p=tissue(u,v,resonance,a_seed.w),weave=field(p*5.8,t*.06);
+ // Shared smooth displacement keeps neighbouring threads joined. Separated
+ // notes articulate light and fine filaments, never random chunks of mass.
+ vec3 p=tissue(u,v,spectral(frequency),a_seed.w),weave=field(p*5.8,t*.06);
  float twist=u*(1.+torsion*1.8)+.22*sin(t*.075)+v*opening;
  p=organismPose(p);
  float vein=pow(.5+.5*sin(v*(35.+lace*9.)+u*9.+weave.z*2.),14.);
@@ -147,12 +150,12 @@ precision highp float;in vec4 a_seed;in vec4 a_birth;out vec3 v_color;out float 
 ${COMMON}
 void main(){
  float t=u_time,branch=floor(a_seed.x*192.),u=(branch+.5)/192.*TAU;
- float lane=floor(a_seed.x*48.)/47.,response=percussiveAt(int(floor(lane*47.+.5)))*1.4;
+ float lane=floor(a_seed.x*48.)/47.,response=percussiveAt(int(floor(lane*47.+.5)))*1.15;
  float side=a_seed.z<.5?-1.:1.,s=a_seed.y;
  vec3 p;float alpha,size;
  if(a_seed.w<.63){
    // A narrow seeded spine with paired wisps: continuous growth, never random relocation.
-   vec3 root=tissue(u,side*.88,response,a_seed.w),outward=normalize(root+vec3(.001));
+   vec3 root=tissue(u,side*.88,spectral(lane),a_seed.w),outward=normalize(root+vec3(.001));
    vec3 tangent=vec3(-sin(u),cos(u),cos(u*2.)*.3);
    float length=.12+.32*u_morph.w+response*(.20+u_character.y*.23)+u_themes[3]*.28;
    float bend=sin(s*PI)*(sin(u*7.+t*.13)*.10+u_morph.y*.16);
@@ -222,12 +225,14 @@ in vec4 a_seed;out vec3 v_color;out float v_alpha;
 ${COMMON}
 void main(){
  float lane=floor(a_seed.x*48.),phase=lane/48.,s=a_seed.y,t=u_time;
- float response=mix(harmonicAt(int(lane))*1.3,percussiveAt(int(lane))*1.6,step(.63,a_seed.y)),theta=phase*TAU+t*.025;
+ // A whole filament follows one envelope; switching roles partway down it
+ // introduces a visible kink when a percussive note arrives.
+ float response=harmonicAt(int(lane))*.85+percussiveAt(int(lane))*.35,theta=phase*TAU+t*.025;
  vec3 p;float alpha,shade;
  if(a_seed.w<.8){
    // Each stable petal has its own fixed frequency window: 40 Hz through 16 kHz.
    // Only that window opens and lights its filament; global energy does not impersonate it.
-   vec3 root=tissue(phase*TAU,.92,response,a_seed.w),normal=normalize(root+vec3(.001));
+   vec3 root=tissue(phase*TAU,.92,spectral(phase),a_seed.w),normal=normalize(root+vec3(.001));
    float reach=.18+s*(.25+response*.58),curl=sin(s*PI)*(.08+response*.20);
    p=root+normal*reach+vec3(-normal.y,normal.x,0.)*curl;
    p.z+=sin(s*7.+phase*TAU+t*.07)*s*.09;

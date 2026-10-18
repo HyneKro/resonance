@@ -67,15 +67,21 @@ export class SongDirector {
  constructor(){this.values=[.5,.5,.3,0];this.springs=this.values.map(v=>new Inertia(v,4));this.blend=new Inertia(0,2.4);this.chapter=null;}
  select(profile,time=0){
   this.profile=profile;this.chapters=songChapters(profile);this.chapter=this.chapterAt(time);
-  this.candidateKey=this.chapterKey(this.chapter);this.initialChapterKey=null;this.dwell=0;this.initialized=true;this.awaitingProfile=!this.chapters.length;
+  this.candidateKey=this.chapterKey(this.chapter);this.initialChapterKey=null;this.dwell=0;this.initialized=true;this.awaitingProfile=!this.chapters.length;this.lastTime=time;this.seekHold=0;
  }
  chapterAt(time){return this.chapters?.find(c=>time>=c.start&&time<c.end)||this.chapters?.at(-1)||null;}
  chapterKey(chapter){return chapter?chapter.kind+':'+chapter.start:'';}
  update(profile,time,dt,{enabled=true,active=true,frozen=false,reduced=false}={}){
   if(!this.initialized)this.select(profile,time);
   if(this.profile!==profile){this.profile=profile;this.chapters=songChapters(profile);}
-  const now=enabled?sampleProfile(profile,time):null,next=now?sampleProfile(profile,time+5):null;
-  const target=now?[now.energy,now.texture,now.attack,clamp((next.energy-now.energy)*2,-1,1)]:[.5,.5,.3,0];
+  const now=enabled?sampleProfile(profile,time):null;
+  // Scan the measured approach instead of one point five seconds away. Short
+  // drops used to fall between samples; nearby changes should matter most.
+  let anticipation=0;
+  if(now)for(let ahead=1;ahead<=6;ahead+=.5){const next=sampleProfile(profile,time+ahead),rise=(next.energy-now.energy)*Math.min(1,ahead/2)*(1-ahead/9);anticipation=Math.max(anticipation,rise);}
+  if(!frozen&&active){if(Math.abs(time-(this.lastTime??time))>1.2)this.seekHold=1.5;this.lastTime=time;this.seekHold=Math.max(0,(this.seekHold||0)-dt);}
+  this.springs[3].seconds=this.seekHold?4:1.4;
+  const target=now?[now.energy,now.texture,now.attack,this.seekHold?0:clamp(anticipation*2.4)]:[.5,.5,.3,0];
   if(!frozen&&!reduced){
    this.blend.update(now?1:0,dt);
    if(active)this.values=this.springs.map((s,i)=>s.update(target[i],dt));

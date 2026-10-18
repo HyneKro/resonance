@@ -6,7 +6,7 @@ import {SceneReveal} from '../public/scene-reveal.js';
 
 test('background layers have true depth parallax, stable positions and bounded density',()=>{
  const stars=backdropStars(),phone=backdropStars(true);assert.deepEqual(stars,backdropStars());assert.ok(stars.length<1800);assert.ok(phone.length<1000);
- const radii=new Set(stars.map(s=>Math.round(Math.hypot(...s.point))));assert.equal(radii.size,3);
+ const radii=new Set(stars.map(s=>Math.round(Math.hypot(...s.point))));assert.ok(radii.size>stars.length*.85,'continuous depth rather than shared spherical shells');
  const pose={yaw:0,pitch:0,zoom:1,center:[0,0,0]},moved={...pose,center:[200,0,0]};
  const shift=distance=>{const star={point:[0,0,distance]};return Math.abs(projectBackdrop(star,moved,1200,800).x-projectBackdrop(star,pose,1200,800).x);};
  assert.ok(shift(5200)>shift(13000)*1.7);assert.ok(shift(13000)>shift(34000)*1.7);
