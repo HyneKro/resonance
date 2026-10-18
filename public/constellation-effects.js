@@ -13,12 +13,12 @@ export class StarAtmosphere{
   }
   this.sprites.set(color,canvas);return canvas;
  }
- drawClouds(c,groups,project,time){
+ drawClouds(c,groups,project,time,width=Infinity,height=Infinity){
   c.save();c.globalCompositeOperation='screen';
-  for(const group of groups)for(let layer=0;layer<(this.coarse?2:3);layer++){
+  for(const group of groups)for(let layer=0;layer<(this.coarse?1:2);layer++){
    const seed=group.id+layer,p=project(group.position.map((v,i)=>v+(hash(seed+i)-.5)*650));if(!p)continue;
-   const size=Math.min(1600,(560+hash(seed)*240)*p.scale);if(size<8)continue;
-   c.save();c.translate(p.x,p.y);c.rotate(hash(seed+'tilt')*6.28+Math.sin(time*.025+layer)*.04);c.globalAlpha=.2;
+   const size=Math.min(1600,(560+hash(seed)*240)*p.scale);if(size<8||p.x+size/2<0||p.x-size/2>width||p.y+size/2<0||p.y-size/2>height)continue;
+   c.save();c.translate(p.x,p.y);c.rotate(hash(seed+'tilt')*6.28+Math.sin(time*.025+layer)*.04);c.globalAlpha=.25;
    c.drawImage(this.cloud(group.color),-size/2,-size/2,size,size);c.restore();
   }c.restore();
  }

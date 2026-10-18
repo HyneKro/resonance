@@ -13,7 +13,7 @@ app.whenReady().then(async()=>{
  win=new BrowserWindow({show:false,width:412,height:915,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});win.webContents.on('console-message',d=>{if(d.level==='error')errors.push(d.message);});
  await win.loadURL('http://127.0.0.1:'+server.address().port);await sleep(1200);
  const run=code=>win.webContents.executeJavaScript(code);
- await run(`(async()=>{const {MobileReactor}=await import('/mobile-reactor.js');const original=MobileReactor.prototype.visualState;MobileReactor.prototype.visualState=function(dt){window.testReactor=this;const state=original.call(this,dt);if(window.fadeFrames)window.fadeFrames.push(Array.from(state.kaleidoscopeWeights));return state;};document.querySelector('#music-only').click()})()`);
+ await run(`(async()=>{const {MobileReactor}=await import('/mobile-reactor.js');const original=MobileReactor.prototype.visualState;MobileReactor.prototype.visualState=function(dt){window.testReactor=this;const state=original.call(this,dt);if(window.fadeFrames)window.fadeFrames.push(Array.from(state.kaleidoscopeWeights));return state;};document.querySelector('#visualizer-mode').click()})()`);
  for(let i=0;i<100;i++){if(await run('window.testReactor?.gpu?.warmed&&window.testReactor?.hadFrame'))break;await sleep(100);}
  assert.ok(await run('window.testReactor?.gpu?.warmed&&window.testReactor?.hadFrame'));
  const defaults=await run(`({quality:window.testReactor.quality,fps:window.testReactor.targetFPS,hdr:window.testReactor.hdrMode,transform:document.querySelector('#room-gl').style.transform})`);

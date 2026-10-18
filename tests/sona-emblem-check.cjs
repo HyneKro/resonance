@@ -33,7 +33,7 @@ app.whenReady().then(async()=>{
   }
   return {modified,untouched,framesCached:renderer.frames.size,tintsCached:renderer.tints.size,images:[...sheets,detail].map(c=>c.toDataURL('image/png').split(',')[1])};
  })()`);
- assert.equal(result.modified,100);assert.equal(result.untouched,4);assert.ok(result.framesCached<=32&&result.tintsCached<=16);
+ assert.equal(result.modified,101);assert.equal(result.untouched,3);assert.ok(result.framesCached<=32&&result.tintsCached<=16);
  const names=['sona-emblem-poses-a.png','sona-emblem-poses-b.png','sona-emblem-details.png'];result.images.forEach((s,i)=>fs.writeFileSync(path.join(out,names[i]),Buffer.from(s,'base64')));delete result.images;
  fs.writeFileSync(path.join(out,'sona-emblem-check.json'),JSON.stringify({ok:true,...result},null,2));console.log(JSON.stringify({ok:true,...result}));win.destroy();server.close();app.exit(0);
 }).catch(e=>{console.error(e);win?.destroy();server?.close();app.exit(1);});setTimeout(()=>app.exit(2),30000).unref();

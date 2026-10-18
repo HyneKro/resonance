@@ -70,6 +70,12 @@ void main(){float f=min(view.x,view.w*1.55)*1.12;vec3 r=normalize(vec3((uv.x*vie
   this.buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);const p=gl.getAttribLocation(this.program,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,2,gl.FLOAT,false,0,0);
   this.uniformExposure=gl.getUniformLocation(this.program,'exposure');this.uniformView=gl.getUniformLocation(this.program,'view');this.uniformAngles=gl.getUniformLocation(this.program,'angles');this.gpuTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.gpuTexture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
  }
+ mount(foreground){
+  if(!this.gl)return;
+  this.layered=true;this.gpuCanvas.className='cx-sky-layer';this.gpuCanvas.setAttribute('aria-hidden','true');
+  Object.assign(this.gpuCanvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
+  foreground.before(this.gpuCanvas);
+ }
  draw(ctx,width,height,pose,top,viewHeight,focus=0){
   if(!this.ready){const g=ctx.createLinearGradient(0,0,width,height);g.addColorStop(0,'#050813');g.addColorStop(.5,'#15172b');g.addColorStop(1,'#050b13');ctx.fillStyle=g;ctx.fillRect(0,0,width,height);return;}
   const gl=this.gl;pose={...pose,yaw:pose.yaw+(this.art?2.9:0)};
@@ -77,7 +83,7 @@ void main(){float f=min(view.x,view.w*1.55)*1.12;vec3 r=normalize(vec3((uv.x*vie
    const ratio=Math.min(devicePixelRatio||1,this.coarse?1:1.5),w=Math.max(1,Math.round(width*ratio)),h=Math.max(1,Math.round(height*ratio));
    if(this.gpuCanvas.width!==w||this.gpuCanvas.height!==h){this.gpuCanvas.width=w;this.gpuCanvas.height=h;}
    if(!this.uploaded){gl.bindTexture(gl.TEXTURE_2D,this.gpuTexture);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,this.w,this.h,0,gl.RGB,gl.UNSIGNED_BYTE,this.texture);this.uploaded=true;}
-   gl.viewport(0,0,w,h);gl.uniform1f(this.uniformExposure,this.art?.48:1.2);gl.uniform4f(this.uniformView,width,height,top,viewHeight);gl.uniform2f(this.uniformAngles,pose.yaw,pose.pitch);gl.drawArrays(gl.TRIANGLES,0,6);ctx.drawImage(this.gpuCanvas,0,0,width,height);return;
+   gl.viewport(0,0,w,h);gl.uniform1f(this.uniformExposure,this.art?.48:1.2);gl.uniform4f(this.uniformView,width,height,top,viewHeight);gl.uniform2f(this.uniformAngles,pose.yaw,pose.pitch);gl.drawArrays(gl.TRIANGLES,0,6);if(!this.layered)ctx.drawImage(this.gpuCanvas,0,0,width,height);return;
   }
   const yaw=pose.yaw,pitch=pose.pitch,now=performance.now();if(!this.lastPose||Math.abs(yaw-this.lastPose[0])+Math.abs(pitch-this.lastPose[1])>.0003)this.movedAt=now;this.lastPose=[yaw,pitch];
   const moving=now-(this.movedAt||0)<160,w=moving?(this.coarse?352:640):(this.coarse?640:1280),h=Math.min(1000,Math.max(100,Math.round(w*height/width)));
@@ -97,5 +103,5 @@ void main(){float f=min(view.x,view.w*1.55)*1.12;vec3 r=normalize(vec3((uv.x*vie
   }
   ctx.drawImage(this.canvas,0,0,width,height);
  }
- dispose(){this.disposed=true;clearTimeout(this.timer);this.resolveReady();this.texture=null;if(this.gl){this.gl.deleteTexture(this.gpuTexture);this.gl.deleteBuffer(this.buffer);this.gl.deleteProgram(this.program);this.gl.getExtension('WEBGL_lose_context')?.loseContext();this.gl=null;}this.canvas.width=this.canvas.height=this.gpuCanvas.width=this.gpuCanvas.height=1;}
+ dispose(){this.gpuCanvas.remove();this.disposed=true;clearTimeout(this.timer);this.resolveReady();this.texture=null;if(this.gl){this.gl.deleteTexture(this.gpuTexture);this.gl.deleteBuffer(this.buffer);this.gl.deleteProgram(this.program);this.gl.getExtension('WEBGL_lose_context')?.loseContext();this.gl=null;}this.canvas.width=this.canvas.height=this.gpuCanvas.width=this.gpuCanvas.height=1;}
 }

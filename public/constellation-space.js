@@ -93,6 +93,11 @@ export function projectPoint(point,pose,width,height){
  const scale=Math.min(width,height*1.55)*1.12/depth;
  return {x:width/2+xx*scale,y:height/2+yy*scale,depth,scale};
 }
+// Reuse the camera basis for thousands of stars in a frame.
+export function createProjector(pose,width,height,top=0){
+ const cy=Math.cos(pose.yaw),sy=Math.sin(pose.yaw),cp=Math.cos(pose.pitch),sp=Math.sin(pose.pitch),f=Math.min(width,height*1.55)*1.12,distance=1250/pose.zoom,center=pose.center;
+ return point=>{const x=point[0]-center[0],y=point[1]-center[1],z=point[2]-center[2],xx=x*cy-z*sy,zz=x*sy+z*cy,yy=y*cp-zz*sp,depth=y*sp+zz*cp+distance;if(depth<35)return null;const scale=f/depth;return {x:width/2+xx*scale,y:top+height/2+yy*scale,depth,scale};};
+}
 // Clip a whole world-space connection, not its endpoint sprites. A route can
 // cross the view even when both stars are offscreen or one is behind the camera.
 export function projectSegment(a,b,pose,width,height){

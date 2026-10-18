@@ -49,7 +49,7 @@ Music only stops the visualizer and audio analysis, leaving covers, playback and
 Show visualizer brings the live scene back. Visual settings: Track character,
 Musical flashes, Contrast, Movement, Beat motion, Response, Detail, Frame rate and HDR.
 Visuals → Extras has twelve Kaleidoscope patterns and Sona, an optional dance companion, both off by default. Kaleidoscope patterns and its toggle dissolve smoothly, including when you change your mind during a transition.
-Sona keeps her illustrated style with 104 poses: eight dance routines, head-bobbing, a dedicated idle blink, sleep, greetings and pickup/landing sequences. Deliberate frame timing keeps blinks brief and gestures readable. Fixed foot anchors keep her grounded; carrying swings gently from her headphone band. Fixed-speed loops run at up to 12 sprite FPS, with at least three complete loops before routine changes and a 24 FPS redraw limit. Sona does not accelerate, stretch or squash with the music.
+Sona keeps her illustrated style with 104 revised, consistently registered poses: eight dance routines, head-bobbing, a dedicated idle blink, sleep, greetings and pickup/landing sequences. Deliberate frame timing keeps blinks brief and gestures readable. Fixed foot anchors keep her grounded; carrying swings gently from her headphone band. Fixed-speed loops run at up to 12 sprite FPS, with at least three complete loops before routine changes and a 24 FPS redraw limit. Sona does not accelerate, stretch or squash with the music.
 Sona’s hair follows the richer live background colors while her outfit keeps softer theme accents. Click to say hello, hold or drag to pick her up, move, and drop; placement is remembered.
 Her far headphone cup stays visible in front-facing poses. D6 is now a gentle alternating cheer bounce.
 Focus her and use Space / Enter to pick up, arrows to move, Shift for fine placement, Escape to cancel.
@@ -65,11 +65,13 @@ Find missing details runs a fresh search; choose recording details or preview an
 Genre discovery shows progress and results in the panel; Retry missing genres bypasses the lookup cache.
 Track character is researched automatically and cached locally. Metadata searches send
 title, artist, album and duration to MusicBrainz / LRCLIB, with Apple catalogue and linked Wikidata genre fallbacks; audio is never uploaded.
-Cover and verified artist images are cached for a static record-sleeve collage.
+Cover and verified artist images are cached for static listening editions, with genre-dependent line artwork and restrained cover sizing.
 Settings → Storage includes a refreshable storage estimate for music, artwork, library data, browser cache and the app.
 
 Visual delay adjusts without emptying the buffered signal. Sona preserves her pose sequence through rendering stalls.
 
+Sustained and percussive frequency estimates drive different visual layers. These are lightweight visual approximations, not isolated vocals or instrument stems; playback is unchanged.
+Unavailable playlist videos can use a closely matched alternative recording as a last resort. Temporary download restrictions pause requests instead. Song details identify saved replacements.
 Beat motion still uses the live rhythm estimate. Track character now uses a compact local audio map, decoded once and cached.
 Sound settings offer optional loudness leveling, silent-edge skipping and experimental PC crossfade.
 Behind the sound > Listening edit shows the energy map and lets you save start/end markers for spoken intros or outros. Original files stay untouched.

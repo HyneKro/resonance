@@ -4,9 +4,9 @@ export const SONA_SHEETS=Object.freeze([{src:'/sona-motions.webp',columns:8,rows
 export const SONA_SOURCE_NAMES=Object.freeze(['head-bob','two-step','soft-bounce','shoulder-groove','hand-wave','side-sway','cheer','twirl','sleep','clicked','pickup-held','drop','idle']);
 export const SONA_CLIPS=Object.freeze({
  'head-bob':{row:0,beats:2,weights:[2,1,1,2,2,1,1,2]},'two-step':{row:1,beats:2},
- 'soft-bounce':{row:2,beats:2,weights:[2,1,1,1,1,1,1,2],eyeClose:[4]},'shoulder-groove':{row:3,beats:2},
+ 'soft-bounce':{row:2,beats:2,weights:[2,1,1,1,1,1,1,2],eyeClose:[6]},'shoulder-groove':{row:3,beats:2},
  'hand-wave':{row:4,beats:4,weights:[1,1,2,1,1,1,2,1]},'side-sway':{row:5,beats:4},
- 'cheer':{row:6,beats:2},'twirl':{row:7,beats:2},
+ 'cheer':{row:6,beats:2,eyeClose:[4]},'twirl':{row:7,beats:2},
  sleep:{row:8},clicked:{row:9},pickup:{row:10},held:{row:10},drop:{row:11},idle:{row:12},
 });
 

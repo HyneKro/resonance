@@ -7,7 +7,7 @@ const follow=(a,b,dt,t)=>a+(b-a)*(1-Math.exp(-dt/t));
 export class VisualConductor {
   constructor(){
     this.bands=new Float32Array(8);this.accents=new Float32Array(3);
-    this.spectrum=new Float32Array(48);this.spectralMotion=Array.from({length:48},()=>new Inertia(0,.065));
+    this.harmonic=new Float32Array(48);this.percussive=new Float32Array(48);this.spectrum=new Float32Array(48);this.spectralMotion=Array.from({length:48},()=>new Inertia(0,.065));
     this.bandMotion=Array.from({length:8},(_,i)=>new Inertia(0,i<2?.65:.42));
     this.accentMotion=[new Inertia(0,.46),new Inertia(0,.30),new Inertia(0,.22)];this.envelopes=new Float32Array(3);
     this.energyMotion=new Inertia(0,.38);this.speed=new Inertia(.65,1.2);
@@ -19,7 +19,7 @@ export class VisualConductor {
     this.transients=new Float32Array(3);this.output=this.frame();
   }
   frame(){
-    return {transients:this.transients,bands:this.bands,spectrum:this.spectrum,accents:this.accents,loudness:this.energy,onset:Math.max(...this.accents),motion:this.clock,beat:this.beat,
+    return {transients:this.transients,bands:this.bands,spectrum:this.spectrum,harmonic:this.harmonic,percussive:this.percussive,accents:this.accents,loudness:this.energy,onset:Math.max(...this.accents),motion:this.clock,beat:this.beat,
       atmosphere:{bands:this.cloud.slice(0,8),accents:this.cloud.slice(8,11),loudness:this.cloud[11]},
       morph:this.morph,flow:.18+this.energy*.20,label:'Living sculpture + Aether'};
   }
@@ -37,6 +37,11 @@ export class VisualConductor {
     const energy=audible?clamp((features.db-this.floor)/Math.max(16,this.ceiling-this.floor)) : 0;
     this.energy=clamp(this.energyMotion.update(energy,dt));
     for(let i=0;i<48;i++)this.spectrum[i]=clamp(this.spectralMotion[i].update(audible?(features.spectrum?.[i]||0):0,dt));
+    const layerSpeed=Math.sqrt(response);
+    for(let i=0;i<48;i++){
+      this.harmonic[i]=follow(this.harmonic[i],audible?(features.harmonic?.[i]||0):0,dt,.09/layerSpeed);
+      this.percussive[i]=follow(this.percussive[i],audible?(features.percussive?.[i]||0):0,dt,.024/layerSpeed);
+    }
     const spectrum=features.timbreBands||features.bands;
     for(let i=0;i<8;i++){
       const target=audible?clamp(features.bands[i]*1.25+spectrum[i]*.32)*(.3+this.energy*.7):0;

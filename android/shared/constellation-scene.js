@@ -1,16 +1,16 @@
 import {StarAtmosphere,drawJourneyThread,drawStarFlare} from './constellation-effects.js';
 import {hash} from './constellation-model.js';
-import {buildSpace,connections,OrbitCamera,projectPoint,pickSphere,flowingPosition,sameArtistIds,placeMapLabels,projectSegment} from './constellation-space.js';
-import {ConstellationSky,backdropStars,projectBackdrop} from './constellation-sky.js';
+import {buildSpace,connections,OrbitCamera,createProjector,pickSphere,flowingPosition,sameArtistIds,placeMapLabels,projectSegment} from './constellation-space.js';
+import {ConstellationSky,backdropStars} from './constellation-sky.js';
 
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
  * The lightweight sky context is disposed together with this view. */
 export class ConstellationScene {
  constructor(canvas,{gestureRoot=canvas,onSelect,onHover,onEmpty,onHome,onGroups,viewport=()=>({top:0,bottom:0})}){
-  this.canvas=canvas;this.gestureRoot=gestureRoot;this.ctx=canvas.getContext('2d',{alpha:false});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=viewport;
+  this.canvas=canvas;this.gestureRoot=gestureRoot;this.ctx=canvas.getContext('2d',{alpha:true});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=()=>{const now=performance.now();if(!this.insets||now-this.insetTime>180){this.insets=viewport();this.insetTime=now;}return this.insets;};
   this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
   this.coarse=matchMedia('(pointer:coarse)').matches||innerWidth<750;this.reduced=matchMedia('(prefers-reduced-motion:reduce)');
-  this.sky=new ConstellationSky(this.coarse);
+  this.sky=new ConstellationSky(this.coarse);this.sky.mount(canvas);
   this.dust=backdropStars(this.coarse);this.atmosphere=new StarAtmosphere(this.coarse);
   this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas);this.bind();this.resize();this.tick=this.tick.bind(this);this.visibility=()=>{if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;this.last=0;}else this.wake();};document.addEventListener('visibilitychange',this.visibility);this.wake();
  }
@@ -26,7 +26,7 @@ export class ConstellationScene {
  }
  focusGroup(id){const group=[...this.data.groups,...this.data.artistGroups].find(g=>g.id===id);if(!group)return;this.focusedGroup=id;this.setSelection('');this.fit(group.ids.filter(id=>this.visible.has(id)).map(id=>this.byId.get(id).position));return group;}
  home(){this.focusedGroup='';this.fit(this.data.points.filter(p=>this.visible.has(p.id)).map(p=>p.position),true);}
- resize(){const r=this.canvas.getBoundingClientRect();this.width=r.width;this.height=r.height;this.ratio=Math.min(devicePixelRatio||1,this.coarse?1.5:2);this.canvas.width=Math.round(r.width*this.ratio);this.canvas.height=Math.round(r.height*this.ratio);}
+ resize(){this.insets=null;const r=this.canvas.getBoundingClientRect();this.width=r.width;this.height=r.height;this.ratio=Math.min(devicePixelRatio||1,this.coarse?1.5:2);this.canvas.width=Math.round(r.width*this.ratio);this.canvas.height=Math.round(r.height*this.ratio);}
  wake(){if(!this.active||document.hidden||this.frame)return;this.frame=requestAnimationFrame(this.tick);}
  tick(now){this.frame=0;if(!this.active||document.hidden)return;const interval=this.reduced.matches?100:this.coarse?1000/30:1000/60;if(now-this.last>=interval-.5){const dt=Math.min(.05,(now-this.last)/1000||.016);this.last=now;if(!this.reduced.matches)this.time+=dt;this.focusMix+=(Number(!!this.selected)-this.focusMix)*(this.reduced.matches?1:1-Math.exp(-dt*3));this.draw(this.camera.update(dt,this.reduced.matches));}this.wake();}
  sprite(color,type=0,variant=0){
@@ -51,11 +51,12 @@ export class ConstellationScene {
  }
  draw(pose){
   const c=this.ctx,w=this.width,h=this.height;if(!w||!h)return;const inset=this.viewport(),top=inset.top||0,vh=Math.max(150,h-top-(inset.bottom||0));
-  c.setTransform(this.ratio,0,0,this.ratio,0,0);c.fillStyle='#060a13';c.fillRect(0,0,w,h);this.hits=[];
-  const sceneWidth=w-(inset.right||0)*.65,project=p=>{const v=projectPoint(p,pose,sceneWidth,vh);if(v)v.y+=top;return v;};
+  c.setTransform(this.ratio,0,0,this.ratio,0,0);c.clearRect(0,0,w,h);this.hits=[];
+  const sceneWidth=w-(inset.right||0)*.65,project=createProjector(pose,sceneWidth,vh,top);
   this.sky.draw(c,w,h,pose,top,vh,this.focusMix);
-  for(const star of this.dust){const p=projectBackdrop(star,pose,sceneWidth,vh);if(p)p.y+=top;if(!p||p.x<0||p.x>w||p.y<0||p.y>h)continue;const alpha=.35+star.layer*.12+(this.reduced.matches?0:Math.sin(this.time*.2+star.phase)*.07);c.globalAlpha=alpha;c.fillStyle=star.layer===2?'#e9e3ff':'#b9ccec';c.beginPath();c.arc(p.x,p.y,Math.max(.35,Math.min(2.8,star.size*(.55+p.scale*3))),0,Math.PI*2);c.fill();}c.globalAlpha=1;
-  this.atmosphere.drawClouds(c,this.data.groups,project,this.time);
+  // One path per depth layer instead of a paint operation for every star.
+  for(let layer=0;layer<3;layer++){c.beginPath();c.globalAlpha=.38+layer*.13;c.fillStyle=layer===2?'#eee8ff':'#b9ccec';for(const star of this.dust){if(star.layer!==layer)continue;const p=project(star.point);if(!p||p.x<0||p.x>w||p.y<0||p.y>h)continue;const r=Math.max(.35,Math.min(2.8,star.size*(.55+p.scale*3)));c.moveTo(p.x+r,p.y);c.arc(p.x,p.y,r,0,Math.PI*2);}c.fill();}c.globalAlpha=1;
+  this.atmosphere.drawClouds(c,this.data.groups,project,this.time,w,h);
   const routeSet=new Set(this.route);
   const shown=this.data.points.filter(p=>this.visible.has(p.id)),projected=new Map();
   for(const n of shown){const p=project(flowingPosition(n,this.time));if(p&&p.x>-60&&p.y>-60&&p.x<w+60&&p.y<h+60)projected.set(n.id,{...p,node:n,radius:Math.max(1.1,Math.min(13,4.5*p.scale))});}
@@ -64,11 +65,11 @@ export class ConstellationScene {
   for(const link of this.data.links.slice(0,700))line(link);for(const link of this.selectedLinks||[])line(link,true);for(let i=1;i<this.route.length;i++){const a=this.byId.get(this.route[i-1]),b=this.byId.get(this.route[i]);if(!a||!b)continue;const segment=projectSegment(flowingPosition(a,this.time),flowingPosition(b,this.time),pose,sceneWidth,vh);if(segment){segment.a.y+=top;segment.b.y+=top;drawJourneyThread(c,segment,this.time,i,this.reduced.matches);}}
   const linked=this.artistPeers||new Set(),groupArtist=this.focusedGroup.startsWith('artist:')?new Set(this.data.artistGroups.find(g=>g.id===this.focusedGroup)?.ids):null,ordered=[...projected.values()].sort((a,b)=>b.depth-a.depth);
   for(const p of ordered){const {node:n,x,y,radius:r}=p,special=n.id===this.selected||n.id===this.current||n.id===this.hover||routeSet.has(n.id),peer=linked.has(n.id)||groupArtist?.has(n.id),dim=(this.selected||groupArtist)&&!special&&!peer;
-   c.globalAlpha=dim?.17:peer||special?1:Math.max(.65,Math.min(1,1500/p.depth));const size=r*(special?7:peer?5.8:4.4),sprite=this.sprite(n.region.color,n.appearance.type,n.appearance.variant);
+   c.globalAlpha=dim?.17:peer||special?1:Math.max(.65,Math.min(1,1500/p.depth));const size=r*(special?7:peer?5.8:4.4),sprite=this.sprite(n.region.color,n.appearance.type,this.coarse?0:n.appearance.variant);
    if(special||r>4){c.save();c.translate(x,y);c.rotate(n.appearance.tilt+this.time*n.appearance.rate);c.drawImage(sprite,-size/2,-size/2,size,size);c.restore();}else c.drawImage(sprite,x-size/2,y-size/2,size,size);
    // Each artist keeps the same satellite count, inclination and orbit style
    // across songs. At distant LOD these become a tiny, quiet halo.
-   if(special||r>3.3&&!dim){const s=n.signature,orbit=r*(special?2.6:2),count=s.count;c.fillStyle=n.region.color;for(let i=0;i<count;i++){const a=s.phase+i/count*Math.PI*2+this.time*.28,px=Math.cos(a)*orbit,py=Math.sin(a)*orbit*(s.style==='halo'?.45:.8);const xx=x+px*Math.cos(s.tilt)-py*Math.sin(s.tilt),yy=y+px*Math.sin(s.tilt)+py*Math.cos(s.tilt);c.beginPath();c.arc(xx,yy,special?1.5:1,0,Math.PI*2);c.fill();}}
+   if(special||r>2.8&&!dim){const opacity=c.globalAlpha;c.globalAlpha*=special?1:Math.min(1,(r-2.8)/1.8);const s=n.signature,orbit=r*(special?2.6:2),count=s.count;c.fillStyle=n.region.color;for(let i=0;i<count;i++){const a=s.phase+i/count*Math.PI*2+this.time*.28,px=Math.cos(a)*orbit,py=Math.sin(a)*orbit*(s.style==='halo'?.45:.8);const xx=x+px*Math.cos(s.tilt)-py*Math.sin(s.tilt),yy=y+px*Math.sin(s.tilt)+py*Math.cos(s.tilt);c.beginPath();c.arc(xx,yy,special?1.5:1,0,Math.PI*2);c.fill();}c.globalAlpha=opacity;}
    if(special||peer){c.strokeStyle=n.id===this.current?'#ffffffc0':n.region.color+'a0';c.lineWidth=1;c.beginPath();c.ellipse(x,y,r*2.1,r*.85,-.45,0,Math.PI*2);c.stroke();}c.globalAlpha=1;if(routeSet.has(n.id)||n.id===this.current)drawStarFlare(c,x,y,r,n.region.color,this.time,n.signature.phase);this.hits.push(p);
   }
   this.atmosphere.drawComets(c,project,this.time,this.reduced.matches);
@@ -77,7 +78,7 @@ export class ConstellationScene {
   for(const id of new Set([this.hover,this.selected,this.current])){
    const p=projected.get(id);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
    c.font='11px system-ui';const text=p.node.title.slice(0,38),width=Math.min(240,c.measureText(text).width+20),placed=placeMapLabels([{x:p.x,y:p.y+p.radius*3+7,width,height:26}],bounds,boxes,1)[0];
-   if(!placed)continue;boxes.push(placed);c.fillStyle='#100f1cdd';c.beginPath();c.roundRect(placed.x,placed.y,placed.width,placed.height,13);c.fill();c.strokeStyle=p.node.region.color+'55';c.lineWidth=.7;c.stroke();c.fillStyle='#e6dff3';c.textAlign='center';c.fillText(text,placed.x+placed.width/2,placed.y+17,placed.width-14);
+   if(!placed)continue;boxes.push(placed);c.fillStyle='#111727ed';c.beginPath();c.roundRect(placed.x,placed.y,placed.width,placed.height,13);c.fill();c.strokeStyle=p.node.region.color+'88';c.lineWidth=.7;c.stroke();c.fillStyle='#e6dff3';c.textAlign='center';c.fillText(text,placed.x+placed.width/2,placed.y+17,placed.width-14);
   }
   const focused=this.data.groups.find(g=>g.id===this.focusedGroup),memberSet=focused?new Set(focused.ids):null;
   const overview=!this.focusedGroup&&!this.selected,compact=w<750||this.coarse;
@@ -89,7 +90,7 @@ export class ConstellationScene {
   }
   const markers=placeMapLabels(candidates,bounds,boxes,compact?4:8);
   for(const m of markers)if(Math.hypot(m.x+m.width/2-m.anchor.x,m.y+16-m.anchor.y)>32){c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.x+m.width/2,m.y+16);c.stroke();}
-  this.onGroups?.(markers);
+  if(!this.groupsAt||performance.now()-this.groupsAt>32){this.groupsAt=performance.now();this.onGroups?.(markers);}
 
  }
  bind(){const canvas=this.canvas,point=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};

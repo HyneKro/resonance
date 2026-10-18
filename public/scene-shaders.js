@@ -11,6 +11,9 @@ uniform vec4 u_camera;
 uniform float u_focalLength;
 uniform float u_shimmer,u_themes[6],u_movement;
 uniform float u_particleStyle,u_spectrum[48];
+uniform vec4 u_harmonic[12],u_percussive[12];
+float harmonicAt(int i){return u_harmonic[i/4][i%4];}
+float percussiveAt(int i){return u_percussive[i/4][i%4];}
 uniform vec3 u_accents,u_transients,u_colorA,u_colorB,u_colorC,u_palette[6];
 const float PI=3.14159265359;
 const float TAU=6.28318530718;
@@ -122,7 +125,9 @@ void main(){
  float v=(thread-.5)*2.,opening=u_morph.x,torsion=u_morph.y,pleats=u_morph.z,lace=u_morph.w;
  float lane=floor(a_seed.y*48.)/47.;
  float frequency=u_particleStyle>2.5?max(0.,a_birth.z):lane;
- float resonance=u_spectrum[int(clamp(floor(frequency*47.+.5),0.,47.))];
+ int musicalLane=int(clamp(floor(frequency*47.+.5),0.,47.));
+ float role=step(.68,a_seed.z);
+ float resonance=mix(harmonicAt(musicalLane)*1.25,percussiveAt(musicalLane)*1.6,role);
  float bass=u_low.x*.4+u_low.y*.6,mid=u_low.z*.25+u_low.w*.35+u_high.x*.4;
  vec3 p=tissue(u,v,resonance,a_seed.w),weave=field(p*5.8,t*.06);
  float twist=u*(1.+torsion*1.8)+.22*sin(t*.075)+v*opening;
@@ -142,7 +147,7 @@ precision highp float;in vec4 a_seed;in vec4 a_birth;out vec3 v_color;out float 
 ${COMMON}
 void main(){
  float t=u_time,branch=floor(a_seed.x*192.),u=(branch+.5)/192.*TAU;
- float lane=floor(a_seed.x*48.)/47.,response=u_spectrum[int(floor(lane*47.+.5))];
+ float lane=floor(a_seed.x*48.)/47.,response=percussiveAt(int(floor(lane*47.+.5)))*1.4;
  float side=a_seed.z<.5?-1.:1.,s=a_seed.y;
  vec3 p;float alpha,size;
  if(a_seed.w<.63){
@@ -217,7 +222,7 @@ in vec4 a_seed;out vec3 v_color;out float v_alpha;
 ${COMMON}
 void main(){
  float lane=floor(a_seed.x*48.),phase=lane/48.,s=a_seed.y,t=u_time;
- float response=u_spectrum[int(lane)],theta=phase*TAU+t*.025;
+ float response=mix(harmonicAt(int(lane))*1.3,percussiveAt(int(lane))*1.6,step(.63,a_seed.y)),theta=phase*TAU+t*.025;
  vec3 p;float alpha,shade;
  if(a_seed.w<.8){
    // Each stable petal has its own fixed frequency window: 40 Hz through 16 kHz.

@@ -1,3 +1,4 @@
+import {downloadFailure,fallbackCandidates} from './public/recording-fallback.js';
 import {spotifyEntries} from './spotify.mjs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,8 +30,8 @@ export class PlaylistSync {
           const output=await this.run(['--flat-playlist','--dump-single-json','--ignore-errors','--socket-timeout','25',`https://www.youtube.com/playlist?list=${source.playlist}`]);
           const playlist=JSON.parse(output);sources.push({id:source.id,name:playlist.title,count:playlist.entries?.length||0});
           const local=this.lib.list().filter(t=>t.sourceId===source.id);
-          for(const [entryIndex,e] of (playlist.entries||[]).entries()){if(!e?.id)continue;const classification=classifyEntry(e,local,archived);const entry={id:e.id,title:e.title||'Unavailable video',duration:e.duration||0,channel:e.channel||e.uploader||'',thumbnail:e.thumbnails?.filter(x=>x.url?.startsWith('https://i.ytimg.com/')).sort((a,b)=>(b.width||0)-(a.width||0))[0]?.url||`https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,sourceId:source.id,playlistIndex:Number.isInteger(e.playlist_index)&&e.playlist_index>0?e.playlist_index:entryIndex+1,...classification};entries.push(entry);
-            if(classification.status==='existing'&&classification.trackId){const t=this.lib.tracks.get(classification.trackId);this.lib.save({...t,youtubeId:e.id,channel:entry.channel,sourceUrl:`https://www.youtube.com/watch?v=${e.id}`,youtubeThumbnail:entry.thumbnail});}
+          for(const [entryIndex,e] of (playlist.entries||[]).entries()){if(!e?.id)continue;const alias=local.find(t=>t.originalYoutubeId===e.id&&t.available!==false);const classification=alias?{status:'existing',trackId:alias.id,reason:'Alternative recording saved'}:classifyEntry(e,local,archived);const entry={id:e.id,title:e.title||'Unavailable video',duration:e.duration||0,channel:e.channel||e.uploader||'',thumbnail:e.thumbnails?.filter(x=>x.url?.startsWith('https://i.ytimg.com/')).sort((a,b)=>(b.width||0)-(a.width||0))[0]?.url||`https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,sourceId:source.id,playlistIndex:Number.isInteger(e.playlist_index)&&e.playlist_index>0?e.playlist_index:entryIndex+1,...classification};entries.push(entry);
+            if(classification.status==='existing'&&classification.trackId&&!alias){const t=this.lib.tracks.get(classification.trackId);this.lib.save({...t,youtubeId:e.id,channel:entry.channel,sourceUrl:`https://www.youtube.com/watch?v=${e.id}`,youtubeThumbnail:entry.thumbnail});}
           }
         }catch(e){if(!this.cancelled)this.job.errors.push(`${source.name}: ${e.message}`);}this.job.done++;
       }
@@ -52,6 +53,25 @@ export class PlaylistSync {
     }
     if(this.preview)this.lib.setSetting('syncPreview',this.preview);this.lib.applyPlaylistOrder(this.preview);
   }
+  async alternative(entry,args,onLine){
+    this.job.message='Looking for another recording of '+entry.title+'…';
+    const query=[entry.channel,entry.title,'audio'].join(' ').slice(0,450);
+    const output=await this.run(['--flat-playlist','--dump-single-json','--socket-timeout','20','ytsearch5:'+query],null,60000);
+    if(this.cancelled)throw Error('Cancelled');
+    const candidates=fallbackCandidates(entry,JSON.parse(output).entries||[]);
+    for(const candidate of candidates){
+      try{await this.run([...args.slice(0,-1),'https://www.youtube.com/watch?v='+candidate.id],onLine,7200000);
+        entry.originalYoutubeId=entry.id;entry.id=candidate.id;entry.alternativeTitle=candidate.title;
+        return true;
+      }catch(error){if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;}
+    }return false;
+  }
+  saveAlternativeLinks(){
+    for(const entry of this.preview?.entries||[]){if(!entry.originalYoutubeId||entry.status!=='existing')continue;
+      const track=this.lib.list().find(t=>t.youtubeId===entry.id&&t.sourceId===entry.sourceId);
+      if(track){this.lib.save({...track,originalYoutubeId:entry.originalYoutubeId,alternativeRecording:true});entry.trackId=track.id;}
+    }
+  }
   async cacheCovers(){
     if(this.coverJob.running)return;const tracks=this.lib.list().filter(t=>t.youtubeThumbnail&&!t.artwork);this.coverJob={running:true,done:0,total:tracks.length,failed:0};let i=0;
     const worker=async()=>{while(i<tracks.length&&!this.lib.closed){const t=tracks[i++];try{const artwork=await this.lib.cacheArtwork(t.id,t.youtubeThumbnail);this.lib.save({...this.lib.tracks.get(t.id),artwork,artworkSource:'YouTube'});}catch{this.coverJob.failed++;}this.coverJob.done++;}};
@@ -69,10 +89,14 @@ export class PlaylistSync {
         const nodeRuntime=fs.existsSync(path.join(this.lib.root,'tools','node.exe'))?path.join(this.lib.root,'tools','node.exe'):process.execPath;
         const args=['--no-playlist','--windows-filenames','--no-overwrites','--continue','--newline','--socket-timeout','25','--retries','3','--fragment-retries','3','--js-runtimes',`node:${nodeRuntime}`,'-f','bestaudio/best','-x','--audio-format',this.lib.config.downloadFormat==='flac'?'flac':'best','--embed-metadata','--write-info-json','--write-thumbnail','--convert-thumbnails','jpg','--download-archive',path.join(this.lib.dataDir,'downloads.txt'),'-o',path.join(source.path,'%(title).170B [%(id)s].%(ext)s'),'--progress-template','download:PROGRESS %(progress._percent_str)s %(progress._speed_str)s ETA %(progress._eta_str)s',`https://www.youtube.com/watch?v=${entry.id}`];
         if(fs.existsSync(path.join(this.lib.root,'tools','ffmpeg.exe')))args.unshift('--ffmpeg-location',path.join(this.lib.root,'tools'));
-        await this.run(args,line=>{if(line.startsWith('PROGRESS '))this.job.progress=line.slice(9).trim();},7200000);
-        entry.status='existing';entry.reason='Downloaded';this.job.downloaded++;
+        const onLine=line=>{if(line.startsWith('PROGRESS '))this.job.progress=line.slice(9).trim();};
+        try{await this.run(args,onLine,7200000);}catch(error){
+          if(this.cancelled||downloadFailure(error.message)!=='unavailable')throw error;
+          if(!await this.alternative(entry,args,onLine))throw Error('Recording unavailable; no sufficiently close alternative was found. Skipped.');
+        }
+        entry.status='existing';entry.reason=entry.originalYoutubeId?'Downloaded alternative: '+entry.alternativeTitle:'Downloaded';this.job.downloaded++;
         this.lib.setSetting('syncPreview',this.preview);
-      }catch(e){if(!this.cancelled)this.job.errors.push(`${entry.title}: ${e.message}`);}this.job.done++;
-    }}finally{this.job.running=false;this.job.phase=this.cancelled?'cancelled':'complete';this.job.message=this.cancelled?'Update cancelled — completed downloads are kept':`Update complete · ${this.job.downloaded} downloaded`;this.job.progress='';await this.lib.scan();this.saveSpotifyLinks();}
+      }catch(e){if(!this.cancelled)this.job.errors.push(`${entry.title}: ${e.message}`);if(downloadFailure(e.message)==='pause'){this.job.paused=true;break;}}this.job.done++;
+    }}finally{this.job.running=false;this.job.phase=this.cancelled?'cancelled':this.job.paused?'paused':'complete';this.job.message=this.cancelled?'Update cancelled — completed downloads are kept':this.job.paused?'Downloads paused. Finished songs are saved; wait before retrying.':`Update complete · ${this.job.downloaded} downloaded`;this.job.progress='';await this.lib.scan();this.saveAlternativeLinks();this.saveSpotifyLinks();}
   }
 }

@@ -37,8 +37,8 @@ public final class Downloads {
     public void check(String onlySource) throws Exception {
         JSONArray found=new JSONArray();
         try{prepareTools();
-            Set<String> saved=new HashSet<>(),spotifySaved=new HashSet<>();JSONArray tracks=app.library.tracks();
-            for(int i=0;i<tracks.length();i++){JSONObject track=tracks.optJSONObject(i);String id=track.optString("youtubeId");if(!id.isEmpty())saved.add(id);String spotify=track.optString("spotifyId");if(!spotify.isEmpty())spotifySaved.add(spotify);}
+            Set<String> saved=new HashSet<>(),spotifySaved=new HashSet<>();Map<String,String> alternatives=new HashMap<>();JSONArray tracks=app.library.tracks();
+            for(int i=0;i<tracks.length();i++){JSONObject track=tracks.optJSONObject(i);String id=track.optString("youtubeId");if(!id.isEmpty())saved.add(id);String original=track.optString("originalYoutubeId");if(!original.isEmpty()&&readable(track))alternatives.put(original,track.optString("id"));String spotify=track.optString("spotifyId");if(!spotify.isEmpty())spotifySaved.add(spotify);}
             JSONArray sources=app.library.sources();Set<String> checked=new HashSet<>();List<String> errors=new ArrayList<>();int considered=0;
             for(int i=0;i<sources.length()&&!cancelled;i++){
                 JSONObject source=sources.getJSONObject(i);String type=source.optString("type"),sourceId=source.optString("id");
@@ -62,6 +62,7 @@ public final class Downloads {
                         JSONObject entry=entries.optJSONObject(j);if(entry==null)continue;String video=type.equals("youtube")?entry.optString("id"):"";
                         String spotifyId=type.equals("spotify")?entry.optString("uri",sourceId+":"+entry.optString("title")+":"+entry.optString("subtitle")):"";
                         if(!spotifyId.isEmpty()&&spotifySaved.contains(spotifyId))continue;
+                        if(alternatives.containsKey(video)){app.library.link(alternatives.get(video),sourceId,j+1);continue;}
                         if(saved.contains(video)){app.library.link(LibraryStore.id("youtube:"+video),sourceId,j+1);continue;}
                         if(type.equals("youtube")&&(!video.matches("[A-Za-z0-9_-]{11}")||entry.optString("title").matches("\\[(Private|Deleted) video\\]")))continue;
                         found.put(Json.object("key",sourceId+":"+j,"sourceId",sourceId,"type",type,"youtubeId",video,"spotifyId",spotifyId,"title",entry.optString("title"),"artist",type.equals("spotify")?entry.optString("subtitle"):entry.optString("uploader"),"duration",type.equals("spotify")?entry.optDouble("duration",0)/1000:entry.optDouble("duration",0),"playlistIndex",j+1,"selected",type.equals("youtube")));
@@ -101,14 +102,29 @@ public final class Downloads {
             publish(false,cancelled?"cancelled":"complete",cancelled?"Paused · "+batch.saved+" saved, "+batch.skipped+" skipped. Resume when you’re ready.":batch.summary(),batch.saved,selected.length(),100);
         }catch(Exception e){fail(e);throw e;}
     }
+    private boolean alternative(JSONObject item,String format,JSONObject destination,int total) throws Exception {
+        if(item.has("originalYoutubeId"))return false;
+        publish(true,"downloading","Looking for another recording of "+item.optString("title")+"…",batch.saved,total,-1);
+        String query=item.optString("artist")+" "+item.optString("title")+" audio";
+        YoutubeDLRequest request=new YoutubeDLRequest("ytsearch5:"+query.substring(0,Math.min(450,query.length())));
+        request.addOption("--flat-playlist");request.addOption("--dump-single-json");request.addOption("--socket-timeout","20");request.addOption("--retries","1");
+        JSONArray choices=execute(request).optJSONArray("entries");if(choices==null)return false;int tried=0;
+        for(int i=0;i<choices.length()&&!cancelled&&tried<2;i++){
+            JSONObject choice=choices.optJSONObject(i);if(choice==null||!RecordingFallback.matches(item,choice))continue;tried++;
+            JSONObject alternate=new JSONObject(item.toString());alternate.put("originalYoutubeId",item.optString("youtubeId")).put("youtubeId",choice.optString("id"));
+            try{downloadOne(alternate,format,destination,total);return true;}catch(DownloadBatch.RecordingUnavailable ignored){/* A bounded second close match may still be available. */}
+        }return false;
+    }
     private void downloadOne(JSONObject item,String format,JSONObject destination,int total) throws Exception {
+        if(cancelled)throw new InterruptedIOException("Update cancelled");
         String video=item.optString("youtubeId");if(!video.matches("[A-Za-z0-9_-]{11}"))throw new DownloadBatch.RecordingUnavailable("Choose a recording for this song first.");
-            String title=item.optString("title");final int done=batch.saved;JSONObject existing=app.library.track(LibraryStore.id("youtube:"+video));if(existing.length()>0&&readable(existing)){app.library.link(existing.optString("id"),item.optString("sourceId"),item.optInt("playlistIndex"));completed(item,existing.optString("id"));return;}publish(true,"downloading",title,done,total,-1);YoutubeDLRequest req=new YoutubeDLRequest("https://www.youtube.com/watch?v="+video);req.addOption("--ignore-config");req.addOption("--no-playlist");req.addOption("--check-formats");req.addOption("--extractor-retries","3");req.addOption("--fragment-retries","3");req.addOption("--continue");req.addOption("--no-overwrites");req.addOption("--socket-timeout","20");req.addOption("--retries","3");req.addOption("--download-archive",new File(app.library.music,"downloaded.txt").getAbsolutePath());req.addOption("-f","bestaudio");req.addOption("--write-info-json");req.addOption("-o",new File(app.library.music,"%(id)s.%(ext)s").getAbsolutePath());
+            String title=item.optString("title");final int done=batch.saved;JSONObject existing=app.library.track(LibraryStore.id("youtube:"+video));if(existing.length()>0&&readable(existing)){app.library.link(existing.optString("id"),item.optString("sourceId"),item.optInt("playlistIndex"));if(item.has("originalYoutubeId")){Json.put(existing,"originalYoutubeId",item.optString("originalYoutubeId"));app.library.save(existing);}completed(item,existing.optString("id"));return;}publish(true,"downloading",title,done,total,-1);YoutubeDLRequest req=new YoutubeDLRequest("https://www.youtube.com/watch?v="+video);req.addOption("--ignore-config");req.addOption("--no-playlist");req.addOption("--check-formats");req.addOption("--extractor-retries","3");req.addOption("--fragment-retries","3");req.addOption("--continue");req.addOption("--no-overwrites");req.addOption("--socket-timeout","20");req.addOption("--retries","3");req.addOption("--download-archive",new File(app.library.music,"downloaded.txt").getAbsolutePath());req.addOption("-f","bestaudio");req.addOption("--write-info-json");req.addOption("-o",new File(app.library.music,"%(id)s.%(ext)s").getAbsolutePath());
             if(format.equals("compact")){req.addOption("-x");req.addOption("--audio-format","opus");req.addOption("--audio-quality","128K");}else req.addOption("--remux-video","m4a>m4a/webm>opus");
             try{YoutubeDL.INSTANCE.execute(req,"resonance",(percent,eta,line)->{publish(true,"downloading",title,done,total,percent);return kotlin.Unit.INSTANCE;});}
-            catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
+            catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;if(RecordingFallback.unavailable(raw)&&alternative(item,format,destination,total))return;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
             File[] files=app.library.music.listFiles((dir,name)->name.startsWith(video+".")&&LibraryStore.isAudio(name));if(files==null||files.length==0)throw new DownloadBatch.RecordingUnavailable("No usable audio file was returned. Try updating the downloader before retrying this song.");File file=files[0];JSONObject info=new JSONObject();File infoFile=new File(app.library.music,video+".info.json");if(infoFile.isFile())info=Json.parse(new String(java.nio.file.Files.readAllBytes(infoFile.toPath()),StandardCharsets.UTF_8));
             JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
+            if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true);}
             GenreResearch.sourceLabels(supplied,info);
             JSONObject track;
             if(!destination.optString("uri").isEmpty()){

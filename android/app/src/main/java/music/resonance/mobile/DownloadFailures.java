@@ -7,7 +7,7 @@ import java.util.*;
 final class DownloadFailures {
     static boolean pausesBatch(String raw){
         String text=raw.toLowerCase(Locale.ROOT);
-        for(String cause:List.of("http error 429","http error 500","http error 502","http error 503","http error 504","too many requests","confirm you're not a bot","confirm you’re not a bot","network is unreachable","network is down","connection timed out","connection refused","connection reset","timed out","temporary failure in name resolution","name or service not known","failed to resolve","unable to resolve","no address associated","no space left","disk full","permission denied","read-only file system","ffmpeg not found","ffprobe not found","no module named","certificate_verify_failed"))if(text.contains(cause))return true;
+        for(String cause:List.of("try again later","rate limit","rate-limit","temporarily unavailable","http error 429","http error 500","http error 502","http error 503","http error 504","too many requests","confirm you're not a bot","confirm you’re not a bot","network is unreachable","network is down","connection timed out","connection refused","connection reset","timed out","temporary failure in name resolution","name or service not known","failed to resolve","unable to resolve","no address associated","no space left","disk full","permission denied","read-only file system","ffmpeg not found","ffprobe not found","no module named","certificate_verify_failed"))if(text.contains(cause))return true;
         return false;
     }
     static JSONArray mark(JSONArray entries,JSONObject item,String reason,long at) throws JSONException {

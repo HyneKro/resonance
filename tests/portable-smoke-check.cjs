@@ -1,5 +1,6 @@
 const {app,BrowserWindow,ipcMain,screen}=require('electron'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
-const workspace=path.resolve(__dirname,'..'),root=path.join(workspace,'test-output/portable-full-install/resources/app'),out=path.join(workspace,'test-output'),errors=[];
+const workspace=path.resolve(__dirname,'..'),root=process.env.RESONANCE_TEST_APP_ROOT||path.join(workspace,'test-output/portable-full-install/resources/app'),out=path.join(workspace,'test-output/release-work/portable-smoke'),errors=[];
+fs.mkdirSync(out,{recursive:true});
 app.setPath('userData',path.join(out,'portable-smoke-profile'));let win,service,finished=false;
 async function finish(ok,error){if(finished)return;finished=true;const report={ok,error,errors,root};fs.writeFileSync(path.join(out,'portable-smoke-check.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));win?.destroy();service?.server.close();app.exit(ok?0:1);}
 app.whenReady().then(async()=>{

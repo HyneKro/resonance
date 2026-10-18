@@ -1,3 +1,4 @@
+import {MusicalLayers} from './musical-layers.js';
 export const BANDS = [
   {name:'Sub',low:20,high:60,label:'20–60 Hz'},
   {name:'Bass',low:60,high:150,label:'60–150 Hz'},
@@ -27,7 +28,7 @@ export function spectralEnvelope(previous,input,dt,lane=0){
  return input+(previous-input)*2**(-Math.max(0,dt)/halfLife);
 }
 export class AudioFeatures {
-  constructor(){this.bands=new Float32Array(8);this.timbreBands=new Float32Array(8);this.bandDb=new Float32Array(8);this.previous=new Float32Array(8);this.fluxAverage=.004;this.onset=0;this.lastOnset=-1;this.rms=0;this.db=-100;this.peakDb=-100;this.loudness=0;this.accents=new Float32Array(3);this.hits=new Float32Array(3);this.transients=[[45,140,.32],[1400,5200,.17],[6500,15000,.09]].map(([low,high,release])=>({low,high,release,previous:0,floor:.003,last:-1}));}
+  constructor(){this.layers=new MusicalLayers();this.harmonic=this.layers.harmonic;this.percussive=this.layers.percussive;this.layerInput=new Float32Array(48);this.bands=new Float32Array(8);this.timbreBands=new Float32Array(8);this.bandDb=new Float32Array(8);this.previous=new Float32Array(8);this.fluxAverage=.004;this.onset=0;this.lastOnset=-1;this.rms=0;this.db=-100;this.peakDb=-100;this.loudness=0;this.accents=new Float32Array(3);this.hits=new Float32Array(3);this.transients=[[45,140,.32],[1400,5200,.17],[6500,15000,.09]].map(([low,high,release])=>({low,high,release,previous:0,floor:.003,last:-1}));}
   update(frequency,wave,sampleRate,fftSize,dt,time,active=true,detail={}){
     dt=clamp(dt,.001,.1);this.hits.fill(0);let flux=0;
     // Long windows resolve neighboring bass notes; short windows locate attacks in time.
@@ -36,7 +37,8 @@ export class AudioFeatures {
       return active?bandPower(source?.frequency||frequency,sampleRate,source?.fftSize||fftSize,low,high):0;
     };
     if(!this.spectrum){this.spectrum=new Float32Array(48);this.magnitudes=new Float32Array(48);}
-    for(let i=0;i<48;i++){const window=SPECTRAL_WINDOWS[i],power=Math.max(0,read(window.low,window.high)-.00003);this.magnitudes[i]=spectralEnvelope(this.magnitudes[i],power,dt,i/47);this.spectrum[i]=clamp(Math.log1p(this.magnitudes[i]*1200)/Math.log(97));}
+    for(let i=0;i<48;i++){const window=SPECTRAL_WINDOWS[i],power=Math.max(0,read(window.low,window.high)-.00003);this.layerInput[i]=clamp(Math.log1p(power*1200)/Math.log(97));this.magnitudes[i]=spectralEnvelope(this.magnitudes[i],power,dt,i/47);this.spectrum[i]=clamp(Math.log1p(this.magnitudes[i]*1200)/Math.log(97));}
+    this.layers.update(this.layerInput,dt,active);
     // Independent bass, attack and air envelopes. Sustained notes do not repeatedly trigger.
     this.transients.forEach((b,i)=>{
       const power=read(b.low,b.high,true);

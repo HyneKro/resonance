@@ -82,7 +82,7 @@ test('routine changes preserve sprite proportions without a transition effect',(
 test('eye-closes remain brief at slow tempo and a resting Sona starts awake before blinking',()=>{
  for(const bpm of [55,70,120,180]){
   const durations=clipDurations(SONA_CLIPS['soft-bounce'],bpm);
-  assert.ok(durations[4]<=.15);assert.ok(durations.every(t=>t>=1/12-1e-9));
+  assert.ok(durations[6]<=.15);assert.ok(durations.every(t=>t>=1/12-1e-9));
   assert.ok(Math.abs(durations.reduce((a,b)=>a+b,0)-SONA_CLIPS['soft-bounce'].beats*60/bpm)<1e-8);
  }
  const m=new DanceMotion();advance(m,4.5,{active:true});assert.equal(m.update(0,{active:false}).frame,0);
@@ -90,7 +90,7 @@ test('eye-closes remain brief at slow tempo and a resting Sona starts awake befo
  assert.ok(idleFrames.includes(3)&&idleFrames.includes(4)&&idleFrames.includes(5));
  assert.ok(idleFrames.filter(f=>f===4).length/120<.12);
  m.press();assert.equal(advance(m,1).frame,0);assert.equal(m.update(0).row,12);
- for(const [method,row,closed]of [['click',9,4],['drop',11,3]]){
+ for(const [method,row,closed]of [['click',9,3],['drop',11,3]]){
   m[method]();let closedTime=0,seen=[];
   for(let i=0;i<120;i++){const f=m.update(1/120);if(f.row===row){seen.push(f.frame);if(f.frame===closed)closedTime+=1/120;}}
   assert.ok(closedTime>0&&closedTime<=.12);assert.equal(new Set(seen).size,8);

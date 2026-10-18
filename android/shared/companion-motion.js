@@ -7,7 +7,7 @@ const total=times=>times.reduce((a,b)=>a+b,0);
 export const SONA_TIMING=Object.freeze({
  idle:[4.1,.18,.12,1/12,1/12,1/12,.14,.18],
  sleep:Array(8).fill(.5),
- clicked:[1/12,1/12,.12,.16,1/12,1/12,.12,.17],
+ clicked:[1/12,1/12,.12,1/12,.16,1/12,.12,.17],
  pickup:[1/12,.1,7/60,.1],
  held:[.35,.45,.35,.45,.4],
  drop:[1/12,1/12,1/12,1/12,1/12,.12,.16,61/300],

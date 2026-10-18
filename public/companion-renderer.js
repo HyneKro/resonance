@@ -28,7 +28,8 @@ export class CompanionRenderer{
   if(this.frames.size>=32)this.frames.delete(this.frames.keys().next().value);this.frames.set(key,data);return data;
  }
  painted(row,frame,colors,hairColors=colors){
-  const palette=[...colors,...hairColors].flat().map(Math.round).join(','),key=row+':'+frame;
+  const quantize=color=>color.map(v=>Math.min(255,Math.round(v/4)*4));colors=colors.map(quantize);hairColors=hairColors.map(quantize);
+  const palette=[...colors,...hairColors].flat().join(','),key=row+':'+frame;
   let entry=this.tints.get(key);
   if(!entry){
    // Reuse the oldest surface instead of allocating and discarding canvases
