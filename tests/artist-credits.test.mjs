@@ -17,12 +17,14 @@ test('credit migration repairs existing records once and preserves listening dat
  fs.mkdirSync('test-output/release-work',{recursive:true});
  const directory=fs.mkdtempSync(path.resolve('test-output/release-work/artist-credits-')),database=path.join(directory,'library.sqlite');
  const db=new DatabaseSync(database);db.exec('CREATE TABLE tracks(id TEXT PRIMARY KEY,path TEXT UNIQUE,data TEXT NOT NULL)');
- const original={...cases[1].track,id:'one',path:'song.opus',favorite:true,plays:13,position:75,genre:'Drum & Bass',genreLocked:true,available:true};
- db.prepare('INSERT INTO tracks VALUES(?,?,?)').run(original.id,original.path,JSON.stringify(original));db.close();
+ const fixtures=[cases[1],...cases.filter(f=>['game name is not the explicitly credited cover performer','old filename-only cover credit is repaired without provider tags'].includes(f.case))];
+ const originals=fixtures.map((f,i)=>({...f.track,id:String(i),path:i+'.opus',favorite:true,plays:13,position:75,genre:'Rock',genreLocked:true,available:true}));
+ for(const original of originals)db.prepare('INSERT INTO tracks VALUES(?,?,?)').run(original.id,original.path,JSON.stringify(original));db.close();
  let library;try{
-  library=new Library(process.cwd(),directory);const repaired=library.tracks.get('one');assert.deepEqual(artistNames(repaired),['Aster']);
-  for(const field of ['id','path','title','rawTitle','recordingArtists','channel','favorite','plays','position','genre','genreLocked','available'])assert.deepEqual(repaired[field],original[field],field);
-  library.close();library=new Library(process.cwd(),directory);assert.deepEqual(library.tracks.get('one'),repaired);
+  library=new Library(process.cwd(),directory);const repaired=originals.map((original,i)=>{const t=library.tracks.get(original.id);assert.deepEqual(artistNames(t),fixtures[i].names);
+   for(const field of ['id','path','title','rawTitle','recordingArtists','channel','favorite','plays','position','genre','genreLocked','available'])assert.deepEqual(t[field],original[field],field);return t;
+  });
+  library.close();library=new Library(process.cwd(),directory);for(const t of repaired)assert.deepEqual(library.tracks.get(t.id),t);
  }finally{library?.close();}
 });
 test('PC and Android ship the same frontend credit logic',()=>{

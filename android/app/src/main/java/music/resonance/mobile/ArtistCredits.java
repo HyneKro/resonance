@@ -7,7 +7,7 @@ import java.util.regex.*;
 
 /** Artist identities, shared in behavior with web artist-credits.js. */
 public final class ArtistCredits {
-    public static final int VERSION=2;
+    public static final int VERSION=3;
     private static final Pattern ANNOTATION=Pattern.compile("^(?:v\\.?i\\.?p\\.?|(?:official\\s+)?(?:music\\s+|lyric\\s+)?video\\b.*|(?:official\\s+)?(?:audio|visuali[sz]er|lyrics?)\\b.*|day\\s+\\d+\\b.*|(?:extended|full|original|radio|album|instrumental|acoustic|live|remastered?)(?:\\s+(?:version|mix|edit|audio|video|\\d{4}))*|(?:sped\\s+up|slowed)(?:\\s*\\+\\s*reverb)?)$",Pattern.CASE_INSENSITIVE);
     private static String key(String s){return Normalizer.normalize(s,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceFirst("\\s+-\\s+topic$","").replaceAll("[^\\p{L}\\p{N}]","");}
     private static List<String> unique(Collection<String> names){LinkedHashMap<String,String> out=new LinkedHashMap<>();for(String n:names)if(n!=null&&!n.isBlank())out.put(key(n.trim()),n.trim());return new ArrayList<>(out.values());}
@@ -19,6 +19,20 @@ public final class ArtistCredits {
     private static boolean protectedArtist(JSONObject t){return List.of("manual","confirmed").contains(t.optString("metadataStatus"))||t.optJSONObject("metadataLocks")!=null&&t.optJSONObject("metadataLocks").optBoolean("artist");}
     public static List<String> names(JSONObject t){if(protectedArtist(t))return split(t.optString("artist"));List<String> saved=array(t.optJSONArray("artists"));return saved.isEmpty()?split(t.optString("artist")):saved;}
     private static String raw(JSONObject t){return t.optString("rawTitle").isEmpty()?t.optString("title"):t.optString("rawTitle");}
+    // Labelled performance credits outrank a guessed game/film prefix. Keep
+    // this grammar and collaboration safeguards aligned with artist-credits.js.
+    private static final String PERFORMANCE_ROLE="(?:(?:heavy|metal|rock|piano|guitar|acoustic|electric|orchestral|orchestra|symphonic|epic|jazz|vocal|violin|cello|bass|drum|drums|instrumental|english|japanese|full|official)\\s+){0,4}(?:cover(?:ed)?|arrangement|arranged|performed)";
+    private static final Pattern PERFORMANCE=Pattern.compile("(?:[\\[(]|\\s+(?:[-–—]|\\|{1,2})\\s+)"+PERFORMANCE_ROLE+"\\s+(?:by\\s+|\\|{1,2}\\s+)([^()\\[\\]\\|]+)",Pattern.CASE_INSENSITIVE);
+    private static List<String> performance(JSONObject t){
+        List<String> known=new ArrayList<>();known.add(t.optString("channel"));known.addAll(array(t.optJSONArray("recordingArtists")));known.addAll(array(t.optJSONArray("musicbrainzArtists")));Set<String> keys=new HashSet<>();for(String n:known)if(!n.isBlank())keys.add(key(n));
+        List<String> names=new ArrayList<>();Matcher m=PERFORMANCE.matcher(raw(t).replaceFirst("\\s*\\[[\\w-]{11}\\]$",""));
+        while(m.find()){
+            String[] parts=m.group(1).trim().split("\\s+[-–—]\\s+");String credit=parts[0].trim();boolean valid=true;for(int i=1;i<parts.length;i++)valid&=ANNOTATION.matcher(parts[i]).matches();
+            if(!valid||credit.isEmpty()||credit.length()>100||!Pattern.compile("\\p{L}").matcher(credit).find()||Pattern.compile("(?i)https?:|www\\.|[@#]").matcher(credit).find()||ANNOTATION.matcher(credit).matches())continue;
+            for(String name:split(credit)){String[] collaborators=name.split("(?i)\\s+(?:&|and|with)\\s+");boolean corroborated=false;for(String n:collaborators)corroborated|=keys.contains(key(n));if(collaborators.length>1&&corroborated)names.addAll(Arrays.asList(collaborators));else names.add(name);}
+        }
+        return unique(names);
+    }
     private static final class Upload {final List<String> names;final String song;Upload(String credit,String song){this.names=split(credit);this.song=song;}}
     private static Upload upload(JSONObject t){String text=raw(t).replaceFirst("^\\[[^\\]]+\\]\\s*","").trim();String[] parts=text.split("\\s+[-–—]\\s+",2);
         if(parts.length<2){parts=text.split("\\s+\\|\\s+");if(parts.length!=2||!Pattern.compile("(?i)(?:\\blive\\b|\\bfestival\\b|\\bwinter\\b|\\bsummer\\b|\\b(?:19|20)\\d{2}\\b)").matcher(parts[1]).find())return null;}
@@ -34,8 +48,9 @@ public final class ArtistCredits {
         if(protectedArtist(t)){Json.put(t,"artists",new JSONArray(split(t.optString("artist"))));Json.put(t,"artistCreditVersion",VERSION);return t;}
         String original=t.optString("artist");if(t.optString("artistCreditSource").equals("Upload title")&&t.optInt("artistCreditVersion")!=VERSION&&!t.isNull("artistBeforeCreditRepair"))original=t.optString("artistBeforeCreditRepair",original);
         List<String> structured=array(t.optJSONArray("musicbrainzArtists")),recording=new ArrayList<>();for(String n:array(t.optJSONArray("recordingArtists")))recording.addAll(split(n));recording=unique(recording);
-        Upload upload=upload(t);List<String> prefix=upload==null?new ArrayList<>():upload.names;String channel=key(t.optString("channel")),source="Recording credits";List<String> names=structured;
-        if(names.isEmpty()){names=recording.isEmpty()?split(original):recording;boolean onlyChannel=!recording.isEmpty(),intersects=false;for(String n:recording){onlyChannel&=key(n).equals(channel);for(String p:prefix)intersects|=key(p).equals(key(n));}
+        Upload upload=upload(t);List<String> performance=performance(t),prefix=upload==null?new ArrayList<>():upload.names;String channel=key(t.optString("channel")),source="Recording credits";List<String> names=structured;
+        if(names.isEmpty()&&!performance.isEmpty()){names=performance;source="Performance credit";}
+        else if(names.isEmpty()){names=recording.isEmpty()?split(original):recording;boolean onlyChannel=!recording.isEmpty(),intersects=false;for(String n:recording){onlyChannel&=key(n).equals(channel);for(String p:prefix)intersects|=key(p).equals(key(n));}
             boolean originalMatches=false;for(String n:split(original))for(String p:prefix)originalMatches|=key(n).equals(key(p));boolean weak=recording.isEmpty()&&(original.isEmpty()||key(original).equals(channel)||originalMatches||t.optString("artistCreditSource").equals("Upload title"));
             String[] rawParts=raw(t).split("\\s+[-–—]\\s+");boolean reversed=upload!=null&&!channel.isEmpty()&&key(rawParts[rawParts.length-1]).equals(channel);
             if(!prefix.isEmpty()&&(weak||reversed||onlyChannel||intersects)){names=new ArrayList<>(prefix);boolean includesChannel=prefix.stream().anyMatch(n->key(n).equals(channel));for(String n:recording)if(!key(n).equals(channel)||includesChannel)names.add(n);names=unique(names);source="Upload title";}

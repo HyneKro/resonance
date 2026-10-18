@@ -10,6 +10,12 @@ public class ArtistCreditsTest {
         JSONObject t=Json.object("title","Move - VIP","artist","Aster");GenreResearch.sourceLabels(t,info);assertEquals("Move - VIP",t.optString("title"));assertEquals(List.of("Aster","Nova"),ArtistCredits.names(t));assertEquals("Aster",t.optString("channel"));
         JSONObject locked=Json.object("title","My title","artist","My artist","metadataLocks",Json.object("artist",true,"title",true));GenreResearch.sourceLabels(locked,info);assertEquals("My title",locked.optString("title"));assertEquals("My artist",locked.optString("artist"));
     }
+    @Test public void sourceRefreshKeepsTheGameAndSongInTheTitleAndCreditsTheCoverPerformer(){
+        String title="ELDEN RING - Main Theme (Metal Cover by RichaadEB)";
+        JSONObject t=Json.object("title",title,"artist","ELDEN RING","artistCreditSource","Upload title","artistCreditVersion",2,"plays",13,"favorite",true,"position",75);
+        JSONObject info=Json.object("title",title,"channel","RichaadEB","artist","RichaadEB","artists",new JSONArray(List.of("RichaadEB")));
+        GenreResearch.sourceLabels(t,info);assertEquals(title,t.optString("title"));assertEquals("RichaadEB",t.optString("artist"));assertEquals(List.of("RichaadEB"),ArtistCredits.names(t));assertEquals(13,t.optInt("plays"));assertTrue(t.optBoolean("favorite"));assertEquals(75,t.optInt("position"));
+    }
     @Test public void sharedCasesMatchDesktopAndRemainStableAcrossSaves() throws Exception {
         Path file=Path.of("../../tests/fixtures/artist-credits.json");if(!Files.isRegularFile(file))file=Path.of("tests/fixtures/artist-credits.json");
         JSONArray fixtures=new JSONArray(new String(Files.readAllBytes(file),java.nio.charset.StandardCharsets.UTF_8));

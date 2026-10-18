@@ -1,4 +1,4 @@
-export const ARTIST_CREDIT_VERSION=2;
+export const ARTIST_CREDIT_VERSION=3;
 const key=s=>String(s||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+-\s+topic$/i,'').replace(/[^\p{L}\p{N}]/gu,'');
 const unique=names=>[...new Map(names.map(x=>String(x?.name||x||'').trim()).filter(Boolean).map(x=>[key(x),x])).values()];
 export function splitArtistCredit(credit){
@@ -18,6 +18,25 @@ export function artistNames(track){
 export const hasArtist=(track,name)=>artistNames(track).some(x=>key(x)===key(name));
 // A dash before a version or video label belongs to the song title, not a credit.
 const annotation=/^(?:v\.?i\.?p\.?|(?:official\s+)?(?:music\s+|lyric\s+)?video\b.*|(?:official\s+)?(?:audio|visuali[sz]er|lyrics?)\b.*|day\s+\d+\b.*|(?:extended|full|original|radio|album|instrumental|acoustic|live|remastered?)(?:\s+(?:version|mix|edit|audio|video|\d{4}))*|(?:sped\s+up|slowed)(?:\s*\+\s*reverb)?)$/i;
+// Only parse a labelled performance credit in a title segment, not an arbitrary
+// "by" in a song name or the game/film name before a dash.
+const performanceRole='(?:(?:heavy|metal|rock|piano|guitar|acoustic|electric|orchestral|orchestra|symphonic|epic|jazz|vocal|violin|cello|bass|drum|drums|instrumental|english|japanese|full|official)\\s+){0,4}(?:cover(?:ed)?|arrangement|arranged|performed)';
+function performanceCredit(track){
+ const raw=String(track.rawTitle||track.title||'').replace(/\s*\[[\w-]{11}\]$/,'');
+ const matches=[...raw.matchAll(new RegExp('(?:[([]|\\s+(?:[-–—]|\\|{1,2})\\s+)'+performanceRole+'\\s+(?:by\\s+|\\|{1,2}\\s+)([^()[\\]\\|]+)','gi'))];
+ const known=unique([track.channel,...(track.recordingArtists||[]),...(track.musicbrainzArtists||[])]).map(key),names=[];
+ for(const match of matches){
+  const parts=match[1].trim().split(/\s+[-–—]\s+/),credit=parts[0].trim();
+  if(parts.slice(1).some(p=>!annotation.test(p))||!credit||credit.length>100||!/[\p{L}]/u.test(credit)||/https?:|www\.|[@#]/i.test(credit)||annotation.test(credit))continue;
+  for(const name of splitArtistCredit(credit)){
+   const collaborators=name.split(/\s+(?:&|and|with)\s+/i);
+   // Preserve band names such as Earth, Wind & Fire. A known performer must
+   // corroborate an ampersand/"with" collaboration before splitting it.
+   names.push(...(collaborators.length>1&&collaborators.some(n=>known.includes(key(n)))?collaborators:[name]));
+  }
+ }
+ return unique(names);
+}
 function uploadCredit(track){
  const raw=String(track.rawTitle||track.title||'').replace(/^\[[^\]]+\]\s*/,'').trim();
  const parts=raw.split(/\s+[-–—]\s+/);let credit=parts[0],song=parts.slice(1).join(' - ');
@@ -36,14 +55,15 @@ export function titleArtistCredits(track){
 export function repairArtistCredits(track){
  const result={...track};
  if(protectedArtist(track)){result.artists=splitArtistCredit(track.artist);result.artistCreditVersion=ARTIST_CREDIT_VERSION;return result;}
- // Re-evaluate v1 guesses using the original credit, without deleting evidence.
+ // Re-evaluate older guesses using the original credit, without deleting evidence.
  const original=track.artistCreditSource==='Upload title'&&track.artistCreditVersion!==ARTIST_CREDIT_VERSION?track.artistBeforeCreditRepair??track.artist:track.artist;
  const structured=unique(track.musicbrainzArtists||[]);
  const recording=unique((track.recordingArtists||[]).flatMap(a=>splitArtistCredit(a?.name||a)));
- const upload=uploadCredit(track),prefix=upload?.names||[],channel=key(track.channel);
+ const performance=performanceCredit(track),upload=uploadCredit(track),prefix=upload?.names||[],channel=key(track.channel);
  const intersects=prefix.some(n=>recording.some(r=>key(n)===key(r))),reversed=!!upload&&key(String(track.rawTitle||track.title||'').split(/\s+[-–—]\s+/).at(-1))===channel&&!!channel;
  let names=structured,source='Recording credits';
- if(!names.length){
+ if(!names.length&&performance.length){names=performance;source='Performance credit';}
+ else if(!names.length){
   names=recording.length?recording:splitArtistCredit(original);
   const weak=!recording.length&&(!original||key(original)===channel||splitArtistCredit(original).some(n=>prefix.some(p=>key(p)===key(n)))||track.artistCreditSource==='Upload title');
   if(prefix.length&&(weak||reversed||recording.length>0&&recording.every(n=>key(n)===channel)||intersects)){
