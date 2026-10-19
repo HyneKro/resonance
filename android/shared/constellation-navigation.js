@@ -37,3 +37,23 @@ export function groupTrail(data,id,previous=[]){
  const genre=counts.find(g=>g.group.id===prior?.id)?.group||counts.sort((a,b)=>b.count-a.count)[0]?.group;
  return [home,...(genre?[{id:genre.id,label:genre.name}]:[]),{id,label:group.name}];
 }
+
+const markerPools=new WeakMap();
+/** Reuse visible labels, not every artist ever explored during the session. */
+export function paintMapMarkers(root,markers){
+ let pool=markerPools.get(root);if(!pool){pool=new Map();markerPools.set(root,pool);}
+ const active=new Set(markers.map(marker=>marker.id));
+ for(const [id,entry]of pool){if(!active.has(id)&&entry.button!==root.ownerDocument.activeElement){entry.button.remove();pool.delete(id);}}
+ for(const marker of markers){
+  let entry=pool.get(marker.id);
+  if(!entry){const button=root.ownerDocument.createElement('button');button.type='button';button.dataset.cxGroup=marker.id;root.append(button);entry={button};pool.set(marker.id,entry);}
+  const {button}=entry;
+  const values={label:marker.name,aria:marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs',navigation:!!marker.navigation,transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
+  if(values.label!==entry.label)button.textContent=values.label;
+  if(values.aria!==entry.aria)button.setAttribute('aria-label',values.aria);
+  if(values.navigation!==entry.navigation)button.classList.toggle('cx-waypoint',values.navigation);
+  for(const key of ['transform','width','height'])if(values[key]!==entry[key])button.style[key]=values[key];
+  if(values.color!==entry.color)button.style.setProperty('--group-color',values.color);
+  Object.assign(entry,values);
+ }
+}

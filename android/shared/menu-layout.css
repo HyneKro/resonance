@@ -33,3 +33,40 @@
 .update-ready-button:hover,.update-ready-button:focus-visible{border-color:var(--accent,#c6aeff);background:var(--accent-soft,#ad8aff42)}
 .settings-hub>.menu-destination:last-child:nth-child(odd){grid-column:1/-1}
 @media(max-width:650px){.room-top .update-ready-button{padding:9px;width:44px}.room-top .update-ready-button span{display:none}}
+
+/* Reading surfaces stay calm over bright visuals and unblurred album artwork. */
+.in-room.library-open>.app-shell,.in-room #dialog,#listening-room .visual-tools,#volume-panel{
+ background:color-mix(in srgb,var(--accent) 3%,rgb(13 10 22 / max(.88,var(--panel-opacity,.88))));
+ --muted:#b5adbf;
+}
+.music-only.library-open #music-only-stage,.music-only:has(#dialog[open]) #music-only-stage{visibility:hidden}
+.music-only.library-open :is(.sleeve-lettering,.sleeve-colophon),.music-only:has(#dialog[open]) :is(.sleeve-lettering,.sleeve-colophon){visibility:hidden}
+.library-open .sidebar .brand{max-width:100%;margin-left:0;margin-right:0}
+.in-room #dialog .dialog-heading,.in-room #dialog .dialog-actions{background:#100d1799}
+.library-open .sidebar .nav-item{font-size:12px;line-height:1.45;min-height:42px}
+.library-open .nav-item .nav-count{flex-shrink:0;color:#b5adbf}
+.library-open .nav-label,.library-open .local-status,.library-open .search input::placeholder{color:#a89cb7}
+.library-open .search input{font-size:13px}
+.library-open .track-cell b{font-size:13px;line-height:1.45;color:var(--text)}
+.library-open .track-cell small,.library-open .music-card p{font-size:11px;color:#b5adbf}
+.library-open .track-table th{font-size:10px;color:#aaa0b6;letter-spacing:1px}
+.library-open .track-table td{font-size:12px;color:#b5adbf}
+.library-open .track-table .row-actions .icon-button{width:32px;height:36px;padding:8px}
+.library-open .music-card h3{font-size:13px}.library-open .artist-card h3{font-size:14px}
+.page-heading>div:first-child,.detail-intro>div:last-child{min-width:0;overflow-wrap:anywhere}
+.page-heading>div:last-child{flex-shrink:0}.empty-state .secondary{margin-top:20px}
+.dialog-heading h2,.settings-card,.menu-destination b,.menu-destination small{overflow-wrap:anywhere}
+.section-tabs button:focus-visible{outline-offset:-3px}
+.menu-section .toggle-label{min-height:44px;gap:10px;align-items:center}
+.menu-section .toggle-label input[type=checkbox]{width:20px;height:20px;flex-shrink:0}
+.menu-section .toggle-label .setting-reset{margin-left:auto}
+.menu-section .field input[type=range]{min-height:28px;padding:0;border:0;background:transparent;accent-color:var(--accent)}
+#dialog .dialog-heading .icon-button{min-width:40px;min-height:40px}
+#dialog #toasts{position:fixed;bottom:16px;left:24px;right:24px;width:auto;max-width:none;pointer-events:none;z-index:10}
+.toast{overflow-wrap:anywhere}
+@media(max-width:800px){.library-open .sidebar .nav-item{font-size:0}.page-heading{align-items:start}.page-heading h1{font-size:24px}}
+@media(prefers-reduced-motion:reduce){.menu-destination,.section-tabs button,.primary,.secondary{transition:none}}
+.library-open #sources-nav .nav-item>span:not(.nav-count),.library-open #playlists-nav .nav-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.menu-section .toggle-label{display:flex}
+.menu-section .field input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:3px;background:#ffffff28}
+.menu-section .field input[type=range]::-webkit-slider-thumb{margin-top:-3px}

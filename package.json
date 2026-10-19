@@ -1,6 +1,6 @@
 {
   "name": "resonance-music",
-  "version": "1.15.7",
+  "version": "1.16.0",
   "description": "An expressive local music library and audio-reactive player.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -11,7 +11,8 @@
     "share": "node scripts/share.mjs",
     "audit:repository": "node scripts/audit-repository.mjs",
     "release:cleanup": "node scripts/release-retention.mjs",
-    "release:finish": "node scripts/release-retention.mjs --apply"
+    "release:finish": "node scripts/release-retention.mjs --apply",
+    "test:polish": "node scripts/test-polish.mjs"
   },
   "keywords": [],
   "author": "",

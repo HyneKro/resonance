@@ -16,7 +16,7 @@ export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,ap
   if(page==='updates'){showDialog('App updates','Your music and settings stay with you.','<div id="app-update-slot">'+(!window.resonanceDesktop?.installUpdate?'<p>Open the desktop app to install updates. This browser preview cannot replace an installed app.</p>':'')+'</div>');return;}
   if(page==='help'){
    showDialog('Help & gestures','Keep the controls within reach.',card('Mouse controls',`<div class="help-grid">${[
-    ['Orbit the scene','Hold left click on the background and drag in any direction.'],['Volume','Scroll the background or Sona. Hold Shift for finer adjustment; click the volume percentage for an exact value.'],['Change songs','Hold right click and drag right for next, left for previous.'],['Seek or cancel','Right-drag up / down to seek. Left-click while holding right click, or press Escape, to cancel.'],['Library & song details','Library opens your collection. Click a song cover or title in the list to play; the player cover opens its details.'],['Close a panel','Use × or click outside. Back returns to the previous menu without losing your place.']
+    ['Orbit the scene','Hold left click on the background and drag in any direction.'],['Volume','Scroll the background or mascot. Hold Shift for finer adjustment; click the volume percentage for an exact value.'],['Change songs','Hold right click and drag right for next, left for previous.'],['Seek or cancel','Right-drag up / down to seek. Left-click while holding right click, or press Escape, to cancel.'],['Library & song details','Library opens your collection. Click a song cover or title in the list to play; the player cover or title opens its details.'],['Close a panel','Use × or click outside. Back returns to the previous menu without losing your place.']
    ].map(([t,d])=>`<div><b>${t}</b><p>${d}</p></div>`).join('')}</div>`)+card('Keyboard shortcuts','<p>Space · play / pause<br>L · Library &nbsp; Q · Queue &nbsp; H · Immerse<br>Ctrl K · Search &nbsp; F11 · Fullscreen<br>Alt ← / → · Previous / next &nbsp; Escape · Back / close</p>')+card('Your files stay yours','<p>Metadata changes and listening edits are saved in Resonance. Your original audio files are not rewritten. A play counts after 30 seconds, or half of a shorter song. Long mixes remember your position.</p>'));return;
   }
  }
@@ -42,6 +42,8 @@ export function organizeSongDetails(root,{initial='overview',onSelect}={}){
  const lyrics=story.querySelector('.song-lyrics'),edit=body.querySelector('.song-edit'),analysis=body.querySelector('.listening-edit');
  const search=body.querySelector('.song-search:not(.listening-edit)');
  edit.open=true;
+ // Lyrics are a dedicated tab; remove the redundant keyboard-toggleable disclosure.
+ if(lyrics){lyrics.open=true;const summary=lyrics.querySelector('summary');if(summary){summary.tabIndex=-1;summary.setAttribute('aria-hidden','true');summary.hidden=true;}}
  const overview=[...body.children].filter(n=>![lyrics,edit,search,analysis].includes(n));
  sectionTabs(body,[['overview','Overview',overview],['lyrics','Lyrics',[lyrics]],['listening','Listening edit',[analysis]],['details','Edit details',[search,edit]]],{label:'Song details sections',initial,onSelect});
 }

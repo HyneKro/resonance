@@ -37,6 +37,7 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
     $('#dock-title').textContent=state.current?.title||'Find your frequency';
     $('#dock-artist').textContent=state.current?.artist||state.current?.channel||'Open your library to begin';
     $('#music-only-title').textContent=$('#dock-title').textContent;$('#music-only-artist').textContent=$('#dock-artist').textContent;
+    $('#room-favorite').disabled=!track;
     $('#room-favorite').setAttribute('aria-pressed',String(!!state.current?.favorite));
     $('#room-favorite').setAttribute('aria-label',state.current?.favorite?'Unfavorite current track':'Favorite current track');
     $('#room-shuffle').setAttribute('aria-pressed',String(state.shuffle));
@@ -44,7 +45,7 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
   }
   function updateTime(){
     const total=Number.isFinite(audio.duration)?audio.duration:state.current?.duration||0;
-    $('#room-seek').max=total||100;$('#room-seek').value=audio.currentTime;
+    $('#room-seek').max=total||100;$('#room-seek').value=audio.currentTime;$('#room-seek').setAttribute('aria-valuetext',format(audio.currentTime)+' of '+format(total));$('#room-seek').disabled=!state.current||!total;
     $('#room-seek').style.setProperty('--progress',`${total?audio.currentTime/total*100:0}%`);
     $('#room-elapsed').textContent=format(audio.currentTime);$('#room-duration').textContent=format(total);
   }
@@ -55,7 +56,7 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
   $('#room-shuffle').onclick=()=>{$('#shuffle').click();updateTrack();};$('#room-repeat').onclick=()=>{$('#repeat').click();updateTrack();};
   $('#room-visual-settings').onclick=()=>{
     const open=!document.body.classList.contains('visual-settings-open');document.body.classList.toggle('visual-settings-open',open);
-    $('#room-visual-settings').setAttribute('aria-expanded',String(open));$('.visual-tools').inert=!open;if(open)$('.visual-tools [role=tab][aria-selected=true]')?.focus();
+    $('#room-visual-settings').setAttribute('aria-expanded',String(open));$('.visual-tools').inert=!open;if(open)$('.visual-tools [role=tab][aria-selected=true]')?.focus({preventScroll:true});else $('#room-visual-settings').focus({preventScroll:true});
   };
   $('#room-seek').oninput=e=>{if(Number.isFinite(audio.duration))audio.currentTime=Math.min(audio.duration,Math.max(0,Number(e.target.value)));};
   audio.addEventListener('play',updatePlay);audio.addEventListener('pause',updatePlay);

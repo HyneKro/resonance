@@ -71,3 +71,32 @@
 
 /* Fixed global access, three equal listening surfaces, then surface tools. */
 .room-top{gap:4px;padding:8px 14px}.room-top .brand{margin-right:auto}.room-top .brand span{font-size:20px}.room-top>.text{font-size:12px;padding:6px 10px}.mobile-modes{position:absolute;z-index:5;top:65px;left:14px;right:14px;justify-content:space-around;padding:3px}.mobile-modes button{font-size:12px;flex:1;min-height:38px;border-radius:22px}.mobile-mode-tools{position:absolute;z-index:5;top:114px;right:14px;display:flex;gap:5px}.mobile-mode-tools button{font-size:11px;padding:5px 11px;border:1px solid #ffffff24;border-radius:22px;min-height:36px;background:#14152150}.bottom-nav{justify-content:flex-end;border:0;padding:0;height:34px}.bottom-nav button{flex-direction:row;width:auto;gap:7px;min-height:32px;font-size:16px}.bottom-nav span{font-size:11px}.immersed .mobile-modes,.immersed .mobile-mode-tools{opacity:0;pointer-events:none}.constellation-mode .room-dock .bottom-nav button{min-height:32px;flex-direction:row}.constellation-mode .room-dock .bottom-nav{padding:0}.constellation-mode .room-dock .volume-row{display:none}
+/* Compact touch controls, readable sheets and a separate landscape player column. */
+.room-top{gap:4px}.room-top .brand{min-width:0;flex:1;margin-right:4px;gap:6px}
+.room-top .brand img{flex-shrink:0}.room-top .brand span{font-size:clamp(17px,4.8vw,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-top>.text{flex-shrink:0;padding-inline:8px}.room-top #settings{font-size:12px}
+#sheet{background:rgb(17 14 25 / .94)}#sheet-body{overflow-x:hidden}
+#sheet .detail-title,#sheet .details-grid b,#sheet .card h3{overflow-wrap:anywhere}
+#sheet .menu-section .toggle-label{display:flex;min-height:48px;gap:12px;padding-block:8px;font-size:14px}
+#sheet .menu-section .toggle-label input{width:22px;height:22px;accent-color:var(--ui-accent);flex-shrink:0}
+#sheet .setting>span{min-height:44px;gap:10px}.setting .setting-title{min-width:0;line-height:1.5}
+#sheet .menu-section .setting{margin-block:8px}#sheet .menu-section h3{margin-top:12px}
+.transport svg,.favorite svg,.volume-row svg,.bottom-nav svg{display:block;width:22px;height:22px;flex-shrink:0}
+.transport .play{display:grid;place-items:center}.transport .play svg{width:24px;height:24px}
+.favorite[aria-pressed=true] svg{fill:currentColor}.volume-row svg{width:18px;height:18px}
+.bottom-nav{height:44px}.bottom-nav button,.constellation-mode .room-dock .bottom-nav button{min-height:44px;font-size:12px;padding:8px 4px 8px 14px}
+.mobile-modes button,.mobile-mode-tools button{min-height:44px}.mobile-mode-tools{top:120px}
+input[type=range]{appearance:none;background:transparent;border:0;height:36px;min-height:36px;box-shadow:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:#ffffff36;border-radius:4px}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;margin-top:-6px;border-radius:50%;background:var(--ui-accent);border:0}
+#sheet .sync-row input[type=checkbox]{width:24px;height:24px;flex-shrink:0;margin:10px 6px 0 0;cursor:pointer}
+#sheet .sync-row:has(input[type=checkbox]){min-height:64px}
+#sheet .section-tabs button:focus-visible{outline-offset:-3px}
+#sheet #toasts{bottom:max(14px,env(safe-area-inset-bottom))}.toast{line-height:1.5}
+#sheet .song-detail-actions{background:#15121e}
+@media(max-width:380px){.room-top{padding-inline:10px}.room-top .brand img{width:21px}.room-top>.text{padding-inline:6px}}
+@media(max-height:620px) and (orientation:landscape){
+ .mobile-modes{right:calc(40% + 12px)}.mobile-mode-tools{right:calc(40% + 12px);top:120px}
+ .room-dock{padding:10px 16px 6px}.room-dock .transport{margin:4px 0}.room-dock .bottom-nav{height:40px}
+ #welcome{top:168px;gap:8px}#welcome h1{font-size:22px}#welcome .text{margin-top:0}
+}
