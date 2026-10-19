@@ -219,6 +219,38 @@ void main(){vec2 p=gl_PointCoord*2.-1.;float r=dot(p,p);if(r>1.)discard;
  fragColor=vec4(v_color*core*v_alpha,0.);
 }`;
 
+// Two mirrored spectrum runs share the membrane's seed map. Their low ends
+// meet at 0/1 and their high ends at .5. Neither geometry nor color resamples
+// with loudness: only emissive light changes, with no lifetime flicker.
+export const RIBBON_SPECTRUM_VERTEX=`#version 300 es
+precision highp float;
+in vec4 a_seed;in vec4 a_birth;out vec3 v_color;out float v_alpha;
+uniform float u_spectrumLight[48];
+${COMMON}
+void main(){
+ float phase=a_seed.x,frequency=1.-abs(2.*phase-1.);
+ float x=frequency*47.;int band=int(floor(x));
+ float light=mix(u_spectrumLight[band],u_spectrumLight[min(47,band+1)],fract(x));
+ float thread=(floor(a_seed.y*256.)+.5)/256.,lane=floor(a_seed.y*48.)/47.;
+ // Exactly the ribbon's displacement, including its birth-color option.
+ float geometryLane=u_particleStyle>2.5?max(0.,a_birth.z):lane;
+ vec3 p=organismPose(tissue(phase*TAU,(thread-.5)*2.,spectral(geometryLane),a_seed.w));
+ project(p,a_seed.w,light);
+ gl_PointSize=clamp((3.2+a_seed.z*1.2)*u_pixel*4.8*u_particle.y/max(gl_Position.w,1.),1.5,10.);
+ // Walk all six sampled background colors, then retrace them on the other
+ // half. Unlike a cyclic palette, the treble end keeps the last color.
+ float shade=frequency*5.;int colorIndex=int(floor(shade));
+ v_color=mix(u_palette[colorIndex],u_palette[min(5,colorIndex+1)],smoothstep(0.,1.,fract(shade)))*2.8;
+ v_alpha=cameraVisibility*tissueVisibility*light*u_density*u_intensity*.72;
+}`;
+export const RIBBON_SPECTRUM_FRAGMENT=`#version 300 es
+precision mediump float;in vec3 v_color;in float v_alpha;out vec4 fragColor;
+void main(){
+ vec2 p=gl_PointCoord*2.-1.;float r=dot(p,p);if(r>1.||v_alpha<=0.)discard;
+ float light=(exp(-r*18.)+.24*exp(-r*3.))*(1.-smoothstep(.65,1.,r));
+ fragColor=vec4(v_color*light*v_alpha,0.);
+}`;
+
 export const SPECTRAL_VERTEX=`#version 300 es
 precision highp float;
 in vec4 a_seed;out vec3 v_color;out float v_alpha;

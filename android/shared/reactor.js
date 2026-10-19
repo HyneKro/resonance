@@ -1,3 +1,4 @@
+import {RibbonSpectrum} from './particle-spectrum.js';
 import {MusicalResponse} from './musical-response.js';
 import {SongDirector,directedAppearance} from './song-analysis.js';
 import {KaleidoscopeBlend} from './kaleidoscope.js';
@@ -149,8 +150,10 @@ export class Reactor {
         if(!this.conductor)this.conductor=new VisualConductor();
         const originalResponse=this.conductor.update(this.features,dt,{active:this.reactiveActive,evolve:this.dynamicVisuals,frozen:this.frozen,reduced:this.reduced,responsiveness:this.responsiveness??2.5,movement:this.appearance?.motionAmount??1});
         this.musicalResponse??=new MusicalResponse();
-        const musical=this.musicalResponse.update(originalResponse,this.features,dt,{style:this.reactivityStyle,active:this.reactiveActive,frozen:this.frozen,reduced:this.reduced,dynamic:this.dynamicVisuals!==false,profile:this.autoDirection!==false&&!this.desktopSource&&!this.audio.snapshot?.capturing&&!this.visualPending?this.songProfile:null,time:Math.max(0,(this.audio.currentTime||0)-(this.visualSync.effectiveDelayMs||0)/1000),roles:visual.roles});
+        const musical=this.musicalResponse.update(originalResponse,this.features,dt,{active:this.reactiveActive,frozen:this.frozen,reduced:this.reduced,dynamic:this.dynamicVisuals!==false,profile:this.autoDirection!==false&&!this.desktopSource&&!this.audio.snapshot?.capturing&&!this.visualPending?this.songProfile:null,time:Math.max(0,(this.audio.currentTime||0)-(this.visualSync.effectiveDelayMs||0)/1000),roles:visual.roles});
         const response=musical.features;visual.roles=musical.roles;
+        this.ribbonSpectrum??=new RibbonSpectrum();
+        visual.spectrumLight=this.ribbonSpectrum.update(this.features,dt,{active:this.reactiveActive,frozen:this.frozen,reduced:this.reduced});
         // Phrase movement stays small and follows the delayed audible signal.
         visual.appearance={...visual.appearance,particleSpread:visual.appearance.particleSpread*(1-musical.tension*.025+musical.arrival*.018),glow:visual.appearance.glow*(1+musical.arrival*.08)};
         visual.particleColor=this.particleColor||'palette';visual.fluidity=this.fluidity??.8;visual.iridescence=this.iridescence??.65;visual.depth=this.depth??.7;visual.spectralDetail=this.spectralDetail??.8;

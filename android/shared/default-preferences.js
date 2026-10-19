@@ -63,7 +63,6 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "beatMotion": 0.81,
   "pointerForce": 0,
   "autoDirection": true,
-  "reactivityStyle": "musical",
   "glassOpacity": 0.4,
   "wallpaperDim": 0.25,
   "coverInterface": true,
@@ -71,4 +70,4 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "signatureVersion": 1
 });
 export const REMOVED_LAYERS=new Set(['galaxyDensity','comets','gravity','pointerForce']);
-export function preferencesWithDefaults(saved={}){const p={...DEFAULT_PREFERENCES,...saved,...visualSyncPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);p.reactivityStyle=p.reactivityStyle==='classic'?'classic':'musical';delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}
+export function preferencesWithDefaults(saved={}){const p={...DEFAULT_PREFERENCES,...saved,...visualSyncPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}

@@ -5,7 +5,7 @@ import {KALEIDOSCOPE_MODES,kaleidoscopeIndex} from './kaleidoscope.js';
 import {HDROutput} from './hdr-output.js';
 import {visualDefaults} from './visual-settings.js';
 import { expandPalette } from './artwork-palette.js?v=2';
-import { QUAD, CELL_VERTEX, CELL_FRAGMENT, PARTICLE_VERTEX, PARTICLE_FRAGMENT, SPECTRAL_VERTEX, BIRTH_UPDATE, FLOW_UPDATE, FLOW_FRAGMENT, FLOW_VERTEX, BLOOM, FINISH } from './scene-shaders.js';
+import { QUAD, CELL_VERTEX, CELL_FRAGMENT, PARTICLE_VERTEX, PARTICLE_FRAGMENT, SPECTRAL_VERTEX, RIBBON_SPECTRUM_VERTEX, RIBBON_SPECTRUM_FRAGMENT, BIRTH_UPDATE, FLOW_UPDATE, FLOW_FRAGMENT, FLOW_VERTEX, BLOOM, FINISH } from './scene-shaders.js';
 import { birthDistribution } from './particle-spectrum.js';
 import { NEBULA_VERTEX, NEBULA_FRAGMENT } from './nebula-original.js';
 import { NEBULA_LIVE } from './nebula-live.js';
@@ -26,9 +26,9 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
-    this.flow=null;this.births=null;this.birthCDF=new Float32Array(48);this.lastTime=undefined;this.lastMode=null;
+    this.flow=null;this.births=null;this.emptySpectrum=new Float32Array(48);this.birthCDF=new Float32Array(48);this.lastTime=undefined;this.lastMode=null;
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
     this.maxParticles=262144;this.flowCapacity=32768;this.seeds=gl.createBuffer();let seed=8217;const data=new Float32Array(this.maxParticles*4);
     await work.fill(data.length,i=>{seed=(seed*1664525+1013904223)>>>0;data[i]=seed/4294967296;});
@@ -39,7 +39,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -176,6 +176,15 @@ export class GPUScene {
       yield;
       this.drawFlow({...uniforms,u_mode:7,u_weight:features.flow*a.orbit,u_density:uniforms.u_density*primaryCount/flowCount},flowCount,delta,warmup?128:undefined);yield;
       if(warmup||d.spectralDetail>0){this.use(this.spectral,{...uniforms,u_spectrum:features.spectrum,u_weight:d.spectralDetail,u_density:uniforms.u_density*2.4});this.points(this.spectral,Math.floor(budget*.16));}yield;
+
+      // A stable surface population shares the shape/camera and the existing
+      // bloom pass. Only color comes from the actual background palette.
+      const spectrumLight=d.spectrumLight||this.emptySpectrum;
+      if(warmup||spectrumLight.some(level=>level>0)){
+        const count=Math.floor(budget*.094);
+        this.use(this.ribbonSpectrum,{...uniforms,u_palette:backUniforms.u_palette,u_spectrumLight:spectrumLight,u_density:Math.min(2.2,12288/count)*Math.pow(h/900,.6)});
+        this.points(this.ribbonSpectrum,count);
+      }yield;
 
       gl.disable(gl.BLEND);
       // Downsample, extract emissive light, then two separable bloom passes.

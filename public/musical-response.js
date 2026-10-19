@@ -26,7 +26,7 @@ export function phrasePreview(profile,time){
 }
 
 // A visual-only refinement of the approved conductor. The original analyzer,
-// clock, geometry, audio graph and Classic response remain intact.
+// clock and audio graph remain intact. Reduced motion bypasses the refinement.
 export class MusicalResponse{
  constructor(){
   this.blend=new Inertia(0,.7);this.tension=new Inertia(0,1.1);this.breath=new Inertia(0,1.8);
@@ -43,11 +43,11 @@ export class MusicalResponse{
   this.warm=0;this.level=null;this.baseline=null;this.arrival=0;this.cooldown=3;
   this.rate=0;this.preview=0;this.previewAt=0;this.lastTime=null;this.profile=null;this.seed=true;
  }
- update(base,raw,dt,{style='musical',active=true,frozen=false,reduced=false,dynamic=true,profile=null,time=0,roles={}}={}){
+ update(base,raw,dt,{active=true,frozen=false,reduced=false,dynamic=true,profile=null,time=0,roles={}}={}){
   if(frozen&&this.output)return this.output;
   dt=clamp(dt,0,.1);
   if(active&&!this.wasActive)this.resetEvidence();this.wasActive=active;
-  const audible=active&&raw.db>-88,enabled=style!=='classic'&&!reduced;
+  const audible=active&&raw.db>-88,enabled=!reduced;
   const weight=this.blend.update(enabled?1:0,dt),w=weight<.0001?0:weight>.9999?1:weight;
   // A seek is not a crescendo. Detect it here too for native playback events
   // and discard predictions from a profile that was replaced asynchronously.

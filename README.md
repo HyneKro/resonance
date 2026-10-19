@@ -16,7 +16,7 @@ Click the playing song's cover or title to open **Behind the sound**: overview, 
 ## Make it yours
 
 - **Visualizer:** audio-reactive particles and nebulae, smooth track-character changes, kaleidoscope patterns, manual orbit and optional camera motion. Visuals contains Style, Motion, Display and Extras; these controls belong to this mode.
-- **Reactivity:** Visuals → Motion offers Musical for steadier note detail and subtle phrase movement, or Classic for the preserved response. Saved analysis supports anticipation; live audio reacts as it arrives. See [Musical response](docs/MUSICAL-RESPONSE.md).
+- **Reactivity:** Steadier note detail and subtle phrase movement are always enabled. Saved analysis supports anticipation; live audio reacts as it arrives. A mirrored spectrum of emissive particles follows the ribbon, lights up only where sound is present, and uses the background palette. See [Musical response](docs/MUSICAL-RESPONSE.md).
 - **Constellation:** explore the collection through genre and artist groups, click a star to play, and build a journey through related songs. Drag to orbit, right-drag to pan and scroll to zoom on PC. Background stars are decoration; labelled song stars belong to your library.
 - **Music only:** a static composition built from the cover. The visualizer and mascot stop rendering to reduce work.
 - **Mascots:** Sona is the default, with optional guest appearances. Authored motion uses fixed timing; music does not stretch the sprites or speed up the animation. Windows can keep the companion above other windows with compact playback controls.

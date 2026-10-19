@@ -11,9 +11,9 @@ const base=f=>({...f,transients:new Float32Array([.4,.4,.4]),morph:new Float32Ar
 const profile=(energy)=>({duration:40,step:1,timeline:Array.from({length:40},(_,i)=>[i,-30,energy(i),.4,.3])});
 const run=(m,seconds,f,options={})=>{let result;for(let i=0;i<seconds*60;i++)result=m.update(base(f),f,1/60,{time:i/60,...options});return result;};
 
-test('classic is the exact original response, including after a smooth switch back',()=>{
- const m=new MusicalResponse(),f=frame(),b=base(f);let r=m.update(b,f,1/60,{style:'classic'});assert.equal(r.features,b);
- run(m,3,f);for(let i=0;i<240;i++)r=m.update(b,f,1/60,{time:3+i/60,style:'classic'});
+test('reduced motion settles to the original response',()=>{
+ const m=new MusicalResponse(),f=frame(),b=base(f);let r=m.update(b,f,1/60,{reduced:true});assert.equal(r.features,b);
+ run(m,3,f);for(let i=0;i<240;i++)r=m.update(b,f,1/60,{time:3+i/60,reduced:true});
  assert.equal(r.features,b);assert.equal(r.weight,0);assert.equal(r.tension,0);
 });
 test('quiet note flicker is reduced while a new sustained note is preserved',()=>{
@@ -60,7 +60,7 @@ test('percussion refinement receives the delayed signal, never the early raw att
  for(let i=0;i<250;i++){const f=frame(.2,i===180?.9:.1);if(i===180)f.hits[0]=f.accents[0]=.8;const at=i*1000/60,delayed=delay.process(f,true,at),r=m.update(conductor.update(delayed,1/60),delayed,1/60,{active:delay.active,time:i/60-.2});if(i>=180&&i<192)before=Math.max(before,r.features.transients[0]);if(i>=192)after=Math.max(after,r.features.transients[0]);}
  assert.equal(before,0);assert.ok(after>.1);
 });
-test('style is normalized and phone code is identical',async()=>{
- assert.equal(preferencesWithDefaults().reactivityStyle,'musical');assert.equal(preferencesWithDefaults({reactivityStyle:'classic'}).reactivityStyle,'classic');assert.equal(preferencesWithDefaults({reactivityStyle:'invalid'}).reactivityStyle,'musical');
- for(const name of ['musical-response.js','reactor.js','default-preferences.js','atmosphere-ui.js'])assert.deepEqual(await fs.readFile('public/'+name),await fs.readFile('android/shared/'+name));
+test('retired style preference is removed and phone code is identical',async()=>{
+ for(const style of [undefined,'classic','musical','invalid'])assert.equal('reactivityStyle' in preferencesWithDefaults({reactivityStyle:style}),false);
+ for(const name of ['musical-response.js','reactor.js','default-preferences.js','atmosphere-ui.js','gpu-scene.js','scene-shaders.js','particle-spectrum.js'])assert.deepEqual(await fs.readFile('public/'+name),await fs.readFile('android/shared/'+name));
 });

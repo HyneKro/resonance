@@ -6,3 +6,25 @@ export function birthDistribution(spectrum,cdf=new Float32Array(48)){
   if(total>0)for(let i=0;i<48;i++)cdf[i]/=total;
   return {cdf,total};
 }
+
+// Light only: fixed log-frequency windows, without per-frame normalization.
+// Consume the delayed analyzer (not the early input or adaptive scene energy),
+// so quiet/noisy recordings cannot illuminate the whole ribbon at full power.
+export class RibbonSpectrum {
+  constructor(){this.levels=new Float32Array(48);}
+  update(features,dt,{active=true,frozen=false,reduced=false}={}){
+    if(frozen)return this.levels;
+    dt=Math.max(0,Math.min(.1,Number(dt)||0));
+    const db=Number.isFinite(features?.db)?features.db:-100;
+    const gate=active?Math.max(0,Math.min(1,(db+88)/20)):0;
+    for(let i=0;i<48;i++){
+      const input=Number(features?.spectrum?.[i]);
+      const level=Number.isFinite(input)?Math.max(0,Math.min(1,(input-.04)/.96)):0;
+      const target=gate*Math.pow(level,1.6),previous=this.levels[i];
+      const seconds=reduced?.28:target>previous?.022:gate>0?.105:.07;
+      const next=target+(previous-target)*Math.exp(-dt/seconds);
+      this.levels[i]=next<.0001?0:next;
+    }
+    return this.levels;
+  }
+}
