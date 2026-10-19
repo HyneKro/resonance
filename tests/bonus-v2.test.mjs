@@ -34,5 +34,5 @@ test('track gaps retain the ribbon shape and high response cannot cause rapid wi
 test('listening routines use the head-bob artwork and resume after pause',()=>{
  const d=new DanceMotion(),phrases=new Set();
  for(let i=0;i<24*110;i++){const p=d.update(1/24,{active:true,bpm:120,confidence:1});phrases.add(p.name);if(p.name==='head-bob')assert.equal(p.row,0);}
- assert.ok(phrases.has('head-bob'));assert.equal(phrases.size,8);const before=d.beats;d.update(.1,{active:false});assert.equal(d.beats,before);d.resume();assert.notEqual(d.update(.1,{active:true}).state,'sleep');
+ assert.ok(phrases.has('head-bob'));assert.ok(!phrases.has('two-step'));assert.equal(phrases.size,7);const before=d.beats;d.update(.1,{active:false});assert.equal(d.beats,before);d.resume();assert.notEqual(d.update(.1,{active:true}).state,'sleep');
 });

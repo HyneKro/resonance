@@ -2,7 +2,9 @@ import {SONA_CLIPS} from './companion-atlas.js';
 import {appearanceInfo} from './companion-appearances.js';
 import {guestFrames,SONA_REVIEWED_FRAMES} from './companion-choreography.js';
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number.isFinite(x)?x:a));
-export const SONA_ROUTINES=['two-step','side-sway','head-bob','hand-wave','shoulder-groove','cheer','soft-bounce','twirl'];
+// The wide-legged two-step is retired for every appearance. Keep its atlas row
+// reserved so the remaining dances and interaction drawings retain their IDs.
+export const SONA_ROUTINES=['side-sway','head-bob','hand-wave','shoulder-groove','cheer','soft-bounce','twirl'];
 const lift=[0,0,0,6,12,6,0,0];
 const smooth=t=>{t=clamp(t);return t*t*(3-2*t);};
 const total=times=>times.reduce((a,b)=>a+b,0);
@@ -86,7 +88,7 @@ export class DanceMotion{
   let boundary=false;
   if(active&&!this.action&&!mode){const clip=this.clips[this.routineState==='listening'?'head-bob':this.routines[this.routineIndex]],span=clip.beats*3;if(this.beats-this.routineStart>=span-1e-9){this.routineStart+=span;this.routineIndex=(this.routineIndex+1)%this.routines.length;boundary=true;}}
   const phrase=mode?Math.floor(this.beats/16)%this.routines.length:this.routineIndex;
-  const musicState=phrase===2?'listening':'dancing';
+  const musicState=this.routines[phrase]==='head-bob'?'listening':'dancing';
   if(boundary||this.beats===0)this.routineState=musicState;
   this.state=this.action||(mode||(active?this.routineState:this.quiet>35?'sleep':'idle'));
   const music=this.state.startsWith('dancing')||this.state==='listening';this.name=this.state==='listening'?'head-bob':music?this.routines[phrase]:this.state;

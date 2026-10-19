@@ -4,7 +4,7 @@ import {DanceMotion,CompanionClock,SONA_ROUTINES,REST_POSE,SPRITE_FPS,COMPANION_
 import {SONA_CLIPS,SONA_SHEETS,spriteFootAnchor} from '../public/companion-atlas.js';
 const advance=(m,seconds,options={},fps=60)=>{let p;for(let i=0;i<seconds*fps;i++)p=m.update(1/fps,options);return p;};
 
-test('redrawn sprite routines cover every dance row and never exceed 12 illustrated poses per second',()=>{
+test('scheduled sprite routines cover every active dance row and never exceed 12 illustrated poses per second',()=>{
  for(const fps of [24,60,165])for(const bpm of [65,120,180,300]){
   const m=new DanceMotion(),phrases=new Set(),rows=new Set();let old='',changes=0;
   advance(m,40,{active:true,bpm,confidence:1,loudness:.7},fps);m.beats=0;
@@ -13,7 +13,7 @@ test('redrawn sprite routines cover every dance row and never exceed 12 illustra
    assert.ok(f.row>=0&&f.row<8&&Number.isInteger(f.row));assert.ok(f.frame>=0&&f.frame<8&&Number.isInteger(f.frame));assert.ok(Object.values(f.pose).every(Number.isFinite));
    const key=f.row+':'+f.frame;if(key!==old)changes++;old=key;
   }
-  assert.deepEqual([...phrases].sort(),[...SONA_ROUTINES].sort());assert.equal(rows.size,8);assert.ok(changes<=150*SPRITE_FPS+12,`sprite rate ${changes/150}`);
+  assert.deepEqual([...phrases].sort(),[...SONA_ROUTINES].sort());assert.deepEqual([...rows].sort(),SONA_ROUTINES.map(name=>SONA_CLIPS[name].row).sort());assert.ok(changes<=150*SPRITE_FPS+12,`sprite rate ${changes/150}`);
  }
 });
 

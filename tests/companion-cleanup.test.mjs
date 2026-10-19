@@ -28,7 +28,7 @@ test('guests stay suspended while held and start landing from that same drawing'
   for(let i=0;i<180;i++){f=m.update(1/24);if(i>10){assert.equal(f.state,'held');assert.equal(f.row,10);assert.equal(appearanceCell(f.row,f.frame),110);}}
   assert.equal(appearanceCell(10,m.update(0,{reduced:true}).frame),110);
   m.drop();const landing=m.update(0);assert.equal(appearanceCell(landing.row,landing.frame),110);
-  for(let i=0;i<24;i++)f=m.update(1/24,{active:true});assert.equal(f.name,'two-step');
+  for(let i=0;i<24;i++)f=m.update(1/24,{active:true});assert.equal(f.name,'side-sway');
  }
 });
 
