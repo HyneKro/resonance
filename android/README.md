@@ -1,6 +1,6 @@
 # Resonance for Android
 
-The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.21.1-preview** (versionCode 48), built for ARM64 phones such as the Galaxy S22+.
+The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.21.2-preview** (versionCode 49), built for ARM64 phones such as the Galaxy S22+.
 
 **[Download the latest APK](https://hynekro.github.io/resonance/)** and install it over the existing app. The package ID and signing identity must stay unchanged. Uninstalling deletes private app music and data; an update does not require uninstalling.
 
@@ -18,7 +18,7 @@ The current polish pass improves readable sheets, consistent transport icons, co
 
 ## Phone defaults and storage
 
-Balanced detail, 60 FPS, HDR off and Sona off are the mobile defaults. 30 FPS, 120 FPS and match-display options are available, but the actual frame rate depends on Android/WebView, the device refresh setting, GPU load and temperature. HDR is a capability-dependent WebView request, not a guarantee of HDR output.
+Balanced detail (now adapting its resolution under sustained load), 60 FPS, HDR off and Sona off are the mobile defaults. 30 FPS, 120 FPS and match-display options are available, but the actual frame rate depends on Android/WebView, the device refresh setting, GPU load and temperature. HDR is a capability-dependent WebView request, not a guarantee of HDR output.
 
 Downloads preserve compressed audio by default without deliberately converting it to MP3. Existing FLAC/WAV and other supported local formats stay untouched. Optional Opus 128 kb/s saves space for new downloads (roughly 1 MB/minute). Source quality cannot be improved by converting to lossless. Playback currently uses Media3's 16-bit PCM analysis path; this build does **not** claim bit-perfect high-resolution/USB-DAC output.
 

@@ -117,7 +117,7 @@ export class Reactor {
     if(!enabled){this.resetAnalysis();this.last=0;this.frameAverage=1000/(resolvedFrameRate(this.targetFPS,this.displayRefreshRate));this.needsFrame=true;this.start();}
   }
   prepareGraphics(canvas=document.querySelector('#room-gl')){
-    if(!this.musicOnly&&!this.sceneSuspended&&!this.gpu&&canvas&&SCENES.some(s=>s.id===this.mode))this.gpu=new GPUScene(canvas);
+    if(!this.musicOnly&&!this.sceneSuspended&&!this.gpu&&canvas&&SCENES.some(s=>s.id===this.mode))this.gpu=new GPUScene(canvas,{mobile:this.mobileRendering===true});
   }
   setSceneSuspended(enabled){
     enabled=!!enabled;if(this.sceneSuspended===enabled)return;this.sceneSuspended=enabled;
@@ -129,6 +129,16 @@ export class Reactor {
     }else{this.last=0;this.previousFrame=0;this.needsFrame=true;this.resetAnalysis();if(!this.musicOnly){this.sceneReveal??=new SceneReveal();this.sceneReveal.begin('constellation');this.paintReturnCue=true;}this.start();}
     this.eq(this.eqValues||[0,0,0]);document.dispatchEvent(new Event('resonance-scene-visibility'));
   }
+  adjustRenderScale(target){
+    const adaptive=this.quality==='auto'||this.mobileRendering&&this.quality==='eco';
+    if(adaptive&&this.frameAverage>Math.max(1000/target*1.55,10)){
+      this.fastFrames=0;if(++this.slowFrames>60){this.scale=Math.max(.55,this.scale-.1);this.slowFrames=0;}
+    }else{
+      this.slowFrames=0;if(adaptive&&this.frameAverage<1000/target*1.15&&this.scale<1){
+        if(++this.fastFrames>240){this.scale=Math.min(1,this.scale+.05);this.fastFrames=0;}
+      }else this.fastFrames=0;
+    }
+  }
   start(){
     if(this.running||this.musicOnly||this.deferStart||this.sceneSuspended)return;this.running=true;
     const draw=time=>{if(!this.running||this.musicOnly||this.sceneSuspended)return;this.frameRequest=requestAnimationFrame(draw);
@@ -138,7 +148,7 @@ export class Reactor {
       const room=document.querySelector('#listening-room'),inRoom=room&&!room.hidden;
       const target=resolvedFrameRate(this.targetFPS,this.displayRefreshRate),interval=this.kaleidoscopeBlend?.active?(this.reduced?33:1000/target):this.reduced||this.frozen?100:inRoom?(this.targetFPS==='auto'?0:1000/target):33;
       if(time-this.last<interval-.8)return;const dt=Math.min(.1,(time-this.last)/1000||.016);this.last=time;
-      if(inRoom&&!this.reduced&&!this.frozen){this.frameAverage=this.frameAverage*.96+Math.min(1000,time-(this.previousFrame||time-16))*.04;this.previousFrame=time;this.fps=Math.round(1000/Math.max(1,this.frameAverage));if(this.quality==='auto'&&this.frameAverage>Math.max(1000/(resolvedFrameRate(this.targetFPS,this.displayRefreshRate))*1.55,10)){if(++this.slowFrames>60){this.scale=Math.max(.55,this.scale-.1);this.slowFrames=0;}}else{this.slowFrames=0;if(this.quality==='auto'&&this.frameAverage<1000/(resolvedFrameRate(this.targetFPS,this.displayRefreshRate))*1.15&&this.scale<1){if(++this.fastFrames>240){this.scale=Math.min(1,this.scale+.05);this.fastFrames=0;}}else this.fastFrames=0;}}else this.previousFrame=0;
+      if(inRoom&&!this.reduced&&!this.frozen){this.frameAverage=this.frameAverage*.96+Math.min(1000,time-(this.previousFrame||time-16))*.04;this.previousFrame=time;this.fps=Math.round(1000/Math.max(1,this.frameAverage));this.adjustRenderScale(target);}else this.previousFrame=0;
       if(!this.reduced&&!this.frozen)this.clock+=dt;
       if(this.analyser){this.analyser.getFloatFrequencyData(this.freq);this.midAnalyser?.getFloatFrequencyData(this.midFreq);this.fastAnalyser?.getFloatFrequencyData(this.fastFreq);(this.fastAnalyser||this.analyser).getFloatTimeDomainData(this.wave);this.rawFeatures.update(this.freq,this.wave,this.context.sampleRate,this.analyser.fftSize,dt,time/1000,this.audioActive,{mid:this.midAnalyser?{frequency:this.midFreq,fftSize:2048}:null,fast:this.fastAnalyser?{frequency:this.fastFreq,fftSize:1024}:null});}
       this.syncAnalysis(time);

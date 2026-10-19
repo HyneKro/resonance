@@ -1,12 +1,12 @@
 import {Reactor} from './reactor.js';
 import {rpc} from './native.js';
 export class MobileReactor extends Reactor {
- constructor(audio){super(audio);this.portraitScene=true;this.mode='resonance';this.quality='eco';this.scale=.7;this.targetFPS=60;this.hdrMode='off';this.latest={};this.analysisActive=true;this.focused=true;}
+ constructor(audio){super(audio);this.mobileRendering=true;this.portraitScene=true;this.mode='resonance';this.quality='eco';this.scale=1;this.targetFPS=60;this.hdrMode='off';this.latest={};this.analysisActive=true;this.focused=true;}
  get audioActive(){return this.audio.snapshot.capturing||super.audioActive;}
  async connect(){
   if(this.context)return;
   this.context={sampleRate:48000,state:'running',baseLatency:0,outputLatency:0};
-  const analyser=(key,size)=>({fftSize:size,getFloatFrequencyData:out=>{const values=this.latest[key];out.fill(-100);if(values)out.set(values.slice(0,out.length));},getFloatTimeDomainData:out=>{const values=this.latest.wave;out.fill(0);if(values)for(let i=0;i<Math.min(values.length,out.length);i++)out[i]=values[i]/32767;}});
+  const analyser=(key,size)=>({fftSize:size,getFloatFrequencyData:out=>{const values=this.latest[key];if(values?.length===out.length)out.set(values);else{out.fill(-100);if(values)for(let i=0;i<Math.min(values.length,out.length);i++)out[i]=values[i];}},getFloatTimeDomainData:out=>{const values=this.latest.wave;out.fill(0);if(values)for(let i=0;i<Math.min(values.length,out.length);i++)out[i]=values[i]/32767;}});
   this.analyser=analyser('long',8192);this.midAnalyser=analyser('mid',2048);this.fastAnalyser=analyser('fast',1024);this.freq=new Float32Array(4096);this.midFreq=new Float32Array(1024);this.fastFreq=new Float32Array(512);this.wave=new Float32Array(1024);this.freq.fill(-100);this.refreshVisualSync(true);
  }
  eq(values){this.eqValues=values;}

@@ -9,12 +9,14 @@ let win,service;
 app.whenReady().then(async()=>{
  const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'performance-data-')),autoScan:false});
  const original=service.server.listeners('request')[0];service.server.removeAllListeners('request');service.server.on('request',(req,res)=>{if(req.url==='/probe'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><link rel="stylesheet" href="/constellation.css"><body class="constellation" style="margin:0;background:#080b14"><canvas id="map" style="width:100vw;height:100vh"></canvas><div id="labels" class="cx-groups" style="position:absolute;inset:0;pointer-events:none"></div></body>');}else original(req,res);});
- win=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});await win.loadURL(service.url+'/probe');
+ const mobile=process.env.RESONANCE_MOBILE_AUDIT==='1';
+ win=new BrowserWindow({show:false,width:mobile?412:1440,height:mobile?915:960,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});await win.loadURL(service.url+'/probe');
  const results=await win.webContents.executeJavaScript(`(async()=>{
   const {ConstellationScene}=await import('/constellation-scene.js'),{describe}=await import('/constellation-model.js');
   const {paintMapMarkers}=await import('/constellation-navigation.js');
+  if(${mobile})Object.defineProperty(window,'devicePixelRatio',{value:3});
   const canvas=document.querySelector('#map'),labels=document.querySelector('#labels');
-  const scene=new ConstellationScene(canvas,{onGroups:groups=>paintMapMarkers(labels,groups)});
+  const scene=new ConstellationScene(canvas,{mobile:${mobile},onGroups:groups=>paintMapMarkers(labels,groups)});
   const genres=['Electronic','Ambient','Rock','Jazz','Pop','Classical','Folk','Hip Hop'];
   const nodes=Array.from({length:3000},(_,i)=>describe({id:'fixture'+i,title:'Music '+i,artist:'Artist '+i%180,genre:genres[i%8],duration:200}));scene.setData(nodes,{});scene.home();await scene.sky.whenReady;
   const results=[];const draw=scene.draw.bind(scene);let samples=[],frames=[];
@@ -25,7 +27,7 @@ app.whenReady().then(async()=>{
    if(mode==='listening'){scene.route=[];scene.playback=()=>({id:nodes[0].id,ids:[nodes[0].id,nodes[400].id,nodes[800].id,nodes[1200].id,nodes[1600].id],time:performance.now()/1000%200,duration:200});scene.followQueue();}
    await new Promise(r=>setTimeout(r,1000));samples=[];frames=[];await new Promise(r=>setTimeout(r,3000));
    const sorted=[...samples].sort((a,b)=>a-b),gaps=frames.slice(1).map((f,i)=>f-frames[i]).sort((a,b)=>a-b);
-   results.push({mode,tracks:nodes.length,frames:samples.length,drawMedianMs:sorted[Math.floor(sorted.length*.5)],drawP95Ms:sorted[Math.floor(sorted.length*.95)],frameMedianMs:gaps[Math.floor(gaps.length*.5)],frameP95Ms:gaps[Math.floor(gaps.length*.95)],spriteCache:scene.sprites.size,labels:labels.children.length});
+   results.push({mode,tracks:nodes.length,frames:samples.length,drawMedianMs:sorted[Math.floor(sorted.length*.5)],drawP95Ms:sorted[Math.floor(sorted.length*.95)],frameMedianMs:gaps[Math.floor(gaps.length*.5)],frameP95Ms:gaps[Math.floor(gaps.length*.95)],spriteCache:scene.sprites.size,labels:labels.children.length,canvas:[canvas.width,canvas.height],phone:scene.coarse});
   }
   scene.dispose();return results;
  })()`);

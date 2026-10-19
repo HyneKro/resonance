@@ -11,7 +11,8 @@ import { NEBULA_VERTEX, NEBULA_FRAGMENT } from './nebula-original.js';
 import { NEBULA_LIVE } from './nebula-live.js';
 
 export class GPUScene {
-  constructor(canvas){
+  constructor(canvas,{mobile=false}={}){
+    this.mobile=mobile;
     this.canvas=canvas;this.failed=false;this.lost=false;this.ready=false;this.generation=0;this.needsFrame=true;
     this.gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:true,powerPreference:'high-performance',preserveDrawingBuffer:false});
     if(!this.gl){this.failed=true;return;}
@@ -120,7 +121,7 @@ export class GPUScene {
   dimensions({width,height,quality,scale=1,dynamics}){
     if(dynamics?.portraitScene&&height>width)[width,height]=[height,width];
     const cap=quality==='high'?1200:quality==='eco'?560:900;
-    const density=Math.min(devicePixelRatio||1,quality==='high'?1.5:1,cap/Math.max(1,height),2200/Math.max(1,width))*(quality==='eco'?.85:quality==='auto'?scale:1);
+    const density=Math.min(devicePixelRatio||1,quality==='high'?1.5:1,cap/Math.max(1,height),2200/Math.max(1,width))*(quality==='eco'?.85*(this.mobile?scale:1):quality==='auto'?scale:1);
     return {density,w:Math.max(1,Math.round(width*density)),h:Math.max(1,Math.round(height*density))};
   }
   async warm(input){
@@ -170,11 +171,15 @@ export class GPUScene {
 
       this.bind(scene);gl.clearColor(.0002,.0003,.0005,1);gl.clear(gl.COLOR_BUFFER_BIT);
       gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-      this.updateBirths(uniforms,warmup?128:undefined);yield;
+      // All surface passes use a prefix of these seeds. Updating the entire
+      // desktop capacity on a phone was simulating six times the visible population.
+      this.updateBirths(uniforms,warmup?128:this.mobile?primaryCount:undefined);yield;
       this.use(this.particles,uniforms);this.points(this.particles,primaryCount);yield;
       this.use(this.cells,{...uniforms,u_density:uniforms.u_density*1.4});this.points(this.cells,Math.floor(budget*.12));
       yield;
-      this.drawFlow({...uniforms,u_mode:7,u_weight:features.flow*a.orbit,u_density:uniforms.u_density*primaryCount/flowCount},flowCount,delta,warmup?128:undefined);yield;
+      // Simulate only the flow particles actually drawn on mobile. If this
+      // layer is turned off, no invisible simulation is needed.
+      if(warmup||!this.mobile||a.orbit>0)this.drawFlow({...uniforms,u_mode:7,u_weight:features.flow*a.orbit,u_density:uniforms.u_density*primaryCount/flowCount},flowCount,delta,warmup?128:this.mobile?flowCount:undefined);yield;
       if(warmup||d.spectralDetail>0){this.use(this.spectral,{...uniforms,u_spectrum:features.spectrum,u_weight:d.spectralDetail,u_density:uniforms.u_density*2.4});this.points(this.spectral,Math.floor(budget*.16));}yield;
 
       // A stable surface population shares the shape/camera and the existing

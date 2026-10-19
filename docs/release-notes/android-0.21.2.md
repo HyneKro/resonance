@@ -1,0 +1,9 @@
+# Resonance Android 0.21.2-preview
+
+- Reduces visualizer simulation work without reducing the visible particle populations: Balanced mode updates 17,203 ribbon states instead of 110,100, and 5,898 orbiting particles per simulation step instead of 32,768. Disabled orbit layers skip their simulation entirely.
+- Balanced detail can now lower its rendering resolution under sustained load and recover gradually when the phone has headroom. A single slow frame does not lower quality. Frame-rate preferences remain respected.
+- Reuses native FFT plans, windows and working buffers. Frequency values match the previous analyser, and audio output is unchanged. Response serialization runs on the bridge worker rather than Android's UI thread. Removes temporary frequency-array copies in the web renderer.
+- Constellation uses approximately 56% fewer canvas pixels on high-density phones, retaining all stars, links and navigation. Its HTML labels remain at display resolution. Removes redundant background blurs from the almost-opaque phone menus.
+- Verified full ribbon coverage for the frequency lights. Dark sections indicate quiet frequency bands, not missing parts of the mapping.
+
+Verification: native unit tests, both ABI builds, instrumentation compilation and Android lint; shared web regressions; spectrum GPU geometry/coverage checks; an identical-pixel comparison of the optimised simulation; phone UI and 3,000-song Constellation fixtures. The reusable native analyser measured approximately 5.5× faster on the desktop JVM benchmark, with identical quantised frequency bins. This is not an S22+ speedup or FPS claim. Physical-device frame rate, heat and battery use still need checking on the phone. The Android package and signing identity are unchanged; install over the existing app.

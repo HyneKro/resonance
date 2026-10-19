@@ -46,6 +46,7 @@ installAppUpdateUI({request:(action,preferences)=>rpc('appUpdate',{action,prefer
 const sona=installDanceCompanion({reactor,audio,savePosition:position=>preferences({dancePosition:position}),onError:()=>toast('Sona could not load. Try reopening the app.')});
 const palette=new ArtworkPalette({read:async key=>JSON.parse(localStorage.getItem('palette:'+key)||'null'),write:async(key,colors)=>{localStorage.setItem('palette:'+key,JSON.stringify({version:2,colors}));if(localStorage.length>150){for(const key of Object.keys(localStorage).filter(k=>k.startsWith('palette:')).slice(0,20))localStorage.removeItem(key);}},decode:decodeArtwork,onChange:colors=>{reactor.coverColors=colors;applyInterfaceAccent(colors,true);}});
 const constellation=createConstellation({
+ mobile:true,
  onMode:active=>{if(active)close();reactor.setSceneSuspended(active);paintListeningMode(active?'constellation':state.prefs.musicOnly?'music':'visualizer');if(!active)apply();},
  tracks:()=>state.tracks,playlists:()=>state.playlists,current:()=>audio.snapshot.id,currentTrack:current,paused:()=>audio.paused,details,
  load:async()=>{await refresh();const data=await rpc('constellation');data.colors={};for(const t of state.tracks){try{const c=JSON.parse(localStorage.getItem('palette:'+artworkKey(t)))?.colors?.[0];if(c?.length===3)data.colors[t.id]='#'+c.map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');}catch{}}return data;},

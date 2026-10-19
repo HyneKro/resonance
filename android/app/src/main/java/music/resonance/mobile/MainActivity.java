@@ -47,7 +47,7 @@ public final class MainActivity extends Activity {
         WebViewCompat.addWebMessageListener(web,"ResonanceNative",Set.of(ORIGIN),(view,message,origin,main,reply)->{
             if(!main||!trusted(origin))return;String text=message.getData();if(text==null||text.length()>1_000_000)return;JSONObject request=Json.parse(text);String id=request.optString("id");
             ExecutorService executor=Set.of("researchGenres","research","search","lyricsSearch","syncMatch","updateDownloader","pickFolder","pickDestination","captureStart").contains(request.optString("action"))?app.io:app.bridge;
-            executor.execute(()->{JSONObject result;try{result=Json.object("id",id,"value",handle(request.optString("action"),request.optJSONObject("data")==null?new JSONObject():request.optJSONObject("data")));}catch(Exception e){result=Json.object("id",id,"error",Json.error(e));}JSONObject response=result;app.main.post(()->{if(!isDestroyed())reply.postMessage(response.toString());});});
+            executor.execute(()->{JSONObject result;try{result=Json.object("id",id,"value",handle(request.optString("action"),request.optJSONObject("data")==null?new JSONObject():request.optJSONObject("data")));}catch(Exception e){result=Json.object("id",id,"error",Json.error(e));}String response=result.toString();app.main.post(()->{if(!isDestroyed())reply.postMessage(response);});});
         });
         controller=new MediaController.Builder(this,new SessionToken(this,new ComponentName(this,PlaybackService.class))).buildAsync();
         web.loadUrl(ORIGIN+"/");

@@ -8,7 +8,8 @@ import {ConstellationSky,backdropStars} from './constellation-sky.js';
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
  * The lightweight sky context is disposed together with this view. */
 export class ConstellationScene {
- constructor(canvas,{gestureRoot=canvas,onSelect,onHover,onEmpty,onHome,onGroups,playback=()=>({}),onManual,viewport=()=>({top:0,bottom:0})}){
+ constructor(canvas,{mobile=false,gestureRoot=canvas,onSelect,onHover,onEmpty,onHome,onGroups,playback=()=>({}),onManual,viewport=()=>({top:0,bottom:0})}){
+  this.mobile=mobile;
   this.playback=playback;this.onManual=onManual;this.following=false;this.liveKey='';this.canvas=canvas;this.gestureRoot=gestureRoot;this.ctx=canvas.getContext('2d',{alpha:true});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=()=>{const now=performance.now();if(!this.insets||now-this.insetTime>180){this.insets=viewport();this.insetTime=now;}return this.insets;};
   this.labels=new AnchoredLabels();this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
   this.coarse=matchMedia('(pointer:coarse)').matches||innerWidth<750;this.reduced=matchMedia('(prefers-reduced-motion:reduce)');
@@ -31,7 +32,7 @@ export class ConstellationScene {
  }
  focusGroup(id){const group=[...this.data.groups,...this.data.artistGroups].find(g=>g.id===id);if(!group)return;this.focusedGroup=id;this.groupEdges=groupConnections(this.data,id);this.setSelection('');this.fit([group.position,...group.ids.filter(id=>this.visible.has(id)).map(id=>this.byId.get(id).position)]);return group;}
  home(){this.focusedGroup='';this.groupEdges=[];this.fit(this.data.points.filter(p=>this.visible.has(p.id)).map(p=>p.position),true);}
- resize(){this.insets=null;if(this.following)this.liveKey='';const r=this.canvas.getBoundingClientRect();this.width=r.width;this.height=r.height;this.ratio=Math.min(devicePixelRatio||1,this.coarse?1.5:2);this.canvas.width=Math.round(r.width*this.ratio);this.canvas.height=Math.round(r.height*this.ratio);}
+ resize(){this.insets=null;if(this.following)this.liveKey='';const r=this.canvas.getBoundingClientRect();this.width=r.width;this.height=r.height;this.ratio=Math.min(devicePixelRatio||1,this.mobile?1:this.coarse?1.5:2);this.canvas.width=Math.round(r.width*this.ratio);this.canvas.height=Math.round(r.height*this.ratio);}
  wake(){if(!this.active||document.hidden||this.frame)return;this.frame=requestAnimationFrame(this.tick);}
  tick(now){this.frame=0;if(!this.active||document.hidden)return;const dt=this.cadence.step(now,this.reduced.matches?100:this.coarse?1000/30:0);if(dt!==null){if(!this.reduced.matches)this.time+=dt;this.focusMix+=(Number(!!this.selected)-this.focusMix)*(this.reduced.matches?1:1-Math.exp(-dt*3));this.live=listeningPath(this.playback(),this.byId);const key=JSON.stringify(this.live.path);if(this.following&&key!==this.liveKey){this.liveKey=key;this.fit(this.live.path.map(id=>this.byId.get(id).position));}this.draw(this.camera.update(dt,this.reduced.matches));}this.wake();}
  sprite(color,type=0,variant=0){

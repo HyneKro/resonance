@@ -24,7 +24,11 @@
  // Inspect the actual GPU vertex outputs, not a duplicate JS shader formula.
  const variants={spectrum:shader.RIBBON_SPECTRUM_VERTEX,ribbon:shader.PARTICLE_VERTEX},programs={};
  for(const [name,vertex] of Object.entries(variants))programs[name]=await compileSceneProgram(gl,vertex,shader.PARTICLE_FRAGMENT,['gl_Position','v_color','v_alpha']);
- const phases=[0,1,.1,.9,.25,.75,.49,.51,.5],seeds=new Float32Array(phases.flatMap(x=>[x,.43,.4,.6])),births=new Float32Array(phases.flatMap(()=>[0,999,.7,1]));
+ const phases=[0,1,.1,.9,.25,.75,.49,.51,.5],seedValues=phases.flatMap(x=>[x,.43,.4,.6]);
+ // The seam-only check can miss coverage problems across the ribbon's width.
+ // Verify a full 97 x 17 surface grid in the actual vertex programs as well.
+ for(let u=0;u<=96;u++)for(let v=0;v<=16;v++){phases.push(u/96);seedValues.push(u/96,Math.min(.9999,v/16),.4,.6);}
+ const seeds=new Float32Array(seedValues),births=new Float32Array(phases.flatMap(()=>[0,999,.7,1]));
  const seedBuffer=gl.createBuffer(),birthBuffer=gl.createBuffer(),output=gl.createBuffer(),feedback=gl.createTransformFeedback();
  gl.bindBuffer(gl.ARRAY_BUFFER,seedBuffer);gl.bufferData(gl.ARRAY_BUFFER,seeds,gl.STATIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,birthBuffer);gl.bufferData(gl.ARRAY_BUFFER,births,gl.STATIC_DRAW);
  gl.bindBuffer(gl.ARRAY_BUFFER,output);gl.bufferData(gl.ARRAY_BUFFER,phases.length*8*4,gl.STREAM_READ);
@@ -45,7 +49,12 @@
   for(let j=0;j<phases.length;j++)for(let i=0;i<4;i++)check(Math.abs(a[j][i]-b[j][i])<.00001,'Spectrum does not follow ribbon geometry, style '+style);
  }
  const dark=inspect(programs.spectrum,{...uniforms,u_spectrumLight:empty});check(dark.every(x=>x[7]===0),'Zero input must have zero radiance');
- report.checks.push('GPU mirrored frequency/color endpoints','all particle color styles share exact ribbon geometry','zero input emits no light');
+ report.checks.push('GPU mirrored frequency/color endpoints','all particle color styles share exact ribbon geometry across 1,649 surface samples','zero input emits no light');
+ const population=new Float32Array(Math.floor(49152*.094)*4),lengthBins=new Uint32Array(96),widthBins=new Uint32Array(16);
+ gl.bindBuffer(gl.ARRAY_BUFFER,gpu.seeds);gl.getBufferSubData(gl.ARRAY_BUFFER,0,population);
+ for(let i=0;i<population.length;i+=4){lengthBins[Math.min(95,Math.floor(population[i]*96))]++;widthBins[Math.min(15,Math.floor(population[i+1]*16))]++;}
+ check(lengthBins.every(x=>x>0)&&widthBins.every(x=>x>0),'Missing mobile spectrum coverage');
+ report.mobileCoverage={particles:population.length/4,lengthSegments:96,minPerLengthSegment:Math.min(...lengthBins),widthSegments:16,minPerWidthSegment:Math.min(...widthBins)};
  for(const program of Object.values(programs))gl.deleteProgram(program.program);for(const buffer of [seedBuffer,birthBuffer,output])gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);
  input.quality='eco';input.width=412;input.height=915;d.portraitScene=true;drawSpectrumAudit('full');check(gpu.canvas.width>gpu.canvas.height,'Phone portrait rotation');
  input.quality='high';input.width=1280;input.height=900;d.portraitScene=false;drawSpectrumAudit('full');check(gl.getError()===gl.NO_ERROR,'WebGL error');

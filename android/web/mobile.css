@@ -41,7 +41,7 @@
 /* Task-focused menus with one scroll surface and reachable actions. */
 #sheet .settings-hub{grid-template-columns:1fr}
 #sheet .settings-hub .menu-destination{width:100%}
-#sheet .section-tabs{position:sticky;top:-1px;z-index:4;background:color-mix(in srgb,#15121e 94%,var(--accent,#c3a2ff));backdrop-filter:blur(16px);margin-bottom:20px}
+#sheet .section-tabs{position:sticky;top:-1px;z-index:4;background:color-mix(in srgb,#15121e 94%,var(--accent,#c3a2ff));margin-bottom:20px}
 #sheet .section-tabs button{font-size:12px;min-height:44px;padding:8px 10px}
 #sheet .menu-section .lyrics{max-height:none;overflow:visible;white-space:pre-wrap;overflow-wrap:anywhere}
 #sheet .detail-overview-head{display:flex;align-items:center;gap:18px;margin-bottom:10px}
@@ -65,7 +65,7 @@
 #sheet .menu-section:has([data-visual-group]){min-height:240px}
 #sheet .menu-section .card:first-child h3{margin-top:0}
 .room-top #settings{min-height:44px;font-size:13px}
-#sheet{background:rgba(17,14,25,.78);backdrop-filter:blur(20px) saturate(.8)}
+#sheet{background:rgba(17,14,25,.78);backdrop-filter:none}
 #sheet .menu-section .fine-print{font-size:12px;line-height:1.7;color:#bdb3c9}
 #sheet .menu-section .listening-edit h3{font-size:16px}
 
