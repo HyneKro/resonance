@@ -84,3 +84,39 @@
 .constellation .cx-groups .cx-waypoint{border-color:color-mix(in srgb,var(--group-color) 60%,transparent);background:linear-gradient(135deg,#18212cd9,#0c101be6);box-shadow:0 0 22px color-mix(in srgb,var(--group-color) 12%,transparent);font-weight:600}
 .constellation .cx-groups .cx-waypoint[data-cx-group="home"]{padding-left:28px}
 .constellation .cx-groups .cx-waypoint[data-cx-group="home"]::before{content:"◎";font-size:15px;left:8px;top:5px;width:14px;height:22px;background:none;box-shadow:none;text-align:center}
+.constellation .cx-queue-marker{border-color:color-mix(in srgb,var(--group-color),transparent 45%);background:linear-gradient(120deg,color-mix(in srgb,var(--group-color),#10131e 85%),#0b101deb);box-shadow:0 2px 18px #0005;font-size:11px;letter-spacing:.025em;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.constellation .cx-map-controls{gap:5px;max-width:calc(100% - 28px)}
+.constellation .cx-map-controls button{white-space:nowrap}
+.constellation .cx-map-controls [aria-pressed=true]{background:#b9cbdf22;border-color:#c4d9f870}
+.cx-flight-dot{display:inline-block;width:5px;height:5px;background:#d6e9ff;border-radius:50%;box-shadow:0 0 10px #b9cfff;margin-right:7px;vertical-align:middle}
+.cx-live-list{list-style:none;padding:0;margin:24px 0;display:grid;gap:0}
+.cx-live-list li{display:grid;grid-template-columns:34px minmax(0,1fr) 32px;align-items:center;gap:9px;padding:18px 0;border-bottom:1px solid #ffffff0d;position:relative}
+.cx-live-list li>small{color:var(--group-color);font-size:9px;letter-spacing:.08em}
+.constellation .cx-live-list button{background:none;border:0;padding:4px;text-align:left;min-width:0}
+.cx-live-list b,.cx-live-list span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.cx-live-list span{font-size:11px;color:#b0aabd;margin-top:5px}
+.cx-live-list li:first-child{border-left:2px solid var(--group-color);padding-left:10px;background:linear-gradient(90deg,color-mix(in srgb,var(--group-color),transparent 94%),transparent)}
+.cx-discovery-heading{display:flex;align-items:center;justify-content:space-between;margin-top:24px;gap:10px}
+.cx-discovery-heading h4{margin:0;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#b8b1c9}
+.constellation .cx-discovery-heading button{border:0;background:none;font-size:20px;padding:7px 12px}
+.cx-discoveries{display:grid;gap:12px;margin:8px 0 26px}
+.cx-discovery{border:1px solid #ffffff12;border-radius:14px;padding:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--group-color),transparent 95%),#ffffff02)}
+.cx-discovery>small{font-size:9px;text-transform:uppercase;letter-spacing:.11em;color:var(--group-color)}
+.constellation .cx-discovery-play{display:flex;align-items:center;gap:12px;justify-content:space-between;width:100%;border:0;background:none;padding:9px 0 4px;text-align:left}
+.cx-discovery-play b{font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.cx-discovery-play span{font-size:10px;color:var(--group-color)}
+.cx-discovery-artist{display:block;color:#b4aec2;font-size:11px;overflow-wrap:anywhere}
+.cx-discovery p{font-size:11px;color:#9c99af;line-height:1.5;margin:10px 0}
+.constellation .cx-discovery-next{padding:6px 10px;font-size:11px;border-radius:8px;background:#ffffff05;min-height:32px}
+.constellation .cx-preview-fit{width:100%;margin:8px 0 12px;font-size:12px}
+@media(max-width:749px){.constellation .cx-map-controls button{padding:9px 10px;font-size:11px}.cx-discovery-next{min-height:40px!important}.cx-live-list li{min-height:46px}.constellation .cx-live-list button{min-height:40px}.cx-map-hint{max-width:calc(100% - 28px)}}
+
+.constellation .cx-expand-details{display:none}
+@media(max-width:749px){
+ .constellation .cx-track-panel{height:160px;padding-top:5px}
+ .constellation .cx-track-panel .cx-expand-details{display:block;position:sticky;top:-5px;z-index:2;margin:0 -3px 8px;width:calc(100% + 6px);padding:9px 6px;text-align:center;border:0;border-radius:8px;background:#10141ef5;color:#d1c9e2;font-size:10px;letter-spacing:.04em;min-height:34px}
+ .constellation.cx-detail-expanded .cx-track-panel{top:calc(var(--cx-top) + 88px);height:auto;background:#10141ef5}
+ .constellation .cx-map-controls{bottom:calc(var(--cx-bottom) + 171px)}
+ .constellation.cx-detail-expanded .cx-map-controls{visibility:hidden}
+ .constellation.cx-detail-expanded .cx-groups{pointer-events:none;visibility:hidden}
+}

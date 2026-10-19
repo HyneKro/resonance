@@ -339,6 +339,8 @@ const constellation=createConstellation({
  load:async()=>{await refresh(false);return api('/api/constellation');},save:value=>api('/api/constellation',value),
  research:async id=>{const updated=await api('/api/genres/track',{id});const t=getTrack(id);if(t)Object.assign(t,updated);if(state.current?.id===id)Object.assign(state.current,updated);renderNow();return updated;},
  artwork:t=>t.artwork?'/artwork/'+encodeURIComponent(t.artwork):'',
+ playback:()=>({id:state.current?.id,ids:playQueue.items.slice(playQueue.cursor,playQueue.cursor+5),time:audio.currentTime,duration:audio.duration,range:listening.range(),paused:audio.paused,waiting:listening.preparing||listening.selecting||audio.readyState<3,repeatOne:state.repeat===2}),
+ playQueued:id=>{const at=playQueue.items.indexOf(id,playQueue.cursor);if(at>=0)return playTrack(id,undefined,true,0,at);throw Error('The queue changed. Choose a song again.');},
  play:(id,ids)=>playTrack(id,ids),
  enqueue:async(id,next)=>{
    if(!getTrack(id)?.available)throw Error('This song is no longer available.');

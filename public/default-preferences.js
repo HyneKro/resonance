@@ -61,6 +61,8 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "orbit": 2,
   "motionAmount": 1.21,
   "beatMotion": 0.81,
+  "spectrumIntensity": 1.5,
+  "spectrumContrast": 2.6,
   "pointerForce": 0,
   "autoDirection": true,
   "glassOpacity": 0.4,

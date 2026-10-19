@@ -1,6 +1,7 @@
 import {DEFAULT_PREFERENCES} from './default-preferences.js';
 // Shared by the settings UI and server validation; saved values never bypass these limits.
 export const VISUAL_SETTINGS={
+ spectrumIntensity:{label:'Spectrum intensity',min:0,max:4.5,value:1.5},spectrumContrast:{label:'Spectrum contrast',min:.5,max:8,value:2.6},
  bloom:{label:'Bloom',min:0,max:2.5,value:.35},glow:{label:'Glow radius',min:0,max:2,value:.45},flash:{label:'Musical flashes',min:0,max:2,value:.10},contrast:{label:'Contrast',min:.7,max:1.8,value:1.12},
  bgScale:{label:'Cloud scale',min:.5,max:1.8,value:1},bgSpeed:{label:'Current speed',min:.2,max:2,value:1},turbulence:{label:'Turbulence',min:0,max:2,value:1},textureDetail:{label:'Fine texture',min:0,max:1.5,value:1},
  particleSpread:{label:'Sculpture scale',min:.6,max:1.6,value:1},particleSize:{label:'Particle size',min:.5,max:2,value:1},filigree:{label:'Living detail',min:0,max:2,value:1},orbit:{label:'Orbiting dust',min:0,max:2,value:1},beatMotion:{label:'Beat motion',min:0,max:2,value:.55},motionAmount:{label:'Movement',min:.25,max:3.5,value:1},

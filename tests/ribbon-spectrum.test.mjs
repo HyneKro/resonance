@@ -6,6 +6,16 @@ import {VisualSyncBuffer} from '../public/visual-sync.js';
 
 const frame=(value=0,db=-24)=>({db,spectrum:new Float32Array(48).fill(value)});
 const settle=(model,frame,seconds=1,options={})=>{let out;for(let i=0;i<seconds*60;i++)out=model.update(frame,1/60,options);return out;};
+test('spectrum controls increase peak brightness and contrast without lighting silence',()=>{
+ const f=frame(.45);f.spectrum[1]=.95;f.spectrum[2]=0;
+ const old=settle(new RibbonSpectrum(),f,1,{intensity:1,contrast:1.6});
+ const defaults=settle(new RibbonSpectrum(),f);
+ assert.ok(defaults[1]>old[1]);assert.ok(defaults[1]/defaults[0]>old[1]/old[0]);assert.equal(defaults[2],0);
+ const bright=settle(new RibbonSpectrum(),f,1,{intensity:3,contrast:2.6});assert.ok(Math.abs(bright[1]/defaults[1]-2)<.001);
+ const off=settle(new RibbonSpectrum(),f,2,{intensity:0});assert.ok(off.every(x=>x===0));
+ const quiet=settle(new RibbonSpectrum(),frame(1,-100),1,{intensity:4.5,contrast:.5});assert.ok(quiet.every(x=>x===0));
+ const bounded=settle(new RibbonSpectrum(),frame(1),1,{intensity:Infinity,contrast:NaN});assert.ok(bounded.every(Number.isFinite));
+});
 test('light keeps absolute per-band loudness and does not fill silent frequencies',()=>{
  const low=new RibbonSpectrum(),loud=new RibbonSpectrum(),f=frame();f.spectrum[12]=.3;
  const a=settle(low,f);f.spectrum[12]=.8;const b=settle(loud,f);

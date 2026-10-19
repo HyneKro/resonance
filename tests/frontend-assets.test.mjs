@@ -32,6 +32,7 @@ test('a fresh installation serves the entire frontend module graph, including up
         pending.push(target.pathname + target.search);
       }
     }
+    assert.ok(visited.has('/constellation-listening.js'), 'Discovery and listening-path dependency must be served');
     assert.ok(visited.has('/app-update-ui.js'), 'The updater must be part of the startup graph check');
     assert.ok(visited.size > 40, 'The complete scene and interface dependencies must be followed');
     for (const forbidden of ['/config.json', '/server.mjs', '/package.json', '/data/library.sqlite']) {
@@ -61,6 +62,7 @@ test('Android includes every startup module in its merged web assets', async () 
       pending.push(target.pathname + target.search);
     }
   }
-  assert.ok(visited.has('/app-update-ui.js'));
+  assert.ok(visited.has('/constellation-listening.js'), 'Discovery and listening-path dependency must be served');
+    assert.ok(visited.has('/app-update-ui.js'));
   assert.ok(visited.size > 40);
 });

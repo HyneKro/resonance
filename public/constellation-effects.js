@@ -37,11 +37,22 @@ export class StarAtmosphere{
 }
 
 export function drawJourneyThread(c,segment,time,index,reduced=false){
- const {a,b}=segment;c.save();c.globalCompositeOperation='screen';c.setLineDash([]);
+ const {a,b}=segment;c.save();c.globalCompositeOperation='screen';c.setLineDash([4,7]);
  for(const [width,alpha] of [[10,.035],[5,.09],[1.5,.55],[.55,.9]]){
   c.strokeStyle=`rgba(210,208,255,${alpha})`;c.lineWidth=width;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();
  }
- if(!reduced){const t=(time*.13+index*.173)%1,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;const g=c.createRadialGradient(x,y,0,x,y,7);g.addColorStop(0,'#eaf5ffb0');g.addColorStop(1,'#b9cfff00');c.fillStyle=g;c.fillRect(x-7,y-7,14,14);}
+ c.restore();
+}
+
+// Only the elapsed portion glows. Its head is positioned from audio time by
+// the scene; no decorative animation can run ahead while paused or buffering.
+export function drawListeningLink(c,segment,{elapsed,head,active=false,paused=false,color='#b8d8ff'}={}){
+ c.save();c.globalCompositeOperation='screen';c.setLineDash([]);
+ const stroke=(edge,width,ink)=>{if(!edge)return;c.strokeStyle=ink;c.lineWidth=width;c.beginPath();c.moveTo(edge.a.x,edge.a.y);c.lineTo(edge.b.x,edge.b.y);c.stroke();};
+ stroke(segment,active?2:1,color+(active?'40':'50'));
+ if(active){stroke(elapsed,11,color+'12');stroke(elapsed,5,color+'30');stroke(elapsed,1.8,color+'ef');
+  if(head){const {x,y}=head,size=paused?8:13,g=c.createRadialGradient(x,y,0,x,y,size);g.addColorStop(0,'#ffffff');g.addColorStop(.13,'#f2f6ff');g.addColorStop(.35,color+'c0');g.addColorStop(1,color+'00');c.fillStyle=g;c.fillRect(x-size,y-size,2*size,2*size);c.strokeStyle='#ffffffc0';c.lineWidth=.8;c.beginPath();c.arc(x,y,paused?4:5,0,Math.PI*2);c.stroke();}
+ }
  c.restore();
 }
 
