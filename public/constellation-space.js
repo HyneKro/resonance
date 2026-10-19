@@ -135,20 +135,3 @@ export function pickSphere(hits,x,y,touch=false){
  const exact=hits.filter(h=>Math.hypot(x-h.x,y-h.y)<=h.radius+3).sort((a,b)=>a.depth-b.depth);
  return exact[0]||hits.filter(h=>Math.hypot(x-h.x,y-h.y)<=Math.max(h.radius,touch?22:12)).sort((a,b)=>Math.hypot(x-a.x,y-a.y)-Math.hypot(x-b.x,y-b.y))[0];
 }
-
-// Screen-space exclusions are shared by song captions and group buttons.
-// A crowded group keeps its stars; it is still reachable through Explore.
-export function placeMapLabels(candidates,bounds,occupied=[],limit=8){
- const boxes=occupied.map(b=>({...b})),result=[];
- for(const item of candidates){
-  const width=Math.min(bounds.width,item.width),height=item.height||32;
-  if(width<40||bounds.height<height)continue;
-  for(const dy of [0,-38,38,-76,76]){
-   const x=Math.max(bounds.x,Math.min(bounds.x+bounds.width-width,item.x-width/2));
-   const y=Math.max(bounds.y,Math.min(bounds.y+bounds.height-height,item.y+dy));
-   if(boxes.some(b=>x<b.x+b.width+8&&x+width+8>b.x&&y<b.y+b.height+8&&y+height+8>b.y))continue;
-   const box={...item,x,y,width,height};boxes.push(box);result.push(box);break;
-  }
-  if(result.length>=limit)break;
- }return result;
-}

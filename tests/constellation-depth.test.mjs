@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {backdropStars,projectBackdrop} from '../public/constellation-sky.js';
-import {placeMapLabels} from '../public/constellation-space.js';
+import {AnchoredLabels} from '../public/constellation-labels.js';
 import {SceneReveal} from '../public/scene-reveal.js';
 
 test('background layers have true depth parallax, stable positions and bounded density',()=>{
@@ -16,12 +16,12 @@ test('background layers have true depth parallax, stable positions and bounded d
 test('crowded map labels never overlap each other, song captions or reserved UI',()=>{
  const bounds={x:20,y:190,width:720,height:340},caption={x:280,y:280,width:160,height:26};
  const candidates=Array.from({length:25},(_,i)=>({id:i,x:290+i%4*70,y:280+i%3*50,width:135,height:32}));
- const labels=placeMapLabels(candidates,bounds,[caption],8);assert.ok(labels.length>0&&labels.length<=8);
+ const layout=new AnchoredLabels();let labels;for(let n=0;n<30;n++)labels=layout.update([{...caption,id:'caption',x:caption.x+caption.width/2,priority:100},...candidates],bounds);labels=labels.filter(x=>x.id!=='caption');assert.ok(labels.length>0&&labels.length<=8);
  for(const [i,a] of labels.entries()){
   assert.ok(a.x>=bounds.x&&a.y>=bounds.y&&a.x+a.width<=bounds.x+bounds.width&&a.y+a.height<=bounds.y+bounds.height);
   for(const b of [caption,...labels.slice(i+1)])assert.ok(a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y);
  }
- assert.deepEqual(placeMapLabels(candidates,{x:0,y:0,width:20,height:20}),[]);
+ assert.deepEqual(layout.update(candidates,{x:0,y:0,width:20,height:20},{reduced:true}),[]);
 });
 
 test('Constellation return has its own loading surface and cannot reveal Music only',()=>{

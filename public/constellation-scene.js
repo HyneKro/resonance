@@ -1,7 +1,8 @@
+import {AnchoredLabels} from './constellation-labels.js';
 import {listeningPath,pointOnLink} from './constellation-listening.js';
 import {StarAtmosphere,drawJourneyThread,drawStarFlare,drawListeningLink} from './constellation-effects.js';
 import {hash} from './constellation-model.js';
-import {buildSpace,connections,OrbitCamera,SceneCadence,createProjector,pickSphere,flowingPosition,sameArtistIds,placeMapLabels,projectSegment,groupConnections} from './constellation-space.js';
+import {buildSpace,connections,OrbitCamera,SceneCadence,createProjector,pickSphere,flowingPosition,sameArtistIds,projectSegment,groupConnections} from './constellation-space.js';
 import {ConstellationSky,backdropStars} from './constellation-sky.js';
 
 /** Perspective-projected 3D spheres with a bounded, on-screen-only canvas loop.
@@ -9,7 +10,7 @@ import {ConstellationSky,backdropStars} from './constellation-sky.js';
 export class ConstellationScene {
  constructor(canvas,{gestureRoot=canvas,onSelect,onHover,onEmpty,onHome,onGroups,playback=()=>({}),onManual,viewport=()=>({top:0,bottom:0})}){
   this.playback=playback;this.onManual=onManual;this.following=false;this.liveKey='';this.canvas=canvas;this.gestureRoot=gestureRoot;this.ctx=canvas.getContext('2d',{alpha:true});this.onSelect=onSelect;this.onHover=onHover;this.onEmpty=onEmpty;this.onHome=onHome;this.onGroups=onGroups;this.focusedGroup='';this.focusMix=0;this.viewport=()=>{const now=performance.now();if(!this.insets||now-this.insetTime>180){this.insets=viewport();this.insetTime=now;}return this.insets;};
-  this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
+  this.labels=new AnchoredLabels();this.camera=new OrbitCamera();this.data={points:[],groups:[],links:[]};this.visible=new Set();this.selected='';this.current='';this.hover='';this.route=[];this.hits=[];this.sprites=new Map();this.pointers=new Map();this.active=true;this.frame=0;this.last=0;this.time=0;
   this.coarse=matchMedia('(pointer:coarse)').matches||innerWidth<750;this.reduced=matchMedia('(prefers-reduced-motion:reduce)');
   this.cadence=new SceneCadence();this.distantBatches=new Map();
   this.sky=new ConstellationSky(this.coarse);this.sky.mount(canvas);
@@ -94,33 +95,35 @@ export class ConstellationScene {
   }
   for(const [color,path]of this.distantBatches){c.fillStyle=color;c.fill(path);}
   this.atmosphere.drawComets(c,project,this.time,this.reduced.matches);
-  // Captions and cluster labels share one collision grid and stay outside chrome.
-  const bounds={x:18,y:top,width:Math.max(0,w-(inset.right||0)-36),height:Math.max(0,h-top-(inset.bottom||0))},boxes=[];
-  const home={id:'home',name:'All music',count:this.visible.size,color:'#b9c8df',position:[0,0,0]},genreId=this.navigationPath?.find(g=>g.id.startsWith('genre:'))?.id;
+  // World-anchored, camera-facing labels. Collisions only change opacity;
+  // they never move a caption away from the star or snap it to a screen edge.
+  const bounds={x:18,y:top,width:Math.max(0,w-(inset.right||0)-36),height:Math.max(0,h-top-(inset.bottom||0))},candidates=[];
+  const compact=w<750||this.coarse,home={id:'home',name:'All music',count:this.visible.size,color:'#b9c8df',position:[0,0,0]},genreId=this.navigationPath?.find(g=>g.id.startsWith('genre:'))?.id;
   const genre=this.data.groups.find(g=>g.id===(genreId||this.focusedGroup));
-  const nav=[home,...(genre?[genre]:[])].map(g=>{const p=project(g.position)||{x:sceneWidth/2,y:top+vh/2};return {...g,navigation:true,x:p.x,y:p.y-44,width:g.id==='home'?108:Math.min(205,44+g.name.length*6.2),height:34,anchor:p};});
-  const queueCandidates=livePath.map((id,i)=>{const p=projected.get(id);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)return null;const prefix=i===0?(live.repeatOne?'REPEAT':'NOW'):i===1?'NEXT':String(i).padStart(2,'0');c.font='600 11px system-ui';return {id:'queue:'+id,name:prefix+' · '+p.node.title,aria:'Focus '+(i?'upcoming song '+i:'playing song')+': '+p.node.title,queue:true,color:p.node.region.color,x:p.x,y:p.y+p.radius*3+10,width:Math.min(w<750?170:260,c.measureText(prefix+' · '+p.node.title).width+50),height:32,anchor:p};}).filter(Boolean);
-  const queueMarkers=placeMapLabels(queueCandidates,bounds,[],5);boxes.push(...queueMarkers);
-  const navigation=placeMapLabels(nav,bounds,boxes,2);boxes.push(...navigation);
+  const addGroup=(g,navigation=false)=>{const p=project(g.position);if(!p)return;candidates.push({...g,navigation,category:navigation?'navigation':'group',priority:navigation?80:40,rank:g.count, x:p.x,y:p.y-44,width:g.id==='home'?108:Math.min(compact?156:205,38+g.name.length*(compact?5.5:6.2)),height:34,anchor:p});};
+  addGroup(home,true);if(genre)addGroup(genre,true);
+  for(const [i,id] of livePath.entries()){
+   const p=projected.get(id);if(!p)continue;const prefix=i===0?(live.repeatOne?'REPEAT':'NOW'):i===1?'NEXT':String(i).padStart(2,'0');c.font='600 11px system-ui';
+   candidates.push({id:'queue:'+id,name:prefix+' · '+p.node.title,aria:'Focus '+(i?'upcoming song '+i:'playing song')+': '+p.node.title,queue:true,category:'queue',priority:100-i,color:p.node.region.color,x:p.x,y:p.y+26,width:Math.min(compact?170:260,c.measureText(prefix+' · '+p.node.title).width+50),height:32,anchor:p});
+  }
   if(livePath.length===1&&live.measured){const p=projected.get(live.id);if(p){c.strokeStyle=this.byId.get(live.id).region.color;c.lineWidth=2;c.beginPath();c.arc(p.x,p.y,Math.max(14,p.radius*3),-Math.PI/2,-Math.PI/2+live.progress*Math.PI*2);c.stroke();}}
-
-  for(const id of new Set([this.hover,this.selected,this.current])){
-   if(livePath.includes(id))continue;
-   const p=projected.get(id);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
-   c.font='11px system-ui';const text=p.node.title.slice(0,38),width=Math.min(240,c.measureText(text).width+20),placed=placeMapLabels([{x:p.x,y:p.y+p.radius*3+7,width,height:26}],bounds,boxes,1)[0];
-   if(!placed)continue;boxes.push(placed);c.fillStyle='#111727ed';c.beginPath();c.roundRect(placed.x,placed.y,placed.width,placed.height,13);c.fill();c.strokeStyle=p.node.region.color+'88';c.lineWidth=.7;c.stroke();c.fillStyle='#e6dff3';c.textAlign='center';c.fillText(text,placed.x+placed.width/2,placed.y+17,placed.width-14);
+  for(const id of new Set([this.selected,this.current,this.hover])){
+   if(livePath.includes(id))continue;const p=projected.get(id);if(!p)continue;
+   c.font='11px system-ui';const text=p.node.title.slice(0,38);
+   candidates.push({id:'caption:'+id,caption:true,name:text,category:'caption',priority:id===this.selected||id===this.current?90:10,color:p.node.region.color,x:p.x,y:p.y+26,width:Math.min(compact?170:240,c.measureText(text).width+20),height:26,anchor:p});
   }
   const focused=this.data.groups.find(g=>g.id===this.focusedGroup),memberSet=focused?new Set(focused.ids):null;
-  const overview=!this.focusedGroup&&!this.selected,compact=w<750||this.coarse;
+  const overview=!this.focusedGroup&&!this.selected;
   const groups=this.following?[]:overview?this.data.groups:this.data.artistGroups.filter(g=>this.selected?g.ids.some(id=>linked.has(id)):g.id===this.focusedGroup||memberSet&&g.ids.some(id=>memberSet.has(id)));
-  const candidates=[];
-  for(const g of [...groups].sort((a,b)=>b.count-a.count)){
-   if(g.id===genre?.id||!g.ids.some(id=>this.visible.has(id)))continue;const p=project(g.position);if(!p||p.x<bounds.x||p.x>bounds.x+bounds.width||p.y<top||p.y>top+bounds.height)continue;
-   candidates.push({...g,x:p.x,y:p.y-37,width:Math.min(compact?156:205,38+g.name.length*(compact?5.5:6.2)),height:32,anchor:p});
+  for(const g of groups)if(g.id!==genre?.id&&g.ids.some(id=>this.visible.has(id)))addGroup(g);
+  const now=performance.now(),dt=this.labelTime===undefined?1/60:(now-this.labelTime)/1000;this.labelTime=now;
+  const markers=this.labels.update(candidates,bounds,{dt,reduced:this.reduced.matches,limits:{group:compact?4:8}});
+  for(const m of markers){
+   c.globalAlpha=m.opacity;
+   c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.anchor.x,m.y+(m.y<m.anchor.y?m.height:0));c.stroke();
+   if(m.caption){c.fillStyle='#111727ed';c.beginPath();c.roundRect(m.x,m.y,m.width,m.height,13);c.fill();c.strokeStyle=m.color+'88';c.lineWidth=.7;c.stroke();c.fillStyle='#e6dff3';c.font='11px system-ui';c.textAlign='center';c.fillText(m.name,m.x+m.width/2,m.y+17,m.width-14);}
   }
-  const markers=placeMapLabels(candidates,bounds,boxes,compact?4:8);
-  for(const m of [...queueMarkers,...markers])if(Math.hypot(m.x+m.width/2-m.anchor.x,m.y+16-m.anchor.y)>32){c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.x+m.width/2,m.y+16);c.stroke();}
-  this.onGroups?.([...queueMarkers,...navigation,...markers]);
+  c.globalAlpha=1;this.onGroups?.(markers.filter(m=>!m.caption));
 
  }
  bind(){const canvas=this.canvas,point=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
@@ -139,5 +142,5 @@ export class ConstellationScene {
   this.gestureRoot.addEventListener('wheel',e=>{if(e.target!==canvas&&e.target.closest('.cx-groups'))canvas.onwheel(e);},{capture:true,passive:false,signal});
   canvas.onkeydown=e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home'].includes(e.key)){this.stopFollowing();e.preventDefault();if(e.key==='Home'){if(this.onHome)this.onHome();else this.home();}else if(['+','=','-'].includes(e.key))this.camera.scale(this.camera.zoom*(e.key==='-'?.8:1.25));else{const dx=e.key==='ArrowLeft'?-30:e.key==='ArrowRight'?30:0,dy=e.key==='ArrowUp'?-30:e.key==='ArrowDown'?30:0;if(e.shiftKey)pan(dx,dy);else this.camera.drag(dx,dy);}}if(e.key==='Enter'&&this.selected){e.preventDefault();this.onSelect?.(this.selected);}};
  }
- dispose(){this.gestureAbort?.abort();this.atmosphere.dispose();this.active=false;cancelAnimationFrame(this.frame);this.observer.disconnect();document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('blur',this.blur);this.pointers.clear();this.sprites.clear();this.sky.dispose();this.canvas.width=this.canvas.height=1;}
+ dispose(){this.labels.clear();this.gestureAbort?.abort();this.atmosphere.dispose();this.active=false;cancelAnimationFrame(this.frame);this.observer.disconnect();document.removeEventListener('visibilitychange',this.visibility);window.removeEventListener('blur',this.blur);this.pointers.clear();this.sprites.clear();this.sky.dispose();this.canvas.width=this.canvas.height=1;}
 }

@@ -48,12 +48,14 @@ export function paintMapMarkers(root,markers){
   let entry=pool.get(marker.id);
   if(!entry){const button=root.ownerDocument.createElement('button');button.type='button';button.dataset.cxGroup=marker.id;root.append(button);entry={button};pool.set(marker.id,entry);}
   const {button}=entry;button.classList.toggle('cx-queue-marker',!!marker.queue);
-  const values={label:marker.name,aria:marker.aria||(marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs'),navigation:!!marker.navigation,transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
+  const values={label:marker.name,aria:marker.aria||(marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs'),navigation:!!marker.navigation,opacity:(marker.opacity??1).toFixed(3),pointerEvents:marker.interactive===false?'none':'auto',transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
   if(values.label!==entry.label)button.textContent=values.label;
   if(values.aria!==entry.aria){button.setAttribute('aria-label',values.aria);button.title=values.aria;}
   if(values.navigation!==entry.navigation)button.classList.toggle('cx-waypoint',values.navigation);
-  for(const key of ['transform','width','height'])if(values[key]!==entry[key])button.style[key]=values[key];
+  for(const key of ['transform','width','height','opacity','pointerEvents'])if(values[key]!==entry[key])button.style[key]=values[key];
   if(values.color!==entry.color)button.style.setProperty('--group-color',values.color);
+  // Fading captions cannot intercept clicks or enter the keyboard tab order.
+  button.tabIndex=marker.interactive===false?-1:0;button.setAttribute('aria-hidden',String(marker.interactive===false));
   Object.assign(entry,values);
  }
 }

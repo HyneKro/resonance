@@ -1,3 +1,4 @@
+import {spectrumPreferences} from './spectrum-settings.js';
 import {visualSyncPreferences} from './visual-sync.js';
 import {CAMERA_SPEED} from './scene-camera.js';
 import {kaleidoscopeMode} from './kaleidoscope.js';
@@ -61,8 +62,9 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "orbit": 2,
   "motionAmount": 1.21,
   "beatMotion": 0.81,
-  "spectrumIntensity": 1.5,
-  "spectrumContrast": 2.6,
+  "spectrumIntensity": 0.75,
+  "spectrumContrast": 2,
+  "spectrumDesignVersion": 2,
   "pointerForce": 0,
   "autoDirection": true,
   "glassOpacity": 0.4,
@@ -72,4 +74,4 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "signatureVersion": 1
 });
 export const REMOVED_LAYERS=new Set(['galaxyDensity','comets','gravity','pointerForce']);
-export function preferencesWithDefaults(saved={}){const p={...DEFAULT_PREFERENCES,...saved,...visualSyncPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}
+export function preferencesWithDefaults(saved={},defaults=DEFAULT_PREFERENCES){const p={...defaults,...saved,...visualSyncPreferences({...defaults,...saved}),...spectrumPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}

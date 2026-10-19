@@ -6,20 +6,22 @@ import {VisualSyncBuffer} from '../public/visual-sync.js';
 
 const frame=(value=0,db=-24)=>({db,spectrum:new Float32Array(48).fill(value)});
 const settle=(model,frame,seconds=1,options={})=>{let out;for(let i=0;i<seconds*60;i++)out=model.update(frame,1/60,options);return out;};
-test('spectrum controls increase peak brightness and contrast without lighting silence',()=>{
+test('increasing the new contrast control matches lowering the former exponent',()=>{
  const f=frame(.45);f.spectrum[1]=.95;f.spectrum[2]=0;
- const old=settle(new RibbonSpectrum(),f,1,{intensity:1,contrast:1.6});
  const defaults=settle(new RibbonSpectrum(),f);
- assert.ok(defaults[1]>old[1]);assert.ok(defaults[1]/defaults[0]>old[1]/old[0]);assert.equal(defaults[2],0);
- const bright=settle(new RibbonSpectrum(),f,1,{intensity:3,contrast:2.6});assert.ok(Math.abs(bright[1]/defaults[1]-2)<.001);
+ assert.ok(Math.abs(defaults[0]-.75*Math.pow((.45-.04)/.96,.5))<.0001);
+ const stronger=settle(new RibbonSpectrum(),f,1,{contrast:4});
+ assert.ok(stronger[0]>defaults[0]);assert.ok(stronger[1]>defaults[1]);assert.equal(stronger[2],0);
+ const bright=settle(new RibbonSpectrum(),f,1,{intensity:12});assert.ok(Math.abs(bright[1]/defaults[1]-16)<.001);
  const off=settle(new RibbonSpectrum(),f,2,{intensity:0});assert.ok(off.every(x=>x===0));
- const quiet=settle(new RibbonSpectrum(),frame(1,-100),1,{intensity:4.5,contrast:.5});assert.ok(quiet.every(x=>x===0));
+ const quiet=settle(new RibbonSpectrum(),frame(1,-100),1,{intensity:12,contrast:16});assert.ok(quiet.every(x=>x===0));
+ const noise=settle(new RibbonSpectrum(),frame(.039),1,{intensity:12,contrast:16});assert.ok(noise.every(x=>x===0));
  const bounded=settle(new RibbonSpectrum(),frame(1),1,{intensity:Infinity,contrast:NaN});assert.ok(bounded.every(Number.isFinite));
 });
 test('light keeps absolute per-band loudness and does not fill silent frequencies',()=>{
  const low=new RibbonSpectrum(),loud=new RibbonSpectrum(),f=frame();f.spectrum[12]=.3;
  const a=settle(low,f);f.spectrum[12]=.8;const b=settle(loud,f);
- assert.ok(b[12]>a[12]*3);assert.ok(a[12]>0);
+ assert.ok(b[12]>a[12]*1.7);assert.ok(a[12]>0);
  for(let i=0;i<48;i++)if(i!==12){assert.equal(a[i],0);assert.equal(b[i],0);}
  assert.equal(f.spectrum[12],Math.fround(.8));
 });
