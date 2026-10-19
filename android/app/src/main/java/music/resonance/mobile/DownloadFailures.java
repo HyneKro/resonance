@@ -30,5 +30,5 @@ final class DownloadFailures {
             result.put(entry);
         }return result;
     }
-    private static String identity(JSONObject entry){return entry.optString("type").equals("spotify")?"spotify:"+entry.optString("spotifyId"):"youtube:"+entry.optString("youtubeId");}
+    private static String identity(JSONObject entry){return entry.optString("type").equals("deezer")?"deezer:"+entry.optString("deezerId"):entry.optString("type").equals("spotify")?"spotify:"+entry.optString("spotifyId"):"youtube:"+entry.optString("youtubeId");}
 }

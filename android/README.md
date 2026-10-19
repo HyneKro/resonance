@@ -1,6 +1,6 @@
 # Resonance for Android
 
-The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.16.1-preview** (versionCode 42), built for ARM64 phones such as the Galaxy S22+.
+The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.17.0-preview** (versionCode 43), built for ARM64 phones such as the Galaxy S22+.
 
 **[Download the latest APK](https://hynekro.github.io/resonance/)** and install it over the existing app. The package ID and signing identity must stay unchanged. Uninstalling deletes private app music and data; an update does not require uninstalling.
 
@@ -8,6 +8,7 @@ The Android app shares Resonance's visual identity and music-library features, w
 
 - **Library** opens your music. Tap a song's cover or title to play; tap the playing song in the bottom player for details.
 - **Settings → Library & downloads** adds local folders or online playlist sources. An empty selected folder is a download destination. Check the playlist, review the selection, then download songs before listening offline.
+- Public **Deezer playlists** are supported alongside YouTube and Spotify. Paste the full `https://www.deezer.com/playlist/…` browser link (localized links work too). Deezer supplies titles, artists and playlist order; use **Choose recording** to review a YouTube version, then download its audio. Private playlists and short sharing links are not supported. All pages are read, up to 10,000 songs; an incomplete response is reported rather than silently accepting the first page.
 - **Visualizer**, **Constellation** and **Music only** are three separate views. Visual settings appear only with the Visualizer. One-finger swipes rotate the scene; settings sliders require a deliberate sideways drag, so vertical scrolling does not change a value accidentally.
 - **Playback & sound** contains loudness leveling, silent-edge skipping, EQ and visual sync. Measurements are local. Uncertain metadata can be reviewed in Behind the sound.
 - Playback runs in a native background service. Lock-screen and notification controls provide transport controls; hardware volume buttons adjust music. Samsung's battery restrictions can affect prolonged background work. Screen-off listening help links to system settings without changing restrictions automatically.

@@ -91,7 +91,7 @@ public final class MainActivity extends Activity {
                 CompletableFuture<JSONObject> task=new CompletableFuture<>();app.onMain(()->{if(picker!=null)throw new IOException("A folder picker is already open");picker=task;pickingDestination=action.equals("pickDestination");Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION|(pickingDestination?Intent.FLAG_GRANT_WRITE_URI_PERMISSION:0));startActivityForResult(i,42);return null;});return task.get(10,TimeUnit.MINUTES);
             }
             case "defaultDestination":lib.setting("downloadDestination",new JSONObject());return Json.object("ok",true);
-            case "source":{String type=data.optString("type");if(!type.equals("youtube")&&!type.equals("spotify"))throw new IOException("Choose a local folder with the Android picker");Json.put(data,"url",Downloads.playlist(data.optString("url"),type));return lib.source(data);}
+            case "source":{String type=data.optString("type");if(!type.equals("youtube")&&!type.equals("spotify")&&!type.equals("deezer"))throw new IOException("Choose a local folder with the Android picker");Json.put(data,"url",Downloads.playlist(data.optString("url"),type));return lib.source(data);}
             case "disconnect":lib.disconnect(data.optString("id"));return Json.object("ok",true);
             case "edit":return lib.edit(data);
             case "playlist":return lib.savePlaylist(data);

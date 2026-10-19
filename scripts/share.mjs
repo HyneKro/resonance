@@ -13,7 +13,7 @@ await fs.mkdir(appDir,{recursive:true});
 // music, cookies, thumbnail cache, download archive, debug log, or source configuration.
 for(const name of ['locales','chrome_100_percent.pak','chrome_200_percent.pak','d3dcompiler_47.dll','dxcompiler.dll','dxil.dll','ffmpeg.dll','icudtl.dat','LICENSE','LICENSES.chromium.html','Resonance.exe','resources.pak','snapshot_blob.bin','v8_context_snapshot.bin','version','vk_swiftshader_icd.json','vk_swiftshader.dll','vulkan-1.dll'])await fs.cp(path.join(runtime,name),path.join(destination,name),{recursive:true});
 await resedit(path.join(destination,'Resonance.exe'),{iconPath:path.join(root,'public','icon.ico')});
-for(const name of ['audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
+for(const name of ['audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','deezer.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
 await embedSkybox(root,path.join(appDir,'public'));
 await fs.cp(path.join(runtime,'resources','app','node_modules'),path.join(appDir,'node_modules'),{recursive:true});
 const pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));delete pkg.devDependencies;delete pkg.scripts;
@@ -33,9 +33,10 @@ Choose Library → Add music to connect:
   • a local music folder (including subfolders),
   • a local M3U / M3U8 playlist,
   • a YouTube playlist and its download folder,
-  • a public Spotify playlist (YouTube recording matches for review; up to 100 exposed tracks).
+  • a public Spotify playlist (YouTube recording matches for review; up to 100 exposed tracks),
+  • a public Deezer playlist (complete song list, YouTube recording matches for review).
 
-Update playlists checks connected online playlists. Spotify imports metadata, never protected audio. Review opens a recording comparison, with duration, artist and listening links. Select the versions you want, then Download selected.
+Update playlists checks connected online playlists. Spotify and Deezer import metadata, never protected audio. Review opens a recording comparison, with duration, artist and listening links. Select the versions you want, then Download selected.
 Music files play from their original locations. Artwork, metadata, listening history and
 settings are saved locally in the data folder next to Resonance.exe.
 

@@ -67,7 +67,7 @@ public final class LibraryStore extends SQLiteOpenHelper {
         JSONArray all=sources(),out=new JSONArray();String key=source.optString("id");
         if(key.isEmpty())for(int i=0;i<all.length();i++){JSONObject old=all.optJSONObject(i);if(old.optString("type").equals(source.optString("type"))&&(!source.optString("uri").isEmpty()&&old.optString("uri").equals(source.optString("uri"))||!source.optString("url").isEmpty()&&old.optString("url").equals(source.optString("url")))){key=old.optString("id");break;}}
         if(key.isEmpty())key=UUID.randomUUID().toString();Json.put(source,"id",key);
-        if(source.optString("name").isBlank())Json.put(source,"name",source.optString("type").equals("spotify")?"Spotify playlist":"YouTube playlist");
+        if(source.optString("name").isBlank())Json.put(source,"name",source.optString("type").equals("spotify")?"Spotify playlist":source.optString("type").equals("deezer")?"Deezer playlist":"YouTube playlist");
         for(int i=0;i<all.length();i++)if(!all.optJSONObject(i).optString("id").equals(key))out.put(all.optJSONObject(i));out.put(source);setting("sources",Json.object("items",out));revision.incrementAndGet();return source;
     }
     public synchronized void disconnect(String id){JSONArray out=new JSONArray(),all=sources();for(int i=0;i<all.length();i++)if(!all.optJSONObject(i).optString("id").equals(id))out.put(all.optJSONObject(i));setting("sources",Json.object("items",out));revision.incrementAndGet();}

@@ -1,3 +1,4 @@
+import {deezerPlaylistId} from './deezer.mjs';
 import {spotifyPlaylistId} from './spotify.mjs';
 import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -16,7 +17,7 @@ export function playlistId(value){
   const id=url.searchParams.get('list');if(!id||!/^[-\w]{2,150}$/.test(id))throw Error('This link needs a playlist. Open the playlist and copy its link.');return id;
 }
 export async function validateSource(input,existing){
-  const type=input.type;if(!['youtube','spotify','folder','m3u'].includes(type))throw Error('Choose YouTube, Spotify, a music folder, or a playlist file.');
+  const type=input.type;if(!['youtube','spotify','deezer','folder','m3u'].includes(type))throw Error('Choose YouTube, Spotify, Deezer, a music folder, or a playlist file.');
   const name=String(input.name||'').trim();if(!name||name.length>100)throw Error('Give this source a name (up to 100 characters).');
   let location=String(input.path||'').trim().replace(/^"(.*)"$/,'$1');
   if(!path.isAbsolute(location)||location.includes('\0')||/^\\\\\.\\/.test(location))throw Error('Choose a folder or paste its full path.');
@@ -24,8 +25,8 @@ export async function validateSource(input,existing){
   const stat=await fs.stat(location);
   if(type==='m3u'){if(!stat.isFile()||!['.m3u','.m3u8'].includes(path.extname(location).toLowerCase()))throw Error('Choose an .m3u or .m3u8 playlist file.');}
   else if(!stat.isDirectory())throw Error('Choose a folder for your music.');
-  try{await fs.access(location,['youtube','spotify'].includes(type)?constants.R_OK|constants.W_OK:constants.R_OK);}catch{throw Error(['youtube','spotify'].includes(type)?'This download folder must be readable and writable.':'This location is not readable.');}
-  const playlist=type==='youtube'?playlistId(input.url||input.playlist):type==='spotify'?spotifyPlaylistId(input.url||('https://open.spotify.com/playlist/'+input.playlist)):'';
+  try{await fs.access(location,['youtube','spotify','deezer'].includes(type)?constants.R_OK|constants.W_OK:constants.R_OK);}catch{throw Error(['youtube','spotify','deezer'].includes(type)?'This download folder must be readable and writable.':'This location is not readable.');}
+  const playlist=type==='youtube'?playlistId(input.url||input.playlist):type==='spotify'?spotifyPlaylistId(input.url||('https://open.spotify.com/playlist/'+input.playlist)):type==='deezer'?deezerPlaylistId(input.url||('https://www.deezer.com/playlist/'+input.playlist)):'';
   for(const source of existing){
     if(source.id===input.id)continue;
     const other=canonical(path.resolve(source.path)),candidate=canonical(location);

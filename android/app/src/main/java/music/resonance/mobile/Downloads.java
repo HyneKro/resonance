@@ -26,6 +26,7 @@ public final class Downloads {
         ConnectivityManager manager=(ConnectivityManager)app.getSystemService(Context.CONNECTIVITY_SERVICE);NetworkCapabilities caps=manager.getNetworkCapabilities(manager.getActiveNetwork());if(caps==null||!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))throw new IOException("No internet connection. Reconnect, then resume your remaining songs.");if(app.library.setting("preferences").optBoolean("wifiOnly",true)&&!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED))throw new IOException("Waiting for Wi-Fi or an unmetered connection. Change Wi-Fi only in settings to allow mobile data.");
     }
     public static String playlist(String value,String type){
+        if(type.equals("deezer"))return "https://www.deezer.com/playlist/"+DeezerPlaylist.id(value);
         URIParts u=new URIParts(value);
         if(type.equals("youtube")){if(!List.of("www.youtube.com","youtube.com","music.youtube.com").contains(u.host))throw new IllegalArgumentException("Use a YouTube playlist link");String id=Uri.parse(value).getQueryParameter("list");if(id==null||!id.matches("[A-Za-z0-9_-]{10,100}"))throw new IllegalArgumentException("Playlist link is missing its list ID");return "https://www.youtube.com/playlist?list="+id;}
         if(type.equals("spotify")&&u.host.equals("open.spotify.com")&&u.path.matches("/(?:intl-[a-z-]+/)?playlist/[A-Za-z0-9]{22}/?"))return value;
@@ -37,16 +38,18 @@ public final class Downloads {
     public void check(String onlySource) throws Exception {
         JSONArray found=new JSONArray();
         try{prepareTools();
-            Set<String> saved=new HashSet<>(),spotifySaved=new HashSet<>();Map<String,String> alternatives=new HashMap<>();JSONArray tracks=app.library.tracks();
-            for(int i=0;i<tracks.length();i++){JSONObject track=tracks.optJSONObject(i);String id=track.optString("youtubeId");if(!id.isEmpty())saved.add(id);String original=track.optString("originalYoutubeId");if(!original.isEmpty()&&readable(track))alternatives.put(original,track.optString("id"));String spotify=track.optString("spotifyId");if(!spotify.isEmpty())spotifySaved.add(spotify);}
+            Set<String> saved=new HashSet<>(),spotifySaved=new HashSet<>();Map<String,String> alternatives=new HashMap<>(),deezerSaved=new HashMap<>();JSONArray tracks=app.library.tracks();
+            for(int i=0;i<tracks.length();i++){JSONObject track=tracks.optJSONObject(i);String id=track.optString("youtubeId");if(!id.isEmpty())saved.add(id);String original=track.optString("originalYoutubeId");if(!original.isEmpty()&&readable(track))alternatives.put(original,track.optString("id"));String spotify=track.optString("spotifyId");if(!spotify.isEmpty())spotifySaved.add(spotify);String deezer=track.optString("deezerId");if(!deezer.isEmpty()&&readable(track))deezerSaved.put(deezer,track.optString("id"));}
             JSONArray sources=app.library.sources();Set<String> checked=new HashSet<>();List<String> errors=new ArrayList<>();int considered=0;
             for(int i=0;i<sources.length()&&!cancelled;i++){
                 JSONObject source=sources.getJSONObject(i);String type=source.optString("type"),sourceId=source.optString("id");
-                if(!type.equals("youtube")&&!type.equals("spotify")||!onlySource.isEmpty()&&!onlySource.equals(sourceId))continue;considered++;
+                if(!type.equals("youtube")&&!type.equals("spotify")&&!type.equals("deezer")||!onlySource.isEmpty()&&!onlySource.equals(sourceId))continue;considered++;
                 publish(true,"checking","Reading "+source.optString("name")+"…",0,0,-1);
                 try{
                     JSONArray entries;String playlistName=source.optString("name");
-                    if(type.equals("spotify")){
+                    if(type.equals("deezer")){
+                        JSONObject result=DeezerPlaylist.load(DeezerPlaylist.id(source.optString("url")),Research::json,()->cancelled);entries=result.getJSONArray("tracks");playlistName=result.optString("title",playlistName);
+                    }else if(type.equals("spotify")){
                         String key=playlist(source.optString("url"),type).replaceAll(".*/playlist/([A-Za-z0-9]{22}).*","$1");
                         String html=new String(Research.get("https://open.spotify.com/embed/playlist/"+key,5_000_000),StandardCharsets.UTF_8);
                         Matcher match=Pattern.compile("<script[^>]*id=\"__NEXT_DATA__\"[^>]*>([\\s\\S]*?)</script>").matcher(html);
@@ -62,20 +65,21 @@ public final class Downloads {
                         JSONObject entry=entries.optJSONObject(j);if(entry==null)continue;String video=type.equals("youtube")?entry.optString("id"):"";
                         String spotifyId=type.equals("spotify")?entry.optString("uri",sourceId+":"+entry.optString("title")+":"+entry.optString("subtitle")):"";
                         if(!spotifyId.isEmpty()&&spotifySaved.contains(spotifyId))continue;
+                        String deezerId=entry.optString("deezerId");int position=entry.optInt("playlistIndex",j+1);if(!deezerId.isEmpty()&&deezerSaved.containsKey(deezerId)){app.library.link(deezerSaved.get(deezerId),sourceId,position);continue;}
                         if(alternatives.containsKey(video)){app.library.link(alternatives.get(video),sourceId,j+1);continue;}
                         if(saved.contains(video)){app.library.link(LibraryStore.id("youtube:"+video),sourceId,j+1);continue;}
                         if(type.equals("youtube")&&(!video.matches("[A-Za-z0-9_-]{11}")||entry.optString("title").matches("\\[(Private|Deleted) video\\]")))continue;
-                        found.put(Json.object("key",sourceId+":"+j,"sourceId",sourceId,"type",type,"youtubeId",video,"spotifyId",spotifyId,"title",entry.optString("title"),"artist",type.equals("spotify")?entry.optString("subtitle"):entry.optString("uploader"),"duration",type.equals("spotify")?entry.optDouble("duration",0)/1000:entry.optDouble("duration",0),"playlistIndex",j+1,"selected",type.equals("youtube")));
+                        found.put(Json.object("key",sourceId+":"+j,"sourceId",sourceId,"type",type,"youtubeId",video,"spotifyId",spotifyId,"deezerId",deezerId,"deezerUrl",entry.optString("deezerUrl"),"title",entry.optString("title"),"artist",type.equals("spotify")?entry.optString("subtitle"):type.equals("deezer")?entry.optString("artist"):entry.optString("uploader"),"duration",type.equals("spotify")?entry.optDouble("duration",0)/1000:entry.optDouble("duration",0),"playlistIndex",position,"selected",type.equals("youtube")));
                     }
                 }catch(Exception e){if(cancelled)break;Json.put(source,"lastError",DownloadMessages.explain(Json.error(e)));app.library.source(source);errors.add(source.optString("name")+": "+DownloadMessages.explain(Json.error(e)));}
             }
             for(int i=0;i<preview.length();i++){JSONObject entry=preview.getJSONObject(i);if(!checked.contains(entry.optString("sourceId")))found.put(entry);}
             savePreview(DownloadFailures.preserve(preview,found));
-            int ready=0,skipped=0;for(int p=0;p<preview.length();p++){if(preview.getJSONObject(p).optString("skipReason").isEmpty())ready++;else skipped++;}
+            int ready=0,skipped=0,unmatched=0;for(int p=0;p<preview.length();p++){JSONObject item=preview.getJSONObject(p);if(item.optString("skipReason").isEmpty()){ready++;if(item.optString("youtubeId").isEmpty())unmatched++;}else skipped++;}
             if(cancelled)publish(false,"cancelled","Playlist check cancelled. Your saved music is unchanged.",0,0,-1);
-            else if(considered==0)publish(false,"ready","Add a YouTube or Spotify playlist link to get started.",0,0,-1);
+            else if(considered==0)publish(false,"ready","Add a YouTube, Spotify or Deezer playlist link to get started.",0,0,-1);
             else if(!errors.isEmpty())publish(false,"error",String.join(" · ",errors),0,0,-1);
-            else publish(false,"ready",preview.length()==0?"Everything from these playlists is already in your library.":ready+" songs ready"+(skipped>0?" · "+skipped+" previously skipped":"")+". Tap Download to save your selection.",0,ready,-1);
+            else publish(false,"ready",preview.length()==0?"Everything from these playlists is already in your library.":ready+" songs found"+(unmatched>0?" · "+unmatched+" need a recording. Choose recordings below before downloading.":". Tap Download to save your selection.")+(skipped>0?" · "+skipped+" previously skipped":""),0,ready,-1);
         }catch(Exception e){fail(e);throw e;}
     }
     private String reviewedKey="";private JSONArray reviewedChoices=new JSONArray();
@@ -95,12 +99,13 @@ public final class Downloads {
         JSONObject choice=null;for(int i=0;i<reviewedChoices.length();i++)if(reviewedChoices.getJSONObject(i).optString("id").equals(video))choice=reviewedChoices.getJSONObject(i);
         if(!key.equals(reviewedKey)||choice==null)throw new IOException("Search again before choosing a recording.");
         for(int i=0;i<preview.length();i++){JSONObject item=preview.getJSONObject(i);if(!item.optString("key").equals(key))continue;
-            if(!item.optString("type").equals("spotify")&&!item.has("originalYoutubeId"))item.put("originalYoutubeId",item.optString("youtubeId"));
+            if(!List.of("spotify","deezer").contains(item.optString("type"))&&!item.has("originalYoutubeId"))item.put("originalYoutubeId",item.optString("youtubeId"));
             item.put("youtubeId",video).put("selected",true).put("alternativeSelected",true).put("alternativeKind",RecordingFallback.musicVideo(choice)?"music-video":"upload");item.remove("skipReason");item.remove("failedVideoId");savePreview(preview);reviewedChoices=new JSONArray();return item;
         }throw new IOException("The playlist changed. Reopen Downloads.");
     }
     public void cancel(){cancelled=true;YoutubeDL.INSTANCE.destroyProcessById("resonance");}
     private void completed(JSONObject item,String trackId){
+        if(!item.optString("deezerId").isEmpty()){JSONObject saved=app.library.track(trackId);if(saved.length()>0){Json.put(saved,"deezerId",item.optString("deezerId"));Json.put(saved,"deezerUrl",item.optString("deezerUrl"));Json.put(saved,"deezerTitle",item.optString("title"));Json.put(saved,"deezerArtist",item.optString("artist"));app.library.save(saved);}}
         JSONArray remaining=new JSONArray();for(int p=0;p<preview.length();p++){JSONObject entry=preview.optJSONObject(p);if(entry==null)continue;if(entry.optString("key").equals(item.optString("key"))||entry.optString("youtubeId").equals(item.optString("youtubeId"))){app.library.link(trackId,entry.optString("sourceId"),entry.optInt("playlistIndex"));}else remaining.put(entry);}savePreview(remaining);
     }
     private boolean readable(JSONObject track){try(InputStream input=app.getContentResolver().openInputStream(Uri.parse(track.optString("path")))){return input!=null;}catch(Exception ignored){return false;}}
@@ -154,7 +159,7 @@ public final class Downloads {
             try{YoutubeDL.INSTANCE.execute(req,"resonance",(percent,eta,line)->{publish(true,"downloading",title,done,total,percent);return kotlin.Unit.INSTANCE;});}
             catch(YoutubeDLException e){if(cancelled)throw e;network();String raw=Json.error(e);if(DownloadFailures.pausesBatch(raw))throw e;if(RecordingFallback.unavailable(raw)&&alternative(item,format,destination,total))return;throw new DownloadBatch.RecordingUnavailable(DownloadMessages.explain(raw));}
             File[] files=app.library.music.listFiles((dir,name)->name.startsWith(video+".")&&LibraryStore.isAudio(name));if(files==null||files.length==0)throw new DownloadBatch.RecordingUnavailable("No usable audio file was returned. Try updating the downloader before retrying this song.");File file=files[0];JSONObject info=new JSONObject();File infoFile=new File(app.library.music,video+".info.json");if(infoFile.isFile())info=Json.parse(new String(java.nio.file.Files.readAllBytes(infoFile.toPath()),StandardCharsets.UTF_8));
-            JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
+            JSONObject supplied=Json.object("youtubeId",video,"spotifyId",item.optString("spotifyId"),"deezerId",item.optString("deezerId"),"deezerUrl",item.optString("deezerUrl"),"deezerTitle",item.optString("type").equals("deezer")?item.optString("title"):"","deezerArtist",item.optString("type").equals("deezer")?item.optString("artist"):"","title",info.optString("track",info.optString("title",title)),"artist",info.optString("artist",info.optString("uploader",item.optString("artist"))),"views",info.optLong("view_count"),"date",info.optString("release_date",info.optString("upload_date")),"downloaded",true,"sourceUrl","https://www.youtube.com/watch?v="+video);
             Json.put(supplied,"rawTitle",info.optString("title",title));Json.put(supplied,"channel",info.optString("channel",info.optString("uploader")));
             Json.put(supplied,"recordingArtists",info.optJSONArray("artists")!=null?info.optJSONArray("artists"):new JSONArray().put(info.optString("artist",info.optString("uploader",item.optString("artist")))));
             if(item.has("originalYoutubeId")){supplied.put("originalYoutubeId",item.optString("originalYoutubeId")).put("alternativeRecording",true).put("alternativeSelected",item.optBoolean("alternativeSelected")).put("alternativeKind",item.optString("alternativeKind","upload"));}

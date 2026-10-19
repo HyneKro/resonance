@@ -33,20 +33,23 @@ export function spotifyCandidates(track,entries){
   return {id:e.id,title:e.title.slice(0,500),channel:channel.slice(0,300),duration:e.duration,score:Math.round(score*100),url:'https://www.youtube.com/watch?v='+e.id};
  }).sort((a,b)=>b.score-a.score).slice(0,3);
 }
-export async function spotifyEntries(sync,source,archived,{read=readSpotifyPlaylist}={}){
- const playlist=await read(source.playlist,{signal:sync.spotifyAbort?.signal}),local=sync.lib.list().filter(t=>t.sourceId===source.id&&t.available),entries=[],cache=sync.lib.getSetting('spotifyMatches')||{};
+export const spotifyEntries=(sync,source,archived,options={})=>catalogEntries(sync,source,archived,{...options,provider:'spotify'});
+export async function catalogEntries(sync,source,archived,{read=readSpotifyPlaylist,provider='spotify'}={}){
+ if(!['spotify','deezer'].includes(provider))throw Error('Unsupported playlist provider');
+ const idField=provider+'Id',cacheKey=provider+'Matches';
+ const playlist=await read(source.playlist,{signal:sync.spotifyAbort?.signal}),local=sync.lib.list().filter(t=>t.sourceId===source.id&&t.available),entries=[],cache=sync.lib.getSetting(cacheKey)||{};
  for(const [index,track]of playlist.tracks.entries()){
   if(sync.cancelled)break;sync.job.message=`${source.name} · matching ${index+1} / ${playlist.tracks.length}: ${track.title}`;
-  const exact=local.find(t=>t.spotifyId===track.spotifyId),matches=local.filter(t=>matchScore(track,t)>=.98),existing=exact||(matches.length===1?matches[0]:null);
-  if(existing){entries.push({...track,id:existing.youtubeId||track.spotifyId,title:track.title,channel:track.artist,sourceId:source.id,status:'existing',trackId:existing.id,reason:'Already in this collection',provider:'spotify'});continue;}
-  let candidates=cache[track.spotifyId]?.candidates;
-  if(!candidates?.length||Date.now()-cache[track.spotifyId].at>7*864e5){
-   try{const query=[track.artist.split(',')[0],track.title,'audio'].join(' ').slice(0,450);const output=await sync.run(['--flat-playlist','--dump-single-json','--socket-timeout','20','--playlist-end','3','ytsearch3:'+query],null,60000);candidates=spotifyCandidates(track,JSON.parse(output).entries||[]);cache[track.spotifyId]={at:Date.now(),candidates};sync.lib.setSetting('spotifyMatches',cache);}
+  const exact=local.find(t=>t[idField]===track[idField]),matches=local.filter(t=>matchScore(track,t)>=.98),existing=exact||(matches.length===1?matches[0]:null);
+  if(existing){entries.push({...track,id:existing.youtubeId||track[idField],title:track.title,channel:track.artist,sourceId:source.id,status:'existing',trackId:existing.id,reason:'Already in this collection',provider});continue;}
+  let candidates=cache[track[idField]]?.candidates;
+  if(!candidates?.length||Date.now()-cache[track[idField]].at>7*864e5){
+   try{const query=[track.artist.split(',')[0],track.title,'audio'].join(' ').slice(0,450);const output=await sync.run(['--flat-playlist','--dump-single-json','--socket-timeout','20','--playlist-end','3','ytsearch3:'+query],null,60000);candidates=spotifyCandidates(track,JSON.parse(output).entries||[]);cache[track[idField]]={at:Date.now(),candidates};sync.lib.setSetting(cacheKey,cache);}
    catch(error){if(sync.cancelled)break;sync.job.errors.push(`${track.title}: matching unavailable. ${error.message.slice(0,180)}`);candidates=[];}
   }
-  const best=candidates.find(c=>c.id===cache[track.spotifyId]?.chosenId)||candidates[0],found=best&&local.find(t=>t.youtubeId===best.id),downloaded=best&&(archived.has(best.id)||found);
-  entries.push({...track,id:best?.id||track.spotifyId,title:track.title,channel:track.artist,sourceId:source.id,provider:'spotify',status:downloaded?'existing':best?'review':'unavailable',trackId:found?.id,reason:downloaded?'Downloaded YouTube match':best?'Confirm the YouTube recording':'No YouTube match found',candidates,matchedTitle:best?.title,matchedChannel:best?.channel,matchedDuration:best?.duration});
+  const best=candidates.find(c=>c.id===cache[track[idField]]?.chosenId)||candidates[0],found=best&&local.find(t=>t.youtubeId===best.id),downloaded=best&&(archived.has(best.id)||found);
+  entries.push({...track,id:best?.id||track[idField],title:track.title,channel:track.artist,sourceId:source.id,provider,status:downloaded?'existing':best?'review':'unavailable',trackId:found?.id,reason:downloaded?'Downloaded YouTube match':best?'Confirm the YouTube recording':'No YouTube match found',candidates,matchedTitle:best?.title,matchedChannel:best?.channel,matchedDuration:best?.duration});
  }
  const notices=[...(playlist.limited?['Spotify exposed its first 100 tracks; this import may be incomplete. The remaining tracks were not checked.']:[]),...(playlist.skipped?[`${playlist.skipped} unsupported entries skipped.`]:[])];
- return {entries,source:{id:source.id,name:playlist.title,count:entries.length,url:playlist.url,provider:'spotify'},notices};
+ return {entries,source:{id:source.id,name:playlist.title,count:entries.length,url:playlist.url,provider},notices};
 }
