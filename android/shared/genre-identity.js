@@ -1,12 +1,13 @@
+import {metadataLocked} from './metadata-locks.js';
 import {artistNames,titleArtistCredits} from './artist-credits.js';
 export const genreKey=s=>String(s||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
 export function genreTitle(track){
  let title=String(track.title||'').replace(/\s*\[[\w-]{11}\]$/,'').replace(/\s*[\[(](?:(?:4k|hd)\s+)?(?:official(?:\s+(?:music|audio|video|lyrics?|visuali[sz]er))*|music\s*video|clip officiel|official m\.?v\.?|lyrics?(?: video)?|audio|visuali[sz]er|[^)\]]{1,35} release)[\])]/gi,'').replace(/\s+official (?:music video|lyric video|audio|visuali[sz]er)$/i,'').trim();
  const parts=title.split(/\s+[-–—]\s+/);if(parts.length>1&&[track.artist,...artistNames(track)].some(a=>genreKey(a)===genreKey(parts[0])))title=parts.slice(1).join(' - ');
- return title.replace(/\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s*[^)\]]+[)\]]/gi,'').replace(/\s+(?:feat\.?|ft\.?|featuring)\s*.*$/i,'').trim();
+ return title.replace(/\s*[([]\s*(?:feat\.?|ft\.?|featuring)\s+[^)\]]+[)\]]/gi,'').replace(/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/i,'').trim();
 }
 export function genreArtists(track){
- const names=track.artistIds?.length?track.artistIds.map(a=>a.name):artistNames(track);
+ const names=!metadataLocked(track,'artist')&&track.artistIds?.length?track.artistIds.map(a=>a.name):artistNames(track);
  return [...new Map([...names,...titleArtistCredits(track)].filter(Boolean).map(n=>[genreKey(n),n])).values()];
 }
 const versions=s=>[...String(s||'').toLowerCase().matchAll(/\b(remix|live|cover|acoustic|instrumental|nightcore|slowed|sped|remaster)\b/g)].map(x=>x[1]).sort().join(',');
@@ -29,7 +30,7 @@ export function genreResearchArtists(track){
  return [...new Map(out.map(n=>[genreKey(n),n])).values()];
 }
 export function genreSearchTracks(track){
- const variants=[track];if(track.metadataLocks?.artist||['manual','confirmed'].includes(track.metadataStatus))return variants;
+ const variants=[track];if(metadataLocked(track,'artist'))return variants;
  // The uploader is a search clue, not an artist credit. Only a matching
  // recording may corroborate it; repost channels must not colour their uploads.
  if(!genreArtists(track).length&&track.channel){const artist=track.channel.replace(/\s+-\s+Topic$/i,'').replace(/\s+official$/i,'').trim();if(artist)variants.push({...track,artist,artists:undefined,artistIds:undefined,channelCandidate:true});}
@@ -45,7 +46,7 @@ export function genreSearchTracks(track){
  return variants;
 }
 export function localGenreCatalogue(tracks){
- const catalogue=new Map();for(const t of tracks){if(!t.genre||t.kind==='mix'||t.genreBasis==='artist'||t.genreEvidence?.length&&!t.genreEvidence.some(e=>e.scope!=='artist'))continue;
+ const catalogue=new Map();for(const t of tracks){if(!t.genre||t.genreIdentityStale||t.kind==='mix'||t.genreBasis==='artist'||t.genreEvidence?.length&&!t.genreEvidence.some(e=>!['artist','local-recording'].includes(e.scope)))continue;
   const primary=genreResearchArtists(t)[0];if(!primary)continue;const key=genreKey(primary);if(!catalogue.has(key))catalogue.set(key,new Map());catalogue.get(key).set(genreKey(genreTitle(t)),{id:t.id,names:t.genre.split(/[,;]/).map(s=>s.trim()).filter(Boolean)});
  }return catalogue;
 }
@@ -53,4 +54,23 @@ export function localCatalogueEvidence(track,catalogue){
  if(track.kind==='mix')return [];const artist=genreResearchArtists(track)[0],peers=[...(catalogue.get(genreKey(artist))?.values()||[])].filter(p=>p.id!==track.id);if(peers.length<2)return [];
  const counts=new Map();for(const p of peers)for(const name of new Set(p.names))counts.set(name,(counts.get(name)||0)+1);
  return [...counts].filter(([,count])=>count>=2&&count>=peers.length*.6).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([name,count])=>({name,scope:'artist',source:'Your local artist catalogue',confidence:'suggested',artist,support:count,total:peers.length}));
+}
+
+// Index direct evidence by title. Estimates and previously copied evidence
+// never seed other recordings, so guesses cannot reinforce themselves.
+export function localRecordingCatalogue(tracks){
+ const index=new Map();for(const t of tracks){
+  if(!t.genre||t.genreIdentityStale||t.kind==='mix'||t.available===false||t.genreBasis==='artist'||!(t.duration>0))continue;
+  const evidence=(t.genreEvidence||[]).filter(e=>!['artist','local-recording'].includes(e.scope));
+  if(t.genreEvidence?.length&&!evidence.length)continue;
+  const key=genreKey(genreTitle(t));if(!key)continue;if(!index.has(key))index.set(key,[]);index.get(key).push(t);
+ }return index;
+}
+export function localRecordingEvidence(track,index){
+ if(track.kind==='mix'||!(track.duration>0)||metadataLocked(track,'genre'))return [];
+ const matches=(index.get(genreKey(genreTitle(track)))||[]).filter(t=>t.id!==track.id&&sameGenreRecording(track,t));
+ if(!matches.length)return [];
+ const labels=t=>[...new Set(t.genre.split(/[,;]/).map(s=>s.trim()).filter(Boolean))];
+ const sets=matches.map(t=>new Set(labels(t).map(genreKey))),shared=labels(matches[0]).filter(name=>sets.every(s=>s.has(genreKey(name))));
+ return shared.slice(0,6).map(name=>({name,scope:'local-recording',source:'Matching recording in your library',confidence:'supported',trackId:matches[0].id,trackTitle:matches[0].title,support:matches.length}));
 }

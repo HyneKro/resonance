@@ -1,3 +1,4 @@
+import {metadataLocked} from './public/metadata-locks.js';
 import {metadataSnapshot,selectedMetadata} from './public/metadata-review.js';
 import {repairArtistCredits,ARTIST_CREDIT_VERSION} from './public/artist-credits.js';
 import {preferencesWithDefaults} from './public/default-preferences.js';
@@ -131,10 +132,13 @@ export class Library {
     const {stdout}=await executeFile(path.join(this.root,'tools','yt-dlp.exe'),['--ignore-config','--no-warnings','--skip-download','--no-playlist','--dump-single-json','--socket-timeout','20','--js-runtimes',`node:${path.join(this.root,'tools','node.exe')}`,`https://www.youtube.com/watch?v=${t.youtubeId}`],{windowsHide:true,timeout:90000,maxBuffer:12e6});
     const info=JSON.parse(stdout);const current=this.tracks.get(id);
     const patch={channel:info.channel||info.uploader||current.channel,uploadDate:info.upload_date||'',views:info.view_count??null,sourceFetchedAt:Date.now(),sourceUrl:info.webpage_url||current.sourceUrl,description:(info.description||'').slice(0,20000),sourceTags:(info.tags||[]).slice(0,100),sourceCategories:info.categories||[]};
-    if(!['manual','confirmed','matched'].includes(current.metadataStatus)){
+    if(current.metadataStatus!=='matched'){
       if(info.artists||info.artist)patch.recordingArtists=info.artists||[info.artist];if(info.artist)patch.artist=info.artist;if(info.track)patch.title=info.track;if(info.album)patch.album=info.album;if(info.release_date)patch.date=info.release_date;
       if(info.artist||info.track){patch.metadataSource='YouTube recording metadata';patch.metadataStatus='source';}
     }
+    for(const key of ['title','artist','album','date'])if(metadataLocked(current,key))delete patch[key];
+    if(metadataLocked(current,'artist'))delete patch.recordingArtists;
+    if(current.metadataLocks||['manual','confirmed'].includes(current.metadataStatus)){delete patch.metadataSource;delete patch.metadataStatus;}
     const saved=this.save({...current,...patch});this.genres.seed();return this.tracks.get(saved.id);
   }
   async applyCandidate(id,candidateId,automatic=false,selected=null,fields) {

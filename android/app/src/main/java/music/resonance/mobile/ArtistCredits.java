@@ -7,7 +7,7 @@ import java.util.regex.*;
 
 /** Artist identities, shared in behavior with web artist-credits.js. */
 public final class ArtistCredits {
-    public static final int VERSION=3;
+    public static final int VERSION=4;
     private static final Pattern ANNOTATION=Pattern.compile("^(?:v\\.?i\\.?p\\.?|(?:official\\s+)?(?:music\\s+|lyric\\s+)?video\\b.*|(?:official\\s+)?(?:audio|visuali[sz]er|lyrics?)\\b.*|day\\s+\\d+\\b.*|(?:extended|full|original|radio|album|instrumental|acoustic|live|remastered?)(?:\\s+(?:version|mix|edit|audio|video|\\d{4}))*|(?:sped\\s+up|slowed)(?:\\s*\\+\\s*reverb)?)$",Pattern.CASE_INSENSITIVE);
     private static String key(String s){return Normalizer.normalize(s,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceFirst("\\s+-\\s+topic$","").replaceAll("[^\\p{L}\\p{N}]","");}
     private static List<String> unique(Collection<String> names){LinkedHashMap<String,String> out=new LinkedHashMap<>();for(String n:names)if(n!=null&&!n.isBlank())out.put(key(n.trim()),n.trim());return new ArrayList<>(out.values());}
@@ -16,8 +16,8 @@ public final class ArtistCredits {
         String part=s.trim();if(part.endsWith(")")&&!part.contains("(")||part.endsWith("]")&&!part.contains("["))part=part.substring(0,part.length()-1).trim();
         if(part.contains("&")||Pattern.compile(",\\s+the\\s+",Pattern.CASE_INSENSITIVE).matcher(part).find())out.add(part);else out.addAll(Arrays.asList(part.split(",\\s+")));
     }return unique(out);}
-    private static boolean protectedArtist(JSONObject t){return List.of("manual","confirmed").contains(t.optString("metadataStatus"))||t.optJSONObject("metadataLocks")!=null&&t.optJSONObject("metadataLocks").optBoolean("artist");}
-    public static List<String> names(JSONObject t){if(protectedArtist(t))return split(t.optString("artist"));List<String> saved=array(t.optJSONArray("artists"));return saved.isEmpty()?split(t.optString("artist")):saved;}
+    private static boolean protectedArtist(JSONObject t){return MetadataEdits.locked(t,"artist");}
+    public static List<String> names(JSONObject t){if(protectedArtist(t))return t.optJSONArray("manualArtists")!=null?array(t.optJSONArray("manualArtists")):split(t.optString("artist"));List<String> saved=array(t.optJSONArray("artists"));return saved.isEmpty()?split(t.optString("artist")):saved;}
     private static String raw(JSONObject t){return t.optString("rawTitle").isEmpty()?t.optString("title"):t.optString("rawTitle");}
     // Labelled performance credits outrank a guessed game/film prefix. Keep
     // this grammar and collaboration safeguards aligned with artist-credits.js.
@@ -40,15 +40,15 @@ public final class ArtistCredits {
         return key(song).equals(key(t.optString("channel")))?new Upload(song,credit):new Upload(credit,song);
     }
     public static List<String> titleNames(JSONObject t){if(protectedArtist(t))return new ArrayList<>();Upload u=upload(t);String title=u==null?(t.optString("title").isEmpty()?raw(t):t.optString("title")):u.song;List<String> names=new ArrayList<>();
-        Matcher guest=Pattern.compile("(?i)\\b(?:feat\\.?|ft\\.?|featuring)\\s+([^)\\]\\[]+)").matcher(title);if(guest.find())names.addAll(split(guest.group(1).split("\\s+[-–—|]\\s+",2)[0]));
+        Matcher guest=Pattern.compile("(?i)\\b(?:feat\\.?|ft\\.?|featuring)\\s+([^()\\]\\[]+)").matcher(title);if(guest.find())names.addAll(split(guest.group(1).split("\\s+[-–—|]\\s+",2)[0]));
         Matcher remix=Pattern.compile("(?i)[\\[(]([^()\\[\\]]+?)\\s+(?:(?:bootleg|official)\\s+)?(?:remix|rework|bootleg)[)\\]]").matcher(raw(t));while(remix.find()){String name=remix.group(1);if(!ANNOTATION.matcher(name).matches()&&!name.matches("(?i)^(?:official|club|dance|dub|bass|trap|house|drum\\s*(?:&|and)\\s*bass)$"))names.addAll(split(name));}return unique(names);
     }
     public static String sourceTitle(JSONObject t){Upload u=upload(t);if(u!=null)for(String credit:u.names)for(String name:names(t))if(key(credit).equals(key(name)))return u.song;return t.optString("title");}
     public static JSONObject repair(JSONObject t){
-        if(protectedArtist(t)){Json.put(t,"artists",new JSONArray(split(t.optString("artist"))));Json.put(t,"artistCreditVersion",VERSION);return t;}
+        if(protectedArtist(t)){Json.put(t,"artists",new JSONArray(names(t)));Json.put(t,"artistCreditVersion",VERSION);return t;}
         String original=t.optString("artist");if(t.optString("artistCreditSource").equals("Upload title")&&t.optInt("artistCreditVersion")!=VERSION&&!t.isNull("artistBeforeCreditRepair"))original=t.optString("artistBeforeCreditRepair",original);
         List<String> structured=array(t.optJSONArray("musicbrainzArtists")),recording=new ArrayList<>();for(String n:array(t.optJSONArray("recordingArtists")))recording.addAll(split(n));recording=unique(recording);
-        Upload upload=upload(t);List<String> performance=performance(t),prefix=upload==null?new ArrayList<>():upload.names;String channel=key(t.optString("channel")),source="Recording credits";List<String> names=structured;
+        Upload upload=upload(t);List<String> performance=performance(t),prefix=upload==null?new ArrayList<>():upload.names;String channel=key(t.optString("channel")),source=structured.isEmpty()&&recording.isEmpty()?"Existing tags":"Recording credits";List<String> names=structured;
         if(names.isEmpty()&&!performance.isEmpty()){names=performance;source="Performance credit";}
         else if(names.isEmpty()){names=recording.isEmpty()?split(original):recording;boolean onlyChannel=!recording.isEmpty(),intersects=false;for(String n:recording){onlyChannel&=key(n).equals(channel);for(String p:prefix)intersects|=key(p).equals(key(n));}
             boolean originalMatches=false;for(String n:split(original))for(String p:prefix)originalMatches|=key(n).equals(key(p));boolean weak=recording.isEmpty()&&(original.isEmpty()||key(original).equals(channel)||originalMatches||t.optString("artistCreditSource").equals("Upload title"));

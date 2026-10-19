@@ -1,4 +1,5 @@
-export const ARTIST_CREDIT_VERSION=3;
+import {metadataLocked} from './metadata-locks.js';
+export const ARTIST_CREDIT_VERSION=4;
 const key=s=>String(s||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+-\s+topic$/i,'').replace(/[^\p{L}\p{N}]/gu,'');
 const unique=names=>[...new Map(names.map(x=>String(x?.name||x||'').trim()).filter(Boolean).map(x=>[key(x),x])).values()];
 export function splitArtistCredit(credit){
@@ -9,9 +10,9 @@ export function splitArtistCredit(credit){
   return part.includes('&')||/,\s+the\s+/i.test(part)?[part]:part.split(/,\s+/);
  }));
 }
-const protectedArtist=t=>!!t.metadataLocks?.artist||['manual','confirmed'].includes(t.metadataStatus);
+const protectedArtist=t=>metadataLocked(t,'artist');
 export function artistNames(track){
- if(protectedArtist(track))return splitArtistCredit(track.artist);
+ if(protectedArtist(track))return track.manualArtists?unique(track.manualArtists):splitArtistCredit(track.artist);
  if(track.artists?.length)return unique(track.artists);
  return splitArtistCredit(track.artist);
 }
@@ -48,20 +49,20 @@ function uploadCredit(track){
 export function titleArtistCredits(track){
  if(protectedArtist(track))return [];
  const upload=uploadCredit(track),title=upload?upload.song:String(track.title||track.rawTitle||'');
- const guest=title.match(/\b(?:feat\.?|ft\.?|featuring)\s+([^)[\]]+)/i)?.[1]?.split(/\s+[-–—|]\s+/)[0];
+ const guest=title.match(/\b(?:feat\.?|ft\.?|featuring)\s+([^()[\]]+)/i)?.[1]?.split(/\s+[-–—|]\s+/)[0];
  const remix=[...String(track.rawTitle||track.title||'').matchAll(/[([]([^()[\]]+?)\s+(?:(?:bootleg|official)\s+)?(?:remix|rework|bootleg)[)\]]/gi)].filter(m=>!annotation.test(m[1])&&!/^(?:official|club|dance|dub|bass|trap|house|drum\s*(?:&|and)\s*bass)$/i.test(m[1])).flatMap(m=>splitArtistCredit(m[1]));
  return unique([...(guest?splitArtistCredit(guest):[]),...remix]);
 }
 export function repairArtistCredits(track){
  const result={...track};
- if(protectedArtist(track)){result.artists=splitArtistCredit(track.artist);result.artistCreditVersion=ARTIST_CREDIT_VERSION;return result;}
+ if(protectedArtist(track)){result.artists=track.manualArtists?unique(track.manualArtists):splitArtistCredit(track.artist);result.artistCreditVersion=ARTIST_CREDIT_VERSION;return result;}
  // Re-evaluate older guesses using the original credit, without deleting evidence.
  const original=track.artistCreditSource==='Upload title'&&track.artistCreditVersion!==ARTIST_CREDIT_VERSION?track.artistBeforeCreditRepair??track.artist:track.artist;
  const structured=unique(track.musicbrainzArtists||[]);
  const recording=unique((track.recordingArtists||[]).flatMap(a=>splitArtistCredit(a?.name||a)));
  const performance=performanceCredit(track),upload=uploadCredit(track),prefix=upload?.names||[],channel=key(track.channel);
  const intersects=prefix.some(n=>recording.some(r=>key(n)===key(r))),reversed=!!upload&&key(String(track.rawTitle||track.title||'').split(/\s+[-–—]\s+/).at(-1))===channel&&!!channel;
- let names=structured,source='Recording credits';
+ let names=structured,source=structured.length||recording.length?'Recording credits':'Existing tags';
  if(!names.length&&performance.length){names=performance;source='Performance credit';}
  else if(!names.length){
   names=recording.length?recording:splitArtistCredit(original);

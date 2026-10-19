@@ -1,9 +1,10 @@
+import {metadataLocked} from './public/metadata-locks.js';
 import {GENRE_RESEARCH_VERSION,trustedRecording,wikidataGenres,readWikidata,catalogueGenre,catalogueArtistGenre,searchCatalogue,videoCatalogueGenre,catalogueRegion,artistAlbumGenres,lookupArtistAlbums} from './genre-research.mjs';
 // Genre evidence is kept separately from editable track metadata. Artist genres
 // are suggestions, never presented as a verified classification of a recording.
 import { normalize } from './metadata.mjs';
 import fs from 'node:fs/promises';
-import {genreArtists,genreTitle,genreKey,genreResearchArtists,genreSearchTracks,localGenreCatalogue,localCatalogueEvidence} from './public/genre-identity.js';
+import {genreArtists,genreTitle,genreKey,genreResearchArtists,genreSearchTracks,localGenreCatalogue,localCatalogueEvidence,localRecordingCatalogue,localRecordingEvidence} from './public/genre-identity.js';
 
 const aliases = new Map();
 const families = {
@@ -93,7 +94,7 @@ export class GenreDiscovery {
   saveEvidence(id,evidence,patch={}){
     const t=this.lib.tracks.get(id);if(!t||this.lib.closed)return t;
     // Read the current row after every network wait: never undo a user edit.
-    if(t.genreLocked)return Object.keys(patch).length?this.lib.save({...t,...patch}):t;
+    if(metadataLocked(t,'genre'))return Object.keys(patch).length?this.lib.save({...t,...patch}):t;
     const old=(t.genreEvidence||[]).filter(e=>['manual','embedded'].includes(e.scope));
     const all=[...old,...evidence].map(e=>e.scope==='manual'?e:{...e,name:canonicalGenre(e.name,true)}).filter(e=>e.name).filter((e,i,a)=>a.findIndex(x=>x.name===e.name&&x.scope===e.scope)===i);
     const specific=all.filter(e=>e.scope!=='artist');const chosen=specific.length?specific:all;
@@ -101,12 +102,12 @@ export class GenreDiscovery {
     const next={...t,...patch,genre,genreEvidence:all,genreBasis:genre?(specific.length?'track':'artist'):'unknown'};return JSON.stringify(next)===JSON.stringify(t)?t:this.lib.save(next);
   }
   seed(){let count=0;for(const t of this.lib.list()){
-    if(t.genreLocked)continue;
+    if(metadataLocked(t,'genre'))continue;
     let evidence=t.genreEvidence||[];
-    if(t.genre&&!evidence.length){evidence=t.genre.split(/[,;]/).map(s=>({name:canonicalGenre(s,true),scope:t.metadataStatus==='manual'?'manual':t.genreBasis==='artist'?'artist':t.metadataSource==='Embedded tags'?'embedded':'recording',source:t.metadataSource||'Existing metadata',...(t.metadataUrl?{url:t.metadataUrl}:{}),confidence:'existing'})).filter(e=>e.name);}
-    if(t.metadataStatus==='manual'&&t.genre&&!t.genreEvidence){this.lib.save({...t,genreEvidence:evidence,genreLocked:true,genreBasis:'manual'});continue;}
+    if(t.genre&&!evidence.length){evidence=t.genre.split(/[,;]/).map(s=>({name:canonicalGenre(s,true),scope:t.genreBasis==='artist'?'artist':t.metadataSource==='Embedded tags'?'embedded':'recording',source:t.metadataSource||'Existing metadata',...(t.metadataUrl?{url:t.metadataUrl}:{}),confidence:'existing'})).filter(e=>e.name);}
     const all=[...evidence,...localGenreEvidence(t)];if(all.length){const result=this.saveEvidence(t.id,all);if(result.genre!==t.genre)count++;}
   }
+    const recordings=localRecordingCatalogue(this.lib.list());for(const t of this.lib.list())if((!t.genre||t.genreBasis==='artist')&&!t.genreLocked){const evidence=localRecordingEvidence(t,recordings);if(evidence.length){this.saveEvidence(t.id,evidence);count++;}}
     const catalogue=localGenreCatalogue(this.lib.list());for(const t of this.lib.list())if(!t.genre&&!t.genreLocked){const evidence=localCatalogueEvidence(t,catalogue);if(evidence.length){this.saveEvidence(t.id,evidence);count++;}}
     return count;}
   async readLocalSources(){for(const t of this.lib.list()){
@@ -143,7 +144,7 @@ export class GenreDiscovery {
     if(deep&&t.youtubeId&&(!t.genre||t.genreBasis==='artist')&&(!t.sourceFetchedAt||Date.now()-t.sourceFetchedAt>30*DAY))await attempt(()=>this.lib.sourceMetadata(id));
     t=this.lib.tracks.get(id);if(this.lib.closed||!t)return t;
     const identity=[t.title,t.artist,t.duration].join('|');
-    let evidence=[...(t.genreEvidence||[]),...localGenreEvidence(t)];
+    let evidence=[...(t.genreIdentityStale?[]:t.genreEvidence||[]),...localGenreEvidence(t)];
     let recordingId=t.metadataUrl?.match(/musicbrainz\.org\/recording\/([a-f\d-]+)/i)?.[1];
     if(deep&&t.kind!=='mix'&&!recordingId&&genreSearchTracks(t).some(q=>genreArtists(q).length)){
       const candidates=await attempt(()=>this.lib.candidates(id,'',{force:!!this.refreshSince||t.genreResearchVersion!==GENRE_RESEARCH_VERSION}));
@@ -179,7 +180,8 @@ export class GenreDiscovery {
     const current=this.lib.tracks.get(id);if(this.lib.closed||!current)return current;
     if([current.title,current.artist,current.duration].join('|')!==identity)return current;
     if(!evidence.length)evidence.push(...localCatalogueEvidence(t,localGenreCatalogue(this.lib.list())));
-    return this.saveEvidence(id,evidence,{...(t.musicbrainzArtists?.length?{musicbrainzArtists:t.musicbrainzArtists}:{}),genreCheckedAt:Date.now(),genreResearchVersion:GENRE_RESEARCH_VERSION,genreStatus:errors.length?'partial':'checked',genreError:[...new Set(errors)].join(' · ').slice(0,500)});
+    if(errors.length&&!evidence.length)return this.lib.save({...current,genreStatus:'partial',genreError:[...new Set(errors)].join(' · ').slice(0,500)});
+    return this.saveEvidence(id,evidence,{...(t.musicbrainzArtists?.length?{musicbrainzArtists:t.musicbrainzArtists}:{}),genreIdentityStale:false,genreCheckedAt:Date.now(),genreResearchVersion:GENRE_RESEARCH_VERSION,genreStatus:errors.length?'partial':'checked',genreError:[...new Set(errors)].join(' · ').slice(0,500)});
   }
   async start({retryMissing=false}={}){
     if(this.job.running)return;this.refreshSince=retryMissing?Date.now():0;this.seed();this.job={running:true,done:0,total:0,found:0,errors:0,phase:'artists',message:'Reading local source labels',stop:false};await this.readLocalSources();
@@ -188,7 +190,7 @@ export class GenreDiscovery {
       const key=genreResearchArtists(t).map(genreKey).join('|');if(!key)continue;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(t);
     }
     const pending=[...groups.values()].filter(ts=>ts.some(t=>retryMissing||t.genreResearchVersion!==GENRE_RESEARCH_VERSION||!t.genreArtistAt||Date.now()-t.genreArtistAt>30*DAY)).sort((a,b)=>b.length-a.length);
-    const deep=this.lib.list().filter(t=>t.available&&!t.genreLocked&&(retryMissing?!t.genre||t.genreBasis==='artist':t.genreResearchVersion!==GENRE_RESEARCH_VERSION||!t.genreCheckedAt||Date.now()-t.genreCheckedAt>(t.genreError?1:30)*DAY)).sort((a,b)=>Number(!!a.genre)-Number(!!b.genre));
+    const deep=this.lib.list().filter(t=>t.available&&!metadataLocked(t,'genre')&&(retryMissing?!t.genre||t.genreBasis==='artist'||t.genreIdentityStale:t.genreIdentityStale||t.genreResearchVersion!==GENRE_RESEARCH_VERSION||!t.genreCheckedAt||Date.now()-t.genreCheckedAt>(t.genreError?1:30)*DAY)).sort((a,b)=>Number(!!a.genre)-Number(!!b.genre));
     this.job.total=pending.length+deep.length;let consecutive=0;
     const failure=e=>{this.job.errors++;this.job.lastError=e.message;if(++consecutive>=6){this.job.stop=true;this.job.message='Provider is unavailable. Progress is saved; try again later.';}};
     try{
