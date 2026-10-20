@@ -5,7 +5,18 @@ for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.c
 let win,service,server;const pause=ms=>new Promise(r=>setTimeout(r,ms)),run=code=>win.webContents.executeJavaScript(code,true);
 async function until(code){for(let i=0;i<300;i++){if(await run(code))return;await pause(100)}throw Error('Timed out '+code);}
 async function shot(name){await pause(800);fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());}
-async function layout(name){await pause(500);const data=await run(`(()=>{const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height}},stage=rect('#music-only-stage'),dock=rect('.room-dock'),copy=rect('.edition-copy');return {stage,dock,copy,overflow:document.documentElement.scrollWidth>innerWidth+2,title:getComputedStyle(document.querySelector('#music-only-title')).whiteSpace,art:rect('.edition-art')};})()`);assert.equal(data.overflow,false,name+' horizontal overflow');assert.equal(data.title,'normal');assert.ok(data.stage.bottom<=data.dock.top+2||data.stage.right<=data.dock.left,name+' clears playback dock');assert.ok(data.stage.height>100,name+' has usable space');log(name+': '+JSON.stringify(data));await shot(name);}
+async function layout(name){
+ await pause(600);const data=await run(`(()=>{
+ const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height}},stage=rect('#music-only-stage'),dock=rect('.room-dock'),copy=rect('.edition-copy');
+ const scrollable=[...document.querySelectorAll('#music-only-stage,#music-only-stage *')].filter(n=>/auto|scroll/.test(getComputedStyle(n).overflowY)&&n.scrollHeight>n.clientHeight+1).map(n=>n.className);
+ return {stage,dock,copy,scrollable,overflow:document.documentElement.scrollWidth>innerWidth+2,title:getComputedStyle(document.querySelector('#music-only-title')).whiteSpace,art:rect('.edition-art'),detail:rect('.edition-details')};})()`);
+ log(name+': '+JSON.stringify(data));await shot(name);
+ assert.equal(data.overflow,false,name+' horizontal overflow');assert.equal(data.title,'normal');
+ assert.deepEqual(data.scrollable,[],name+' has no scrolling composition');
+ assert.ok(data.stage.bottom<=data.dock.top+2||data.stage.right<=data.dock.left,name+' clears playback dock');assert.ok(data.stage.height>100,name+' has usable space');
+ assert.ok(data.copy.top>=data.stage.top-1&&data.copy.bottom<=data.stage.bottom+1,name+' text and actions fit');
+ assert.ok(data.detail.top>=data.stage.top&&data.detail.bottom<=data.stage.bottom+1,name+' details stays reachable');
+}
 app.whenReady().then(async()=>{
  const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});
  Object.assign(service.lib.config.preferences,{musicOnly:true,sfx:false,hdrMode:'off',autoDirection:false,leveling:false,danceCompanion:false});Object.assign(service.lib.config,{autoEnrich:false,autoGenres:false});service.lib.setSetting('config',service.lib.config);
@@ -23,11 +34,20 @@ app.whenReady().then(async()=>{
  assert.equal(await run(`document.querySelector('.edition-next').hidden`),false);
  await run(`document.querySelector('.edition-details').click()`);await until(`document.querySelector('#dialog').open`);await run(`document.querySelector('#dialog').close()`);
  await run(`document.querySelector('.edition-next').click()`);await until(`document.querySelector('#dialog').open`);await run(`document.querySelector('#dialog').close()`);
- for(const [w,h]of [[1280,800],[1024,650]]){win.setSize(w,h);await layout('desktop-'+w)}
+ for(const [w,h]of [[1280,800],[1024,650],[900,560],[800,500],[1280,500],[480,720]]){win.setSize(w,h);await layout('desktop-'+w)}
  win.setSize(1600,1000);
  // Use the same production component for additional design edge cases.
- await run(`(async()=>{const {installMusicEdition}=await import('/music-edition.js');window.editionProbe=installMusicEdition();editionProbe.select({id:'jazz',title:'The shape of a quiet evening',artist:'A small jazz ensemble',album:'After hours',genre:'Jazz',date:'2024',artwork:'${art}'});})()`);await layout('editorial');
+ await run(`(async()=>{const {installMusicEdition}=await import('/music-edition.js');window.editionMotion=true;window.editionProbe=installMusicEdition({motion:()=>window.editionMotion});editionProbe.select({id:'jazz',title:'The shape of a quiet evening',artist:'A small jazz ensemble',album:'After hours',genre:'Jazz',date:'2024',artwork:'${art}'});})()`);await layout('editorial');
  await run(`editionProbe.select({id:'long',title:'An exceptionally long title / with multiple movements, guest performers & a live recording (extended edition)',artist:'An artist with a very long name, and another collaborator',genre:'Rock',album:'A longer album title',date:'2020'});document.querySelector('#music-only-cover').replaceChildren()`);win.setSize(1024,650);await layout('long-title');
+ await run("document.documentElement.style.setProperty('--ui-text-scale','1.3')");
+ for(const [w,h]of [[800,500],[480,720],[1280,500]]){win.setSize(w,h);await layout('large-long-'+w)}
+ win.setSize(1600,1000);await run("document.documentElement.style.setProperty('--ui-text-scale','1')");
+ await run("document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:innerWidth-10,clientY:innerHeight-20,pointerType:'mouse'}))");await pause(1000);
+ const planes=await run("['.edition-frame','.edition-disc','.edition-fragment','.edition-memory','.edition-backprint'].map(s=>getComputedStyle(document.querySelector(s)).translate)");log('planes '+JSON.stringify(planes)+' '+await run("document.querySelector('#music-only-stage').getAttribute('style')+' mode='+document.body.dataset.listeningMode+' motion='+document.body.className"));assert.equal(new Set(planes).size,5,'Artwork planes travel by different amounts');
+ await run("window.editionMotion=false;editionProbe.boundaries()");await pause(1000);assert.equal(await run("getComputedStyle(document.querySelector('.edition-fragment')).translate"),'0px','Reduced motion keeps the composition still');await run("window.editionMotion=true;editionProbe.boundaries()");
+ // Credits are independently scrollable and never reflow the composition.
+ await run("(async()=>{const {installMusicEdition}=await import('/music-edition.js');const p=installMusicEdition({assets:async()=>[{file:'fixture.webp',source:'https://commons.wikimedia.org/',label:'Fixture art',credit:'Fixture author',license:'CC0'}]});p.select({id:'credits',title:'Credits example',artist:'Fixture artist'});})()");await until("!document.querySelector('.edition-credits').hidden");
+ const beforeCredits=await run("document.querySelector('.edition-copy').getBoundingClientRect().height");await run("document.querySelector('.edition-credits').click()");assert.ok(await run("document.querySelector('#edition-credits-panel').matches(':popover-open')"));assert.equal(await run("document.querySelector('.edition-copy').getBoundingClientRect().height"),beforeCredits);await run("document.querySelector('.edition-credits-panel button').click()");
  // A delayed optional artwork result must never paint the previous song.
  await run(`(async()=>{window.finishArt=null;const {installMusicEdition}=await import('/music-edition.js');const p=installMusicEdition({assets:t=>t.id==='old'?new Promise(r=>window.finishArt=r):Promise.resolve([])});p.select({id:'old',title:'Old'});p.select({id:'new',title:'New'});window.finishArt([{file:'old.webp',source:'https://commons.wikimedia.org/',label:'Old'}]);})()`);await pause(100);assert.equal(await run(`document.querySelector('.edition-fragment img')`),null);
  server=http.createServer((req,res)=>{const name=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';if(name.includes('..')){res.writeHead(404);res.end();return;}if(name.startsWith('artwork/')){res.setHeader('Content-Type','image/webp');res.end(bytes);return;}
@@ -35,6 +55,8 @@ app.whenReady().then(async()=>{
  win.setSize(412,915);await win.loadURL('http://127.0.0.1:'+server.address().port);await until(`!document.querySelector('#opening')&&document.querySelector('.edition-copy')`);await layout('phone');
  await run(`document.querySelector('.edition-details').click()`);await until(`document.querySelector('#sheet').open`);await run(`document.querySelector('#sheet').close()`);
  for(const [w,h]of [[360,740],[360,640],[800,360]]){win.setSize(w,h);await layout('phone-'+w+'-'+h)}
+ await run("(async()=>{const {installMusicEdition}=await import('/music-edition.js');const p=installMusicEdition({mobile:true});p.select({id:'long-mobile',title:'An exceptionally long song title with multiple movements and an extended edition',artist:'An ensemble and several collaborating artists',genre:'Rock'});document.documentElement.style.setProperty('--ui-text-scale','1.3');})()");
+ for(const [w,h]of [[360,640],[360,740],[412,915],[800,360]]){win.setSize(w,h);await layout('phone-large-long-'+w+'-'+h)}
  win.setSize(412,915);await win.loadURL('http://127.0.0.1:'+server.address().port+'/?no-cover');await until(`!document.querySelector('#opening')`);await layout('phone-no-cover');
  assert.equal(await run(`document.querySelector('#music-only-stage').classList.contains('edition-no-art')`),true);
  await win.loadURL('http://127.0.0.1:'+server.address().port+'/?empty');await until(`!document.querySelector('#opening')`);await run(`document.querySelector('#music-only').click()`);await pause(200);assert.equal(await run(`getComputedStyle(document.querySelector('#music-only-stage')).display`),'none');

@@ -42,13 +42,15 @@ export function activityRows(status={},local={}){
 export function installLibraryActivity(){
  const button=document.createElement('button');button.type='button';button.className='library-activity-button';
  button.setAttribute('aria-label','Library activity');button.setAttribute('aria-expanded','false');
- button.innerHTML='<span class="activity-glyph" aria-hidden="true">≋</span><span class="activity-button-label">Activity</span><span class="activity-count" hidden></span>';
+ button.hidden=true;button.title='Library activity';
+ button.innerHTML='<svg class="activity-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8" opacity=".18"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 9v6m-3-4v2m6-2v2"/></svg>';
  const panel=document.createElement('section');panel.id='library-activity-panel';panel.className='library-activity-panel';panel.setAttribute('popover','auto');panel.setAttribute('aria-label','Library activity');
  button.setAttribute('aria-controls',panel.id);
  panel.innerHTML='<header><div><span class="activity-eyebrow">YOUR LIBRARY, TAKING SHAPE</span><h2>Library activity</h2></div><button type="button" data-activity-close aria-label="Close library activity">×</button></header><p class="activity-summary" role="status" aria-live="polite"></p><div class="activity-rows"></div><p class="activity-note">You can keep listening. Counts describe the work currently requested; some songs may have no matching metadata or lyrics. Lyrics are checked when you select a song.</p>';
  const home=document.createElement('span');home.className='library-activity-home';
  const initial=document.querySelector('.room-global')||document.querySelector('.room-top');initial?.append(home);home.append(button);document.body.append(panel);
- let status={},overrides={},signature='',lastBusy=false;
+ let status={},overrides={},signature='';
+ const returnFocus=()=>{const fallback=document.querySelector('dialog[open] [data-action=close-dialog],dialog[open] #sheet-close,.room-global #room-sound,.room-top #settings,.topbar button');(button.hidden?fallback:button)?.focus({preventScroll:true});};
  function host(){
   const modal=[...document.querySelectorAll('dialog[open]')].find(n=>n.matches(':modal'));
   return modal?.querySelector('.dialog-heading,.dialog-header,.sheet-head,header')||modal||null;
@@ -62,9 +64,9 @@ export function installLibraryActivity(){
  new MutationObserver(place).observe(document.body,{attributes:true,attributeFilter:['class']});
  function render(){
   const rows=activityRows({...status,...overrides},Object.fromEntries(requests)),busy=rows.filter(r=>r.running).length;
-  button.classList.toggle('is-working',busy>0);button.querySelector('.activity-count').hidden=!busy;button.querySelector('.activity-count').textContent=String(busy);
+  const focused=document.activeElement===button;button.hidden=!busy;home.hidden=!busy;button.classList.toggle('is-working',busy>0);if(focused&&!busy)returnFocus();
   button.setAttribute('aria-label',busy?`Library activity · ${busy} tasks running`:'Library activity');
-  if(lastBusy&&!busy)button.classList.add('has-finished');if(busy)button.classList.remove('has-finished');lastBusy=!!busy;
+  button.title=busy?`Library activity · ${busy} ${busy===1?'task':'tasks'} running`:'Library activity';
   const summary=busy?`${busy} ${busy===1?'task is':'tasks are'} running in the background.`:'No background tasks are running.';
   const message=panel.querySelector('.activity-summary');if(message.textContent!==summary)message.textContent=summary;
   const key=JSON.stringify(rows);if(signature===key)return;signature=key;
@@ -77,9 +79,9 @@ export function installLibraryActivity(){
    root.append(section);
   }
  }
- button.onclick=()=>{place();if(panel.matches(':popover-open'))panel.hidePopover();else{panel.showPopover();button.classList.remove('has-finished');}};
- panel.querySelector('[data-activity-close]').onclick=()=>panel.hidePopover();
- panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();panel.hidePopover();button.focus({preventScroll:true});}});
+ button.onclick=()=>{place();if(panel.matches(':popover-open'))panel.hidePopover();else{panel.showPopover();}};
+ panel.querySelector('[data-activity-close]').onclick=()=>{panel.hidePopover();returnFocus();};
+ panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();panel.hidePopover();returnFocus();}});
  panel.addEventListener('toggle',()=>button.setAttribute('aria-expanded',String(panel.matches(':popover-open'))));
  listeners.add(render);place();render();
  return {update(value){status=value||{};render();},set(key,value){overrides={...overrides,[key]:value};render();}};

@@ -8,7 +8,7 @@ export function rpc(action,data={}){
   const bridge=window.ResonanceNative;if(!bridge)return reject(Error('Open the Android app to connect your music.'));
   const id=String(++serial),timer=setTimeout(()=>{pending.delete(id);reject(Error('This is taking longer than expected. Please try again.'));},['pickFolder','pickDestination','captureStart','lyricsFile','settingsFile'].includes(action)?600000:action==='syncMatch'||action==='updateDownloader'?120000:45000);
   pending.set(id,{resolve,reject,timer});bridge.postMessage(JSON.stringify({id,action,data}));
- });
+ }).then(value=>{done();return value;},error=>{done(true);throw error;});
 }
 if(window.ResonanceNative)window.ResonanceNative.onmessage=event=>{let result;try{result=JSON.parse(event.data);}catch{return;}const p=pending.get(result.id);if(!p)return;clearTimeout(p.timer);pending.delete(result.id);result.error?p.reject(Error(result.error)):p.resolve(result.value);};
 

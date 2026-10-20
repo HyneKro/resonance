@@ -97,7 +97,7 @@ Once you use it, its data folder is personal: do not redistribute that used fold
 if(pkg.version.includes('-dev.')){
   const instructions=await fs.readFile(path.join(destination,'START HERE.txt'),'utf8');
   const preview=await fs.readFile(path.join(root,'docs','DEVELOPMENT-PREVIEW.md'),'utf8');
-  await fs.writeFile(path.join(destination,'START HERE.txt'),'DEVELOPMENT PREVIEW — FOR TESTING\n\nExtract into a separate folder. Do not overwrite your regular installation.\nThis build is not published in the updater feed.\n\n'+preview+'\n\n'+instructions);
+  await fs.writeFile(path.join(destination,'START HERE.txt'),'DEVELOPMENT PREVIEW — FOR TESTING\n\nExtract into a separate folder. Do not overwrite your regular installation.\nThis build receives updates from the development channel. Approved installations use their separate release channel.\n\n'+preview+'\n\n'+instructions);
 }
 // Every distributable carries an integrity manifest for in-place portable updates.
 const updateFiles=[];

@@ -1,11 +1,12 @@
 .library-activity-home{display:inline-flex;align-items:center}
-.library-activity-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;position:relative;min-width:40px;min-height:40px;padding:8px 12px;border:1px solid #ffffff28;border-radius:24px;background:#111620b8;color:#c9ced7;cursor:pointer;font:inherit;font-size:12px;flex-shrink:0}
-.activity-glyph{font-size:23px;line-height:1;transform:rotate(-90deg)}
-.activity-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 3px;border-radius:12px;background:var(--ui-accent,#c8d9ee);color:#111621;font-size:10px}
-.activity-count[hidden]{display:none}
-.library-activity-button.is-working{border-color:var(--ui-accent,#c8d9ee);color:#f0f3fa}
-.library-activity-button.has-finished:after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:#acdfbf}
-.library-activity-button.activity-in-dialog{position:absolute;right:64px;top:18px;background:#151822}
+.library-activity-home[hidden],.library-activity-button[hidden]{display:none!important}
+.library-activity-button{display:inline-grid;place-items:center;position:relative;box-sizing:border-box;width:36px;height:36px;min-width:36px;min-height:36px;padding:9px;border:0;border-radius:50%;background:transparent;color:#b7bfcd;cursor:pointer;flex:0 0 36px}
+.library-activity-button:hover,.library-activity-button[aria-expanded=true]{background:#ffffff0c;color:var(--accent-light,#d8e1ed)}
+.activity-glyph{width:18px;height:18px;display:block}
+.library-activity-button.is-working .activity-glyph>path:first-of-type{transform-origin:12px 12px;animation:activity-turn 2.8s linear infinite}
+@keyframes activity-turn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.library-activity-button.is-working .activity-glyph>path:first-of-type{animation:none}}
+.reduce-motion .library-activity-button.is-working .activity-glyph>path:first-of-type{animation:none}
 .library-activity-panel{position:fixed;inset:80px 20px auto auto;width:min(420px,calc(100vw - 28px));max-height:calc(100dvh - 110px);box-sizing:border-box;margin:0;padding:22px;border:1px solid #b7c5df38;border-radius:22px;background:#10141efc;color:#f0edf6;box-shadow:0 20px 70px #0009;overflow:auto;text-align:left}
 .library-activity-panel::backdrop{background:transparent}
 .library-activity-panel header{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
@@ -21,12 +22,12 @@
 .activity-row progress::-webkit-progress-bar{background:#ffffff12;border-radius:6px}.activity-row progress::-webkit-progress-value{background:var(--ui-accent,#c8d9ee);border-radius:6px}
 .activity-note{padding-top:17px;border-top:1px solid #ffffff20}
 .library-activity-button:focus-visible,.library-activity-panel button:focus-visible{outline:2px solid var(--ui-accent,#c8d9ee);outline-offset:3px}
-@media(max-width:1200px){.activity-button-label{display:none}.library-activity-button{padding:6px 8px}}
-@media(max-width:750px){.library-activity-panel{inset:70px 14px auto;width:calc(100vw - 28px);padding:18px;max-height:calc(100dvh - 90px)}.library-activity-button{min-width:36px;min-height:36px}.library-activity-button.activity-in-dialog{right:52px;top:12px}}
+
+@media(max-width:750px){.library-activity-panel{inset:70px 14px auto;width:calc(100vw - 28px);padding:18px;max-height:calc(100dvh - 90px)}.library-activity-button{width:40px;height:40px;flex-basis:40px}}
 
 /* Dialog heading participates in layout so titles never sit beneath the indicator. */
 .library-activity-button.activity-in-dialog{position:static;order:1;margin-left:auto;align-self:center;min-width:36px;padding:6px 8px}
-.activity-in-dialog .activity-button-label{display:none}
+
 .dialog-heading>[data-action=close-dialog],#sheet-close{order:2}
 .dialog-heading>div,#sheet-title{min-width:0;overflow-wrap:anywhere}
 

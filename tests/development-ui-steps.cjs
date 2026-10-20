@@ -2,13 +2,22 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  const assert=require('node:assert/strict');
  const openSettings=()=>click(mobile?'#settings':'#room-sound');
  const close=()=>click(mobile?'#sheet-close':'#dialog [data-action=close-dialog]');
+ await until("document.querySelector('.library-activity-button').hidden");
+ await run("(async()=>{const {beginActivity}=await import('/library-activity.js');window.finishProbeActivity=beginActivity('lyricsRequest');})()");
+ assert.ok(await run("document.querySelector('.library-activity-button').getBoundingClientRect().width<=40"),'Activity remains a subtle icon');
+ assert.equal(await run("document.querySelector('.library-activity-button').textContent"),'');
  await click('.library-activity-button');
  assert.ok(await run(`document.querySelector('#library-activity-panel').matches(':popover-open')`));
  await shot((mobile?'phone':'pc')+'-activity');
+ await run("finishProbeActivity()");
+ await until("document.querySelector('.library-activity-button').hidden");
+ assert.ok(await run("document.querySelector('#library-activity-panel').matches(':popover-open')"),'Completion does not dismiss a panel being read');
  await click('[data-activity-close]');
  await openSettings();await click('[data-settings-page=accessibility]');
+ await run("(async()=>{const {beginActivity}=await import('/library-activity.js');window.finishProbeActivity=beginActivity('lyricsRequest');})()");
  await click('.library-activity-button');
  assert.ok(await run(`document.querySelector('#library-activity-panel').matches(':popover-open')`),'Activity stays accessible inside a modal');
+ await run('finishProbeActivity()');
  await click('[data-activity-close]');
  if(!mobile){
   await run(`(async()=>{const {createNotifier}=await import('/menu-kit.js');const notice=createNotifier(document.querySelector('#toasts'),{host:()=>document.querySelector('#dialog'),duration:1500});notice('A readable notification');notice('   ');})()`);
@@ -43,7 +52,7 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  if(!mobile){
   await click('[data-listening-mode=music]');
   await run(`document.querySelector('#room-sound').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:innerWidth-15,clientY:40,pointerType:'mouse'}))`);
-  await until(`parseFloat(document.querySelector('.edition-art').style.getPropertyValue('--edition-x'))>0`);
+  await until(`parseFloat(document.querySelector('#music-only-stage').style.getPropertyValue('--edition-x'))>0`);
   assert.equal(await run(`document.querySelector('#music-cover-play').tagName`),'DIV');
   assert.equal(await run(`document.querySelectorAll('.edition-ledger dd').length`),3);
   await shot('pc-music-history');
