@@ -32,6 +32,7 @@ export function readMobileLyricsBase(track){
 const fileStamp=t=>[t.path,t.size,t.modified??t.mtime,t.duration].join('|');
 async function basis(r){const data=new TextEncoder().encode(JSON.stringify([r.text,r.lines,r.source,r.syncedLyrics]));const hash=await crypto.subtle.digest('SHA-256',data);return [...new Uint8Array(hash)].map(n=>n.toString(16).padStart(2,'0')).join('');}
 export async function mobileLyricsTiming(track,action='status',data={}){
+ if(!['status','offset','restore','import'].includes(action))throw Error('Unknown lyrics action');
  const base=await readMobileLyricsBase(track),saved=await rpc('lyricsCached',{id:track.id}),source=await basis(base),stamp=fileStamp(saved.track);
  let timing=saved.timing||{},offset=saved.offset||{};
  if(action==='restore'){timing={};offset={};}
@@ -42,6 +43,6 @@ export async function mobileLyricsTiming(track,action='status',data={}){
  }
  if(action!=='status')await rpc('lyricsTimingSave',{id:track.id,stamp:lyricsStamp(track),timing,offset});
  const improved=timing.base===source&&timing.fileStamp===stamp;
- return {record:{...(improved?timing.record:base),offset:offset.fileStamp===stamp?timingOffset(offset.value):0},improved,supported:false,installed:false};
+ return {record:{...(improved?timing.record:base),offset:offset.fileStamp===stamp?timingOffset(offset.value):0},improved};
 }
 export async function readMobileLyrics(track){return (await mobileLyricsTiming(track)).record;}

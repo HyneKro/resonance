@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {audioStamp} from '../audio-research.mjs';
 import {parseLyricsfile,exportLyricsfile,wordProgress,timingOffset} from '../public/lyric-timing.js';
 import {lyricDocument,parseLyrics} from '../public/lyrics.js';
-import {recognizedWords,alignLyrics} from '../lyric-alignment.mjs';
-import {LyricsWorkbench} from '../lyrics-workbench.mjs';
+import {LyricsSettings} from '../lyrics-settings.mjs';
+import {hasWordTimings,wordTimingCoverage} from '../public/lyric-highlight.js';
 
 const rich={version:'1.0',lines:[{text:'A paper sky',start_ms:1000,end_ms:3000,words:[{text:'A ',start_ms:1000,end_ms:1200},{text:'paper ',start_ms:1300,end_ms:2000},{text:'sky',start_ms:2200,end_ms:3000}]}]};
 const t={id:'one',title:'Paper Sky',artist:'Test Singer',duration:60,path:'song.wav',size:30,mtime:1,available:true};
@@ -34,72 +35,37 @@ test('export bakes the user offset once and reimports without losing word bounda
  assert.deepEqual([0,1,1.5,2,9].map(time=>wordProgress({start:1,end:2},time)),[0,0,.5,1,1]);
  assert.equal(wordProgress({start:1},1.2),1);
 });
-function transcript(lines,shift=0){
- return {result:{language:'en'},transcription:lines.map(l=>({tokens:l.text.split(' ').map((text,i)=>({text:(i?' ':'')+text,id:100+i,p:.98,offsets:{from:Math.round((l.time+shift+i*.4)*1000),to:Math.round((l.time+shift+i*.4+.3)*1000)}}))}))};
-}
-const lines=[{time:1,text:'A paper sky'},{time:10,text:'The silver sea'},{time:22,text:'We drift again'},{time:34,text:'A quiet home'},{time:48,text:'We see daylight'}],base={text:lines.map(l=>l.text).join('\n'),lines,source:'Local'};
-test('audio alignment keeps good cues and corrects a consistent recording offset without changing words',()=>{
- const verified=alignLyrics(base,transcript(lines),60);assert.equal(verified.analysis.method,'verified');assert.equal(verified.analysis.wordLines,5);assert.equal(verified.text,base.text);
- const shifted=alignLyrics(base,transcript(lines,2.4),60);assert.equal(shifted.analysis.method,'offset');assert.ok(Math.abs(shifted.analysis.shift-2.4)<.01);
- assert.ok(shifted.lines.some(l=>Math.abs(l.time-3.4)<.001&&l.words?.[0].start===3.4));
+
+const base={text:'A paper sky',lines:[{time:1,text:'A paper sky'}],source:'Local'};
+function memory(){const values=new Map();return {tracks:new Map([['one',{...t}]]),getSetting:k=>values.get(k),setSetting:(k,v)=>values.set(k,v),values};}
+test('saved word timings and offsets survive the removal of the recognition tool',async()=>{
+ const lib=memory(),settings=new LyricsSettings(lib,async()=>base);
+ const record={...base,lines:parseLyricsfile(JSON.stringify(rich)).lines,analysis:{method:'enriched',coverage:1}};
+ // An accepted analysis from the old release uses exactly this persisted format.
+ const hash=createHash('sha256').update(JSON.stringify([base.text,base.lines,base.source,base.syncedLyrics,0])).digest('hex');
+ lib.values.set('lyricTiming:one',{fileStamp:audioStamp(t),base:hash,record});
+ lib.values.set('lyricOffset:one',{fileStamp:audioStamp(t),value:.4});
+ assert.deepEqual((await settings.status('one')).record,{...record,offset:.4});
+ assert.equal((await settings.status('one')).improved,true);
+ lib.tracks.get('one').mtime=2;
+ assert.equal((await settings.status('one')).improved,false);
+ assert.deepEqual((await settings.status('one')).record,{...base,offset:0});
 });
-test('untimed known lyrics align in order; unrelated speech and uncertain repetitions are rejected',()=>{
- const aligned=alignLyrics({text:base.text},transcript(lines),60);assert.equal(aligned.analysis.method,'realigned');assert.equal(aligned.analysis.coverage,1);
- assert.throws(()=>alignLyrics(base,transcript([{time:1,text:'Other words are being spoken somewhere else'}]),60),/reliably/);
- assert.throws(()=>alignLyrics(base,transcript([lines[0],lines[0],lines[0]]),60),/reliably/);
+test('import, offset and restore leave provider lyrics intact; analysis actions are gone',async()=>{
+ const lib=memory(),settings=new LyricsSettings(lib,async()=>base);
+ assert.equal((await settings.change('one','import',{text:JSON.stringify(rich)})).record.lines[0].words.length,3);
+ assert.equal((await settings.change('one','offset',{value:-.4})).record.offset,-.4);
+ assert.deepEqual((await settings.change('one','restore')).record,{...base,offset:0});
+ for(const action of ['install','analyze','apply','cancel'])await assert.rejects(settings.change('one',action),/Unknown lyrics action/);
+ await assert.rejects(settings.change('one','import',{text:'x'.repeat(256001)}),/too large/);
+ await assert.rejects(settings.change('one','offset',{value:'oops'}),/Invalid timing/);
 });
-test('token fragments are grouped before comparing words and non-text tokens are ignored',()=>{
- const r={result:{language:'en'},transcription:[{tokens:[{id:1,text:' sil',p:.9,offsets:{from:1000,to:1100}},{id:2,text:'ver',p:.8,offsets:{from:1100,to:1400}},{id:50364,text:'[_BEG_]',p:1,offsets:{from:0,to:0}}]}]};
- assert.deepEqual(recognizedWords(r,10).map(w=>[w.key,w.start,w.end]),[['silver',1,1.4]]);
-});
-test('partial recognition can enrich timed verses without moving or losing the other cues',()=>{
- const many=['Paper skies glow','Silver oceans gleam','Quiet mountains sleep','Golden rivers flow','Soft rain falls','Red leaves scatter','Blue clouds gather','Bright dawn rises','Cold nights fade','Warm sunlight returns'].map((text,i)=>({time:1+i*5,text}));
- const record={text:many.map(l=>l.text).join('\n'),lines:[...many,{time:49,text:''}]};
- const result=alignLyrics(record,transcript(many.filter((_,i)=>![2,5,7].includes(i)),.2),55);
- assert.equal(result.analysis.method,'enriched');
- assert.deepEqual(result.lines.filter(l=>l.text).map(l=>l.time),many.map(l=>l.time));
- assert.ok(result.lines.some(l=>l.time===49&&!l.text));
- assert.equal(result.analysis.wordLines,7);
- const roundtrip=parseLyricsfile(exportLyricsfile({...t,duration:55},result),55);
- assert.equal(roundtrip.lines.filter(l=>l.words).length,7);
- const adjusted=alignLyrics({...base,offset:2},transcript(lines,2),60);
- assert.equal(adjusted.analysis.method,'verified');assert.equal(adjusted.lines[0].time,3);assert.equal(adjusted.offset,0);
-});
-function memory(){const values=new Map();return {dataDir:path.resolve('test-output/lyrics-workbench'),tracks:new Map([['one',{...t}]]),getSetting:k=>values.get(k),setSetting:(k,v)=>values.set(k,v),values};}
-const done=async wb=>{for(let i=0;i<100&&wb.job.running;i++)await new Promise(r=>setTimeout(r,5));assert.equal(wb.job.running,false);};
-test('analysis is a proposal until applied; restore and changed-file protection preserve original lyrics',async()=>{
- const lib=memory(),wb=new LyricsWorkbench(lib,async()=>base,{check:async()=>true,analyze:async()=>alignLyrics(base,transcript(lines,2),60)});
- wb.start('one','analyze');await done(wb);let state=await wb.status('one');
- assert.ok(state.proposal);assert.equal(state.record.lines[0].time,1);
- await wb.change('one','apply',{proposalId:state.proposal.id});state=await wb.status('one');assert.equal(state.improved,true);assert.equal(state.record.lines[0].time,3);
- await wb.change('one','offset',{value:-.4});assert.equal((await wb.status('one')).record.offset,-.4);
- lib.tracks.get('one').mtime=2;assert.equal((await wb.status('one')).record.lines[0].time,1);assert.equal((await wb.status('one')).record.offset,0);
- await wb.change('one','restore');assert.equal((await wb.status('one')).improved,false);
-});
-test('cancellation, changed lyrics and concurrent requests cannot replace saved timings',async()=>{
- let release;const lib=memory();let record=base;
- const wb=new LyricsWorkbench(lib,async()=>record,{check:async()=>true,analyze:()=>new Promise(r=>release=r)});
- wb.start('one','analyze');assert.throws(()=>wb.start('one','analyze'),/already running/);
- while(!release)await new Promise(r=>setTimeout(r,1));
- record={...base,text:'Edited words'};release(base);await done(wb);assert.match(wb.job.message,/changed/);assert.equal((await wb.status('one')).proposal,null);
- wb.start('one','analyze');await new Promise(r=>setTimeout(r,5));wb.cancel();release(base);await done(wb);assert.match(wb.job.message,/Cancelled/);
-});
-test('import and offset remain separate from the original provider cache',async()=>{
- const lib=memory(),wb=new LyricsWorkbench(lib,async()=>base,{check:async()=>false});
- const state=await wb.change('one','import',{text:JSON.stringify(rich)});assert.equal(state.record.lines[0].words.length,3);assert.equal(state.improved,true);
- assert.equal((await wb.change('one','restore')).record.text,base.text);
- await assert.rejects(wb.change('one','import',{text:'x'.repeat(256001)}),/too large/);
-});
-test('analysis uses imported lyrics and rejects a proposal after a manual timing edit',async()=>{
- let release,input;
- const lib=memory(),wb=new LyricsWorkbench(lib,async()=>base,{check:async()=>true,analyze:async(_dir,_track,record)=>{input=record;return new Promise(r=>release=r);}});
- await wb.change('one','import',{text:JSON.stringify(rich)});wb.start('one','analyze');
- while(!release)await new Promise(r=>setTimeout(r,1));
- assert.equal(input.text,'A paper sky');
- await wb.change('one','offset',{value:1});release(input);await done(wb);
- assert.match(wb.job.message,/changed/);assert.equal((await wb.status('one')).proposal,null);
- wb.start('one','analyze');await new Promise(r=>setTimeout(r,5));release(input);await done(wb);
- const proposal=(await wb.status('one')).proposal;assert.ok(proposal);
- await wb.change('one','offset',{value:2});
- await assert.rejects(wb.change('one','apply',{proposalId:proposal.id}),/out of date/);
+test('word highlights require matching words and real timestamps, never line duration guesses',()=>{
+ const cue=parseLyricsfile(JSON.stringify(rich)).lines[0];
+ assert.equal(hasWordTimings(cue),true);
+ assert.equal(hasWordTimings({time:1,end:3,text:'A paper sky'}),false);
+ assert.equal(hasWordTimings({...cue,words:[{text:'Other words',start:1,end:3}]}),false);
+ assert.equal(hasWordTimings({...cue,words:cue.words.map(w=>({...w,start:NaN}))}),false);
+ assert.deepEqual(wordTimingCoverage({lines:[cue,{time:4,text:''},{time:9,text:'A silver line'}]}),{lines:2,wordLines:1,sweepLines:1});
+ assert.deepEqual(wordTimingCoverage({lines:[{...cue,words:cue.words.map(({end,...w})=>w)}]}),{lines:1,wordLines:1,sweepLines:0});
 });

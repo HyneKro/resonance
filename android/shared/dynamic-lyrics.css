@@ -16,7 +16,7 @@
 .dynamic-lyrics[data-style=electronic] .lyric-current{font-family:'Trebuchet MS',system-ui,sans-serif;font-weight:650}
 .dynamic-lyrics[data-style=soft] .lyric-current{font-family:'Segoe UI',system-ui,sans-serif;font-weight:500}
 .dynamic-lyrics.lyric-break .lyric-previous{visibility:hidden}
-.lyric-word{color:transparent;background:linear-gradient(90deg,var(--accent-light,#f2d8ff) var(--word-fill,0%),#d7d1df70 var(--word-fill,0%));background-clip:text;-webkit-background-clip:text;text-shadow:none}
+.lyric-word{display:inline-block;max-width:100%;color:transparent;-webkit-text-fill-color:transparent;background:linear-gradient(90deg,var(--accent-light,#f2d8ff) var(--word-fill,0%),#b8b2c880 var(--word-fill,0%));background-clip:text;-webkit-background-clip:text;background-repeat:no-repeat;text-shadow:none}
 .lyrics-tools{margin:12px 0 24px;border-top:1px solid #ffffff18;padding-top:16px;text-align:left}
 .lyrics-tools summary{cursor:pointer;font-weight:600}
 .lyrics-tools .lyrics-help{font-size:12px;line-height:1.6;opacity:.7;margin:12px 0}
@@ -24,9 +24,7 @@
 .lyrics-tools button{border:1px solid #ffffff25;background:#ffffff08;color:inherit;border-radius:12px;padding:10px 13px;font-size:12px;min-height:40px}
 .lyrics-tools button:disabled{opacity:.45}
 .lyrics-offset output{min-width:50px;text-align:center;font-variant-numeric:tabular-nums}
-.lyrics-tools [data-timing-status],.lyrics-tools [data-proposal-info]{font-size:12px;line-height:1.6}
-.lyrics-tools [data-proposal]{padding:14px;border-radius:14px;background:#ffffff07;border:1px solid #ffffff15}
-.lyrics-preview-line{font-size:22px;line-height:1.6;white-space:pre-wrap;min-height:2em;padding:14px 0}
+.lyrics-tools [data-timing-status]{font-size:12px;line-height:1.6}
 @media(max-width:700px){.dynamic-lyrics{inset:25% 6% 38%;gap:14px}.lyric-current{font-size:clamp(18px,calc(6vw * var(--lyric-scale,1)),30px);line-height:1.32}.lyric-context{font-size:13px}.lyric-previous{display:none}#dynamic-lyrics{font-size:12px}}
 @media(max-height:500px){.dynamic-lyrics{inset:27% 16% 33%;gap:7px}.lyric-current{font-size:22px}.lyric-context{display:none}}
 @media(prefers-reduced-motion:reduce){#dynamic-lyrics{transition:none}}

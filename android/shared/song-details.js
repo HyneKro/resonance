@@ -1,3 +1,4 @@
+import {mountLyricsControls} from './lyrics-controls.js';
 import {metadataComparison} from './metadata-review.js';
 import {artistNames,hasArtist} from './artist-credits.js';
 const key=s=>String(s||'').normalize('NFKC').toLowerCase().trim();
@@ -18,6 +19,7 @@ export function fillSongStory(id,{api,container,track={},onSaved=()=>{},esc=s=>S
  const lyrics=container.querySelector('[data-lyrics-text]'),source=container.querySelector('[data-lyrics-source]'),character=container.querySelector('[data-song-character]');
  void api('/api/track-lyrics?id='+encodeURIComponent(id)).then(p=>{if(lyricsChosen)return;lyrics.textContent=p.instrumental?'Instrumental · no vocals':p.text||p.message||'No lyrics available yet.';source.replaceChildren();if(p.source==='LRCLIB'&&/^https:\/\/lrclib\.net\/api\/get\/\d+$/.test(p.url||'')){const a=document.createElement('a');a.href=p.url;a.target='_blank';a.rel='noreferrer';a.textContent='LRCLIB · '+(p.status==='synced'?'Timed lyrics available':'saved locally');source.append(a);}else source.textContent=p.source||'';}).catch(()=>{if(!lyricsChosen)lyrics.textContent='Lyrics are unavailable right now.';});
  void api('/api/visual-identity?id='+encodeURIComponent(id)).then(p=>{character.textContent=`${p.label} · ${p.dominant} · ${p.basis.join(' · ')}`;}).catch(()=>{character.textContent='Character is being prepared.';});
+ mountLyricsControls({container:container.querySelector('.song-lyrics'),track:{...track,id},request:(action,data)=>action==='status'?api('/api/lyrics-timing?id='+encodeURIComponent(id)):api('/api/lyrics-timing',{...data,action}),onChange:r=>{lyricsChosen=true;lyrics.textContent=r.text||'';source.textContent=r.analysis?'Timing checked locally':r.source||'';}});
  const form=container.querySelector('[data-song-search]'),status=container.querySelector('[data-search-status]'),results=container.querySelector('[data-search-results]');
  if(!form)return;
  container.querySelector('[data-metadata-undo]').onclick=async()=>{try{await api('/api/metadata/undo',{id});await onSaved();}catch(e){status.textContent=e.message;}};

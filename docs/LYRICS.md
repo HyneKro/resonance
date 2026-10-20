@@ -1,26 +1,11 @@
-# Lyric timing and word highlighting
+# Lyrics and word highlighting
 
-Open a song's **Behind the sound → Lyrics → Timing & word highlighting**.
+Resonance keeps its existing lyrics lookup, embedded/sidecar lyrics, saved results, and the Lyrics button in Visualizer. Timed lyrics animate with playback; text-only lyrics remain readable in Behind the sound. Availability and timing accuracy depend on the recording and source.
 
-- **Earlier / Later** moves that song's lyrics by 0.2 seconds. The adjustment is saved for the recording and also affects the Visualizer. Reset offset returns to zero.
-- Provider word timing and enhanced LRC appear as a gradual fill across the current line. Seeking, pauses, instrumental blanks and Bluetooth visual delay use the playback clock. Missing word ends are not given invented durations.
-- **Import lyrics** accepts text, LRC and Lyricsfile JSON/YAML, up to 256 KB. **Export timed lyrics** writes a portable Lyricsfile with the current adjustment included. Copy that file to Android and import it for the same recording. This is manual transfer, not library sync.
-- **Restore original** removes local timing improvements and offsets without changing the original provider result.
+When actual word timestamps include start and end times, each word fills smoothly from left to right as it is sung. The fill follows the playback position, including pause, seek, playback speed, per-song offset and Bluetooth visual delay. It stops rendering when Dynamic Lyrics is hidden. Line-only lyrics stay unfilled: line durations are never used to invent word timestamps. Word-start-only timestamps light words at their onset without inventing their duration.
 
-## Optional Windows analysis
+Behind the sound → Lyrics timing shows which timing is available. Earlier/Later adjusts the saved offset for this song; Reset offset and Restore original remain available. Timed lyrics can be imported or exported as local files. Existing supported LRC, enhanced LRC, JSON and YAML formats are preserved.
 
-Choose **Download local tool · 200 MB** once, then **Check timing from audio** for an available recording under 20 minutes. The tool compares existing lyrics with locally recognized words. It can align untimed lyrics, correct a consistent recording offset, or add estimated word timing to clear lines.
+The optional audio-analysis/model-download tool has been removed. Resonance no longer downloads a recognition model, transcribes recordings or generates timing proposals. Already-saved lyrics and accepted word timings remain usable. Previously downloaded model files in personal app data are left untouched and unused.
 
-The model is optional and stored in the app's data folder. Installation verifies fixed SHA-256 digests for the official whisper.cpp b5454 CPU package and multilingual small-q5_1 model. Audio stays on the computer. One job runs at a time in a separate, below-normal-priority process with at most two recognition threads. A bounded second pass tries to recover vocals initially classified as music. This is not zero-cost: a song can take several minutes, depending on the CPU and whether the second pass is needed. Cancel is available, and closing Resonance stops the work.
-
-Results are proposals. Preview them against playback, then choose **Keep these timings**. Existing lyrics and words are never replaced by recognized text. Low-coverage or inconsistent matches are rejected; partial matches may enrich already timed lyrics only when distributed anchors agree with the existing timings. Changes to the file, imported lyrics or manual offset during analysis invalidate the proposal.
-
-This is an experimental recognition-assisted alignment, not a guarantee of exact sung-word boundaries. Repeated choruses, backing vocals, dense mixes, languages and alternate versions can confuse it. Real-song testing included successful alignment and deliberately rejected uncertain results. The app does not manufacture complete timing from a weak match.
-
-Songs with no known lyrics still need a provider result or a user import. Automatic transcription of missing lyrics is a later phase.
-
-## Android
-
-Android supports provider word timing, offsets, import/export and restoration. It performs no heavy recognition or audio decoding for this feature, protecting playback and Visualizer/Constellation performance. Native file I/O runs off the activity thread.
-
-Dependencies and notices: the app's **Lyrics tool credits**, `public/licenses/`, and `android/web/licenses/`.
+Both PC and Android use the same highlight renderer. The frame loop updates only visible timed words and uses the player's clock; there is no background audio-analysis job. Android's native player supplies its playback position, with the existing visual-sync compensation.

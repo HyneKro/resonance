@@ -56,16 +56,12 @@ test('bad hashes, traversal and personal-data entries are rejected before instal
 });
 
 test('release gate rejects the 1.23.0 helper location and accepts the compatible layout',async()=>{
- const f=await fixture(),helper=await fs.readFile(path.join(root,'electron','lyrics-extract.ps1'));
+ const f=await fixture(),helper=Buffer.from('# Historical native helper fixture\n');
  const entry={path:'resources/app/lyrics-extract.ps1',bytes:helper.length,sha256:createHash('sha256').update(helper).digest('hex')};
  await fs.writeFile(path.join(f.source,entry.path),helper);f.manifest.files.push(entry);
  await assert.rejects(verifyPortableUpdate(await f.archive()),/Unsafe or invalid update entry/);
  const old=path.join(f.source,entry.path);entry.path='resources/app/electron/lyrics-extract.ps1';
  await fs.rename(old,path.join(f.source,entry.path));
  assert.equal((await verifyPortableUpdate(await f.archive())).version,'1.1.0');
- // The relocated helper must still extract the optional lyrics tool.
- const expanded=path.join(f.dir,'lyrics-tool');
- await ps('lyrics-extract.ps1',[await f.archive(),expanded]);
- assert.equal(await fs.readFile(path.join(expanded,'Resonance.exe'),'utf8'),'new app');
  assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
 });
