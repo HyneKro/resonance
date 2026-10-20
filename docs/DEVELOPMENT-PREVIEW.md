@@ -1,6 +1,6 @@
 # Development preview: discovery and personal setup
 
-This batch is on `development` for testing through a separate development update channel. It is **not an approved live release**. Windows is `1.25.0-dev.6`; Android is `0.25.0-dev.6` (versionCode 63). Regular installations and the main download page stay on the approved versions.
+This batch is on `development` for testing through a separate development update channel. It is **not an approved live release**. Windows is `1.25.0-dev.7`; Android is `0.25.0-dev.7` (versionCode 64). Regular installations and the main download page stay on the approved versions.
 
 ## What to try
 
@@ -30,10 +30,14 @@ If you already have Windows 1.25.0-dev.3 or Android 0.25.0-dev.3, use the normal
 
 Extract the Windows development ZIP into its own folder. It starts with a separate, empty portable data folder. Keep the ordinary installation intact; do not extract this preview over it. Import a settings export and connect music folders if you want to try your own collection.
 
-The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The next approved APK must use a versionCode above 63. Do not uninstall to return to a release, since uninstalling removes private app data.
+The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The next approved APK must use a versionCode above 64. Do not uninstall to return to a release, since uninstalling removes private app data.
 
 Automated checks and desktop simulations do not establish physical-phone performance, Android file-picker behavior or screen-reader usability. Those still need device testing before release approval.
 
 ## Transport checks in dev.6
 
 Rapid skips are tested with loudness leveling enabled. While a song is preparing, the transport shows an outlined Pause control named Cancel starting song. It cancels immediately, even while a profile request is pending. Failed or stalled measurements return control with an explanation; original-level playback remains an explicit choice. Cached measurements still apply before the first sound.
+
+## Rapid Play/Pause in dev.7
+
+A pending Play request can be interrupted by Pause or a newer song selection. These expected browser cancellations no longer display a technical error or browser help link. Both playback controls and Windows media commands invalidate the previous intent on Pause. Late media promises cannot change the newer state. Genuine playback failures still show a short, actionable explanation. Android retains native playback.

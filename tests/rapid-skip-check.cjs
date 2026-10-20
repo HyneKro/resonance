@@ -38,5 +38,40 @@ app.whenReady().then(async()=>{
  await until("!document.querySelector('audio').paused");
  await run("for(const resolve of heldProfiles)resolve(new Response(JSON.stringify({profile:{integratedLufs:-4,truePeakDb:0},job:{running:false}})));void 0");
  log('PASS: leveling enabled, cached starts, canceled pending lookup, immediate explicit original-level playback.');
+ // Exercise Chromium's actual pending-play cancellation, not just preparation.
+ await run(`window.transportNotices=[];window.transportUnhandled=[];window.nativePlayAborts=0;
+  window.noticeObserver=new MutationObserver(()=>{const text=document.querySelector('#toasts').textContent.trim();if(text)transportNotices.push(text)});
+  noticeObserver.observe(document.querySelector('#toasts'),{subtree:true,childList:true,characterData:true});
+  window.addEventListener('unhandledrejection',event=>transportUnhandled.push(String(event.reason)));
+  window.testAudio=document.querySelector('audio');window.realPlay=testAudio.play.bind(testAudio);
+  document.querySelector('#dock-play').click();
+  testAudio.play=function(){testAudio.load();const pending=realPlay().catch(error=>{if(error.name==='AbortError')nativePlayAborts++;throw error});document.querySelector('#play').click();return pending;};void 0;`);
+ for(let i=0;i<12;i++){await run("document.querySelector('#dock-play').click()");await pause(30);}
+ assert.ok(await run('nativePlayAborts>0'),'Reproduced a real Chromium play()/pause() AbortError');
+ assert.ok(await run("testAudio.paused&&document.querySelector('#dock-play').getAttribute('aria-label')==='Play music'"),'Last pause wins after native play cancellation');
+ assert.deepEqual(await run('transportNotices'),[],'Expected media interruptions must not produce any toast');
+ // Resolve/reject older media promises after a newer user intent has settled.
+ await run(`window.pendingPlays=[];testAudio.play=function(){realPlay().catch(()=>{});return new Promise((resolve,reject)=>pendingPlays.push({resolve,reject}));};document.querySelector('#dock-play').click();void 0;`);
+ await until('pendingPlays.length===1&&!testAudio.paused');
+ await run("document.querySelector('#play').click();document.querySelector('#dock-play').click()");
+ await until('pendingPlays.length===2&&!testAudio.paused');
+ await run("pendingPlays[1].resolve();pendingPlays[0].reject(new DOMException('Old source was replaced','NotSupportedError'));void 0");await pause(50);
+ assert.ok(await run("!testAudio.paused&&document.querySelector('#dock-play').getAttribute('aria-label')==='Pause music'"),'Stale rejection cannot reset a newer Play');
+ await run("document.querySelector('#play').click();document.querySelector('#dock-play').click()");await until('pendingPlays.length===3');
+ await run("document.querySelector('#play').click();pendingPlays[2].resolve();void 0");await pause(50);
+ assert.ok(await run("testAudio.paused&&document.querySelector('#dock-play').getAttribute('aria-label')==='Play music'"),'Stale success cannot undo Pause');
+ assert.deepEqual(await run('transportNotices'),[],'Stale play requests stay silent');
+ // A real, current failure must still be explained without browser internals.
+ await run("testAudio.play=()=>Promise.reject(new DOMException('Raw browser message https://goo.gl/example','NotAllowedError'));document.querySelector('#dock-play').click();void 0");
+ await until("transportNotices.some(text=>text.includes('Press Play to start listening.'))");
+ assert.ok(await run("testAudio.paused&&document.querySelector('#dock-play').getAttribute('aria-label')==='Play music'"));
+ assert.ok(await run("transportNotices.every(text=>!text.includes('https://')&&!text.includes('Raw browser'))"));
+ assert.deepEqual(await run('transportUnhandled'),[],'No unhandled media promise rejection');
+ await run("testAudio.play=()=>{testAudio.play=realPlay;return Promise.reject(new DOMException('Unsupported source','NotSupportedError'))};document.querySelector('#dock-play').click();void 0");
+ await until("!testAudio.paused&&document.querySelector('#now-title').textContent!=='Song 300'");
+ assert.ok(await run("transportNotices.some(text=>text.includes('Skipping an unavailable file.'))"),'Current media failures retain normal unavailable-file recovery');
+ assert.deepEqual(await run('transportUnhandled'),[]);
+ await run('noticeObserver.disconnect()');
+ log('PASS: real interrupted play/pause requests, last-click intent, late success/failure, useful current errors, and recovery.');
  await run('probing=false');log('PASS: 2600-song library, rapid next/back, delayed persistence, pause and explicit selection.');
 }).catch(async e=>{log(e.stack);if(win)log(JSON.stringify(await run("({title:document.querySelector('#now-title')?.textContent,paused:document.querySelector('audio')?.paused,requests:window.requestCounts,toasts:document.querySelector('#toasts')?.textContent})")));failed=true}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close()}app.exit(failed?1:0)});

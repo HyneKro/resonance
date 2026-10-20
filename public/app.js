@@ -108,7 +108,7 @@ async function playTrack(id,ids,autoplay=true,restorePosition,queueIndex,fadeSec
   audio.addEventListener('loadedmetadata',state.loadHandler,{once:true});audio.load();renderNow();immersive.updatePlay();
   await listening.select(state.current);if(generation!==state.playGeneration)return;if(autoplay&&await listening.prepare()===false){if(generation===state.playGeneration){state.wantsPlayback=false;immersive.updatePlay();}return;}if(generation!==state.playGeneration)return;if(audio.readyState>=1)state.loadHandler();
   $$('.track-table tr').forEach(r=>r.classList.toggle('playing',r.querySelector('[data-play]')?.dataset.play===id));
-  if(autoplay){await reactor.connect();if(generation!==state.playGeneration)return;reactor.eq(state.eq);try{await audio.play();}catch(e){if(generation===state.playGeneration&&e.name!=='AbortError'){if(e.name==='NotAllowedError')toast('Press Play to start listening.');else await failedPlayback(generation);}}}
+  if(autoplay){await reactor.connect();if(generation!==state.playGeneration)return;reactor.eq(state.eq);await playAudio(generation);}
   if(generation===state.playGeneration){if(audio.paused)state.wantsPlayback=false;immersive.updatePlay();listening.prefetch(playQueue.items.slice(playQueue.cursor+1,playQueue.cursor+4));if(autoplay&&!audio.paused)listening.finishFade(fadeSeconds);else listening.cancelFade();savePlayer();}
 }
 async function failedPlayback(generation=state.playGeneration){
@@ -118,19 +118,33 @@ async function failedPlayback(generation=state.playGeneration){
   if(state.playFailures>=5||playQueue.next()===null){audio.pause();state.wantsPlayback=false;toast('Playback paused: the next files could not be opened. Check that your music drive is connected.');renderNow();return;}
   toast('Skipping an unavailable file.');await nextTrack();
 }
+async function playAudio(generation){
+ // Pause, a source change or a newer Play can supersede this media promise.
+ // These are normal transport actions, not user-facing playback failures.
+ try{await audio.play();}
+ catch(e){
+  if(generation!==state.playGeneration||e.name==='AbortError')return;
+  if(e.name==='NotAllowedError')toast('Press Play to start listening.');
+  else await failedPlayback(generation);
+ }
+}
+function pausePlayback(){
+ skipBurst.cancel();++state.playGeneration;state.wantsPlayback=false;
+ listening.cancelPreparation();audio.pause();immersive.updatePlay();void flush();
+}
 async function togglePlay(){
  if(skipBurst.pending||state.wantsPlayback&&audio.paused){
-  skipBurst.cancel();++state.playGeneration;state.wantsPlayback=false;listening.cancelPreparation();immersive.updatePlay();void flush();return;
+  pausePlayback();return;
  }
  if(desktopAudio.state!=='off'){desktopControlNotice();return;}
  if(!state.current){const ts=filtered();if(ts[0])return playTrack(ts[0].id,ts.map(t=>t.id));closeRoom();if(!state.config.sources.length)sourceUI.openChooser();return;}
- if(!audio.paused){state.wantsPlayback=false;audio.pause();immersive.updatePlay();void flush();return;}
+ if(!audio.paused){pausePlayback();return;}
  state.wantsPlayback=true;state.playFailures=0;playQueue.failed.clear();playQueue.ensure();renderNow();immersive.updatePlay();
  const generation=++state.playGeneration;
  try{
   if(await listening.prepare()===false)return;
   if(generation!==state.playGeneration)return;
-  await reactor.connect();if(generation!==state.playGeneration||desktopAudio.state!=='off')return;await audio.play();
+  await reactor.connect();if(generation!==state.playGeneration||desktopAudio.state!=='off')return;await playAudio(generation);
  }finally{if(generation===state.playGeneration&&audio.paused){state.wantsPlayback=false;immersive.updatePlay();}}
 }
 async function nextTrack(direction=1,ended=false,forceSkip=false,fadeSeconds=0){
@@ -262,7 +276,7 @@ $('#now-favorite').onclick=safe(()=>state.current&&favorite(state.current.id));$
 $('#dialog').addEventListener('close',()=>state.dialog='');$('#dialog').addEventListener('click',e=>{if(e.target===$('#dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 audio.addEventListener('play',()=>{if(desktopAudio.state!=='off'){audio.pause();return;}document.body.classList.add('is-playing');$('#play').innerHTML=icon('pause');$('#play').setAttribute('aria-label','Pause');state.lastTick=0;updateSystemMedia();});audio.addEventListener('pause',()=>{document.body.classList.remove('is-playing');$('#play').innerHTML=icon('play');$('#play').setAttribute('aria-label','Play');state.lastTick=0;updateSystemMedia();});audio.addEventListener('playing',()=>{if(desktopAudio.state!=='off'){audio.pause();return;}state.playFailures=0;if(state.current&&playQueue.recordPlayed(state.current.id,state.session)){savePlayer();if($('#dialog').open&&state.dialog==='The next chapter')queueDialog();}});audio.addEventListener('ended',safe(()=>{if(!listening.pending)return nextTrack(1,true);} ));audio.addEventListener('error',safe(()=>desktopAudio.state==='off'&&failedPlayback()));audio.addEventListener('timeupdate',()=>{const now=performance.now();if(!audio.paused&&!audio.seeking&&audio.readyState>=3){if(state.lastTick){const d=(now-state.lastTick)/1000;if(d>0&&d<1.5)state.pendingSeconds+=d;}state.lastTick=now;}else state.lastTick=0;const total=Number.isFinite(audio.duration)?audio.duration:state.current?.duration||0;$('#elapsed').textContent=duration(audio.currentTime);$('#duration').textContent=duration(total);$('#seek').max=total||100;$('#seek').value=audio.currentTime;$('#seek').style.setProperty('--progress',total?audio.currentTime/total*100+'%':'0%');});audio.addEventListener('seeking',()=>{state.lastTick=0;reactor.resetAnalysis();});
 document.addEventListener('keydown',safe(async e=>{if(e.target.closest('.constellation'))return;if(e.key==='Escape'&&constellation.isOpen&&!$('#dialog').open&&!document.body.classList.contains('library-open')){constellation.close();return;}const typing=['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName);if(e.ctrlKey&&e.key.toLowerCase()==='k'){e.preventDefault();if($('#dialog').open)closeDialog();if(!$('#listening-room').hidden)closeRoom();$('#search').focus();return;}if(e.key==='Escape'&&!$('#dialog').open&&!$('#listening-room').hidden){if(document.body.classList.contains('library-open'))openRoom();else if(document.body.classList.contains('cinema'))setCinema(false);else{$('#room-visual-settings').click();}return;}if(typing||$('#dialog').open||document.body.classList.contains('library-open'))return;if(e.key.toLowerCase()==='h'&&document.body.dataset.listeningMode==='visualizer'&&!$('#listening-room').hidden){e.preventDefault();setCinema(!document.body.classList.contains('cinema'));return;}if(e.code==='Space'&&!e.target.closest('.dance-companion')&&(document.body.classList.contains('cinema')||!e.target.closest('button,a,[role=button]'))){e.preventDefault();await togglePlay();}if(e.altKey&&e.key==='ArrowRight'){e.preventDefault();await nextTrack();}if(e.altKey&&e.key==='ArrowLeft'){e.preventDefault();await nextTrack(-1);}}));
-const localMedia=new LocalMediaSession(navigator.mediaSession,Object.fromEntries(Object.entries({play:()=>audio.paused?togglePlay():undefined,pause:()=>{skipBurst.cancel();state.wantsPlayback=false;state.playGeneration++;listening.cancelPreparation();audio.pause();flush();},nexttrack:()=>nextTrack(),previoustrack:()=>nextTrack(-1),seekto:e=>{audio.currentTime=e.seekTime;},seekbackward:e=>{audio.currentTime=Math.max(0,audio.currentTime-(e.seekOffset||10));},seekforward:e=>{audio.currentTime=Math.min(audio.duration,audio.currentTime+(e.seekOffset||10));}}).map(([action,fn])=>[action,safe(fn)])));
+const localMedia=new LocalMediaSession(navigator.mediaSession,Object.fromEntries(Object.entries({play:()=>audio.paused&&!state.wantsPlayback?togglePlay():undefined,pause:pausePlayback,nexttrack:()=>nextTrack(),previoustrack:()=>nextTrack(-1),seekto:e=>{audio.currentTime=e.seekTime;},seekbackward:e=>{audio.currentTime=Math.max(0,audio.currentTime-(e.seekOffset||10));},seekforward:e=>{audio.currentTime=Math.min(audio.duration,audio.currentTime+(e.seekOffset||10));}}).map(([action,fn])=>[action,safe(fn)])));
 function updateSystemMedia(){const t=state.current;localMedia.update({desktop:desktopAudio.state!=='off',playing:!audio.paused,metadata:t&&typeof MediaMetadata!=='undefined'?new MediaMetadata({title:t.title,artist:t.artist||t.channel,album:t.album,artwork:t.artwork?[{src:new URL('/artwork/'+t.artwork,location.href).href}]:[]}):null});}
 function desktopControlNotice(){toast('Control desktop playback in its app, or turn off Desktop audio above to return to your music.');}
 let pollCount=0,lastScanDone=0,lastCovers=0,lastSyncRunning=false,lastGenreRunning=false,lastResearchUpdated=0;
