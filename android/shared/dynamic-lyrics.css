@@ -1,5 +1,5 @@
 #dynamic-lyrics{white-space:nowrap;gap:7px;transition:background .25s,color .25s,box-shadow .25s}
-#dynamic-lyrics::before{content:'â™ª';font-size:15px;opacity:.55}
+#dynamic-lyrics::before{content:'\266A';font-size:15px;opacity:.55}
 #dynamic-lyrics:disabled{opacity:.48;cursor:default}
 #dynamic-lyrics.lyrics-ready{color:var(--accent-light,#eee6ff);border-color:color-mix(in srgb,var(--ui-accent,#cbb3ff) 65%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--ui-accent,#cbb3ff) 12%,transparent)}
 #dynamic-lyrics.lyrics-ready::before{opacity:1;text-shadow:0 0 8px var(--ui-accent,#cbb3ff)}
