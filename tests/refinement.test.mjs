@@ -13,8 +13,8 @@ test('short fluid travel is continuous, frame independent, settles quickly and r
   for(let i=0;i<1000;i++){const out=m.update(identity(i%2),colors,1/fps);assert.ok(out.identity.recipe.every(x=>x>=.491&&x<=.509));}assert.deepEqual(m.update(a,colors,.1,{reduced:true}).identity,nearbyAtmosphere(a));
  }assert.ok(Math.max(...outputs)-Math.min(...outputs)<1e-8);
 });
-test('all 24 by 24 sculpture transitions keep source and destination recipes fixed',()=>{
- for(let a=0;a<24;a++)for(let b=0;b<24;b++){const m=new SculptureMorph(),one=[.1,.2,.3,.4],two=[.8,.7,.6,.5];m.update(a,0,{signature:one});m.update(b,.01,{signature:two});for(let i=0;i<30;i++)m.update(b,.1,{signature:two});assert.deepEqual(m.fromSignature,one);assert.deepEqual(m.toSignature,two);assert.ok(m.progress>.7&&m.progress<1);}
+test('all 30 by 30 sculpture transitions keep source and destination recipes fixed',()=>{
+ for(let a=0;a<30;a++)for(let b=0;b<30;b++){const m=new SculptureMorph(),one=[.1,.2,.3,.4],two=[.8,.7,.6,.5];m.update(a,0,{signature:one});m.update(b,.01,{signature:two});for(let i=0;i<30;i++)m.update(b,.1,{signature:two});assert.deepEqual(m.fromSignature,one);assert.deepEqual(m.toSignature,two);assert.ok(m.progress>.7&&m.progress<1);}
 });
 test('spectral envelopes preserve fast attacks and frame independent release',()=>{
  const release=[];for(const fps of [30,60,165]){let x=.2;for(let i=0;i<fps;i++)x=spectralEnvelope(x,0,1/fps,.5);release.push(x);}assert.ok(Math.max(...release)-Math.min(...release)<1e-12);assert.ok(spectralEnvelope(0,.2,1/60)>.15);

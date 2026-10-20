@@ -1,3 +1,5 @@
+import {artDirection} from './art-directions.js';
+import {sculptureChoice} from './sculpture-forms.js';
 import {normalizeCollections} from './smart-collections.js';
 import {accessibilityPreferences} from './accessibility.js';
 import {spectrumPreferences} from './spectrum-settings.js';
@@ -36,6 +38,8 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "intensity": 1.5,
   "meters": false,
   "mode": "resonance",
+  "artDirection": "resonance",
+  "ribbonShape": "auto",
   "dynamicVisuals": true,
   "sfxVolume": 0.5,
   "sfxGainVersion": 2,
@@ -82,4 +86,4 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "signatureVersion": 1
 });
 export const REMOVED_LAYERS=new Set(['galaxyDensity','comets','gravity','pointerForce']);
-export function preferencesWithDefaults(saved={},defaults=DEFAULT_PREFERENCES){const p={...defaults,...saved,...accessibilityPreferences(saved),smartCollections:normalizeCollections(saved.smartCollections),...visualSyncPreferences({...defaults,...saved}),...spectrumPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}
+export function preferencesWithDefaults(saved={},defaults=DEFAULT_PREFERENCES){const p={...defaults,...saved,...accessibilityPreferences(saved),smartCollections:normalizeCollections(saved.smartCollections),...visualSyncPreferences({...defaults,...saved}),...spectrumPreferences(saved)};p.artDirection=artDirection(p.artDirection).id;p.ribbonShape=sculptureChoice(p.ribbonShape);p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}

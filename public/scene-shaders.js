@@ -344,12 +344,13 @@ if(u_extract>.5)color*=smoothstep(.12,.65,max(color.r,max(color.g,color.b)));
 fragColor=vec4(color,1.);}`;
 export const FINISH=`#version 300 es
 precision highp float;in vec2 v_uv;out vec4 fragColor;
-uniform sampler2D u_image,u_bloom,u_nebula;uniform vec4 u_light;uniform vec2 u_resolution;uniform float u_kaleidoWeights[${KALEIDOSCOPE_MODES.length+1}],u_kaleidoMotion,u_hdrOutput;
+uniform sampler2D u_image,u_bloom,u_nebula;uniform vec4 u_light;uniform vec2 u_resolution;uniform float u_kaleidoWeights[${KALEIDOSCOPE_MODES.length+1}],u_kaleidoMotion,u_hdrOutput,u_artDirection,u_styleOpacity;
 vec3 film(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
 vec3 composite(vec2 uv){vec3 color=texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x;
 vec3 highlights=min(max(color-vec3(.9),vec3(0.))*.22,vec3(.8))*u_hdrOutput;
 color=pow(film(color),vec3(.454545));
 vec3 cloud=texture(u_nebula,uv).rgb;
+if(u_artDirection>3.5)return cloud*exp(-texture(u_image,uv).rgb*3.4);
 return 1.-(1.-cloud)*(1.-color)+highlights;}
 vec2 patternUV(float mode){
  vec2 aspect=vec2(u_resolution.x/u_resolution.y,1.);vec2 p=(v_uv-.5)*aspect;float r=length(p),theta=atan(p.y,p.x);vec2 folded;
@@ -395,8 +396,10 @@ void main(){
   if(u_kaleidoWeights[i]>0.)color+=composite(patternUV(float(i-1)))*u_kaleidoWeights[i];
  }
 vec2 uv=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float r=length(uv);
- color*=1.-smoothstep(.4,.85,length(v_uv-.5))*.4;
- color=clamp((color-.18)*u_light.w+.18,0.,mix(1.,1.8,u_hdrOutput));
+ color*=1.-smoothstep(.4,.85,length(v_uv-.5))*(u_artDirection>3.5?.08:.4);
+ float contrast=u_artDirection>.5?1.+(u_light.w-1.)*.20:u_light.w;
+ color=clamp((color-.18)*contrast+.18,0.,mix(1.,1.8,u_hdrOutput));
+ color=mix(vec3(.015,.019,.028),color,u_styleOpacity);
  if(u_hdrOutput>.5){vec3 linear=mix(color/12.92,pow((color+.055)/1.055,vec3(2.4)),step(vec3(.04045),color));color=log2(1.+linear)/log2(5.);}
 fragColor=vec4(color,1.);}`;
 

@@ -1,3 +1,6 @@
+import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
+import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
+import {artDirection} from './art-directions.js';
 import {compileSceneProgram} from './shader-loader.js';
 import {cameraUniform} from './scene-camera.js';
 import {ScenePreparation} from './scene-preparation.js';
@@ -27,8 +30,13 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
+    this.attractors=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.attractors);
+    const curves=await attractorCurves(()=>work.checkpoint());
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS,0,gl.RGBA,gl.FLOAT,curves);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.flow=null;this.births=null;this.emptySpectrum=new Float32Array(48);this.birthCDF=new Float32Array(48);this.lastTime=undefined;this.lastMode=null;
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
     this.maxParticles=262144;this.flowCapacity=32768;this.seeds=gl.createBuffer();let seed=8217;const data=new Float32Array(this.maxParticles*4);
@@ -41,7 +49,7 @@ export class GPUScene {
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
   uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
-  use(p,uniforms={}){this.gl.useProgram(p.program);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
+  use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
   target(w,h,depth=false){
@@ -132,6 +140,9 @@ export class GPUScene {
       this.output.update(input.hdrMode||'off');await this.output.preparing;await work.checkpoint();
       await this.prepareTargets(64,64,work);
       for(const _ of this.renderFrame(input,true))await work.drain(this.gl);
+      // Warm each material branch on a tiny target, yielding between passes.
+      const initialStyle=input.dynamics?.artStyle?.index??artDirection(input.dynamics?.artDirection).index;
+      for(let index=0;index<=4;index++)if(index!==initialStyle)for(const _ of this.renderFrame({...input,dynamics:{...input.dynamics,artStyle:{index,opacity:1}}},true))await work.drain(this.gl);
       if(this.output.ready)await this.output.device.queue.onSubmittedWorkDone();await work.checkpoint();
       const {w,h}=this.dimensions(input);await this.prepareTargets(w,h,work);
       // Also finish one full-resolution frame while the splash/wallpaper still
@@ -160,10 +171,13 @@ export class GPUScene {
       const recipe=identity.recipe||Array(8).fill(.5);
       this.kaleidoscopeWeights??=new Float32Array(KALEIDOSCOPE_MODES.length+1);
       if(!d.kaleidoscopeWeights){this.kaleidoscopeWeights.fill(0);this.kaleidoscopeWeights[d.kaleidoscope===true?kaleidoscopeIndex(d.kaleidoscopeMode)+1:0]=1;}
-      const story=d.direction;const uniforms={u_story:story?[story.energy,story.texture,story.attack,story.anticipation]:[.5,.5,.3,0],u_storyMix:reduced?0:story?.mix||0,u_camera:cameraUniform(d.camera),u_focalLength:d.cameraFocalLength??1.9,u_rotation:d.rotationClock??0,u_shapeFrom:identity.shapeFrom||identity.signature,u_shapeTo:identity.shapeTo||identity.signature,u_kaleidoWeights:d.kaleidoscopeWeights||this.kaleidoscopeWeights,u_kaleidoMotion:reduced?0:time*.035,u_sculpture:identity.sculpture||[0,0,1,0],u_recipeA:recipe.slice(0,4),u_recipeB:recipe.slice(4,8),u_signature:identity.signature,u_character:identity.character,u_themes:identity.themes,u_roles:[roles.bass||0,roles.drums||0,roles.lead||0,roles.texture||0],u_shimmer:roles.shimmer||0,u_rhythm:[Math.sin(rhythm.phase*Math.PI*2),Math.cos(rhythm.phase*Math.PI*2),reduced?0:rhythm.pulse,rhythm.confidence],u_particle:[a.particleSpread,a.particleSize,a.beatMotion,a.filigree],u_cloud:[a.bgScale,a.bgSpeed,a.turbulence,a.textureDetail],u_light:[a.bloom,a.glow,reduced?0:a.flash,a.contrast],u_movement:reduced?.1:a.motionAmount,u_palette:expandPalette(d.colors).flat(),u_transients:Array.from(features.transients||features.accents,x=>x*(reduced?.1:1)),u_birthCDF:birth.cdf,u_birthTotal:birth.total,u_harmonic:features.harmonic||features.spectrum,u_percussive:features.percussive||features.spectrum,u_spectrum:features.spectrum,u_morph:features.morph||[.24,.32,.2,.18],u_particleStyle:({white:0,palette:1,frequency:2,birth:3})[d.particleColor]??1,u_resolution:[w,h],u_time:time,u_mode:0,u_energy:features.loudness,u_onset:features.onset,u_accents:features.accents.map(x=>x*(reduced?.1:1)),u_low:features.bands.slice(0,4),u_high:features.bands.slice(4),u_form:[d.shape,d.spread,d.flow,d.bloom],u_colorA:d.colors[0],u_colorB:d.colors[1],u_colorC:d.colors[2],u_evolve:1,u_intensity:intensity,u_drive:drive,u_pixel:density,u_ratio:width/height,u_weight:1,u_density:Math.min(2,98304/primaryCount*Math.pow(h/900,1.2))*.75};
+      const style=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1};
+      const sculpture=identity.sculpture||[0,0,1,0],precise=(sculpture[0]>=24?1-sculpture[2]:0)+(sculpture[1]>=24?sculpture[2]:0);
+      const story=d.direction;const uniforms={u_artDirection:style.index,u_styleOpacity:style.opacity,u_story:story?[story.energy,story.texture,story.attack,story.anticipation]:[.5,.5,.3,0],u_storyMix:reduced?0:story?.mix||0,u_camera:cameraUniform(d.camera),u_focalLength:d.cameraFocalLength??1.9,u_rotation:d.rotationClock??0,u_shapeFrom:identity.shapeFrom||identity.signature,u_shapeTo:identity.shapeTo||identity.signature,u_kaleidoWeights:d.kaleidoscopeWeights||this.kaleidoscopeWeights,u_kaleidoMotion:reduced?0:time*.035,u_sculpture:identity.sculpture||[0,0,1,0],u_recipeA:recipe.slice(0,4),u_recipeB:recipe.slice(4,8),u_signature:identity.signature,u_character:identity.character,u_themes:identity.themes,u_roles:[roles.bass||0,roles.drums||0,roles.lead||0,roles.texture||0],u_shimmer:roles.shimmer||0,u_rhythm:[Math.sin(rhythm.phase*Math.PI*2),Math.cos(rhythm.phase*Math.PI*2),reduced?0:rhythm.pulse,rhythm.confidence],u_particle:[a.particleSpread,a.particleSize,a.beatMotion,a.filigree],u_cloud:[a.bgScale,a.bgSpeed,a.turbulence,a.textureDetail],u_light:[a.bloom,a.glow,reduced?0:a.flash,a.contrast],u_movement:reduced?.1:a.motionAmount,u_palette:expandPalette(d.colors).flat(),u_transients:Array.from(features.transients||features.accents,x=>x*(reduced?.1:1)),u_birthCDF:birth.cdf,u_birthTotal:birth.total,u_harmonic:features.harmonic||features.spectrum,u_percussive:features.percussive||features.spectrum,u_spectrum:features.spectrum,u_morph:features.morph||[.24,.32,.2,.18],u_particleStyle:({white:0,palette:1,frequency:2,birth:3})[d.particleColor]??1,u_resolution:[w,h],u_time:time,u_mode:0,u_energy:features.loudness,u_onset:features.onset,u_accents:features.accents.map(x=>x*(reduced?.1:1)),u_low:features.bands.slice(0,4),u_high:features.bands.slice(4),u_form:[d.shape,d.spread,d.flow,d.bloom],u_colorA:d.colors[0],u_colorB:d.colors[1],u_colorC:d.colors[2],u_evolve:1,u_intensity:intensity,u_drive:drive,u_pixel:density,u_ratio:width/height,u_weight:1,u_density:Math.min(2,98304/primaryCount*Math.pow(h/900,1.2))*.75};
       gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
       this.resize(w,h);const [scene,bloomA,bloomB,nebula]=this.targets;
       const atmosphere=features.atmosphere,back=d.background?.identity||identity,backColors=d.background?.colors||d.colors,backRecipe=back.recipe||recipe;const backUniforms={...uniforms,u_signature:back.signature,u_character:back.character,u_themes:back.themes,u_recipeA:backRecipe.slice(0,4),u_recipeB:backRecipe.slice(4,8),u_palette:expandPalette(backColors).flat(),u_colorA:backColors[0],u_colorB:backColors[1],u_colorC:backColors[2]};
+      if(style.index===0){
       this.bind(nebula);this.use(this.nebula,{...backUniforms,u_liquid:[d.fluidity??.8,d.iridescence??.65,d.depth??.7],u_time:d.backgroundClock??time,u_driftTime:d.backgroundDriftClock??(d.backgroundClock??time)*.975,u_resolution:[nebula.w,nebula.h],u_energy:atmosphere.loudness,u_low:atmosphere.bands.slice(0,4),u_high:atmosphere.bands.slice(4),u_accents:atmosphere.accents.map(x=>x*(reduced?.1:1))});
       this.quadDraw(this.nebula);yield;
       gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);this.use(this.nebulaParticles,{...backUniforms,u_intensity:intensity*.30,u_pixel:density*.65});this.points(this.nebulaParticles,Math.floor(budget*.04));gl.disable(gl.BLEND);
@@ -175,11 +189,11 @@ export class GPUScene {
       // desktop capacity on a phone was simulating six times the visible population.
       this.updateBirths(uniforms,warmup?128:this.mobile?primaryCount:undefined);yield;
       this.use(this.particles,uniforms);this.points(this.particles,primaryCount);yield;
-      this.use(this.cells,{...uniforms,u_density:uniforms.u_density*1.4});this.points(this.cells,Math.floor(budget*.12));
+      this.use(this.cells,{...uniforms,u_density:uniforms.u_density*(1.4-precise*.9)});this.points(this.cells,Math.floor(budget*.12));
       yield;
       // Simulate only the flow particles actually drawn on mobile. If this
       // layer is turned off, no invisible simulation is needed.
-      if(warmup||!this.mobile||a.orbit>0)this.drawFlow({...uniforms,u_mode:7,u_weight:features.flow*a.orbit,u_density:uniforms.u_density*primaryCount/flowCount},flowCount,delta,warmup?128:this.mobile?flowCount:undefined);yield;
+      if(warmup||!this.mobile||a.orbit>0)this.drawFlow({...uniforms,u_mode:7,u_weight:features.flow*a.orbit*(1-precise*.8),u_density:uniforms.u_density*primaryCount/flowCount},flowCount,delta,warmup?128:this.mobile?flowCount:undefined);yield;
       if(warmup||d.spectralDetail>0){this.use(this.spectral,{...uniforms,u_spectrum:features.spectrum,u_weight:d.spectralDetail,u_density:uniforms.u_density*2.4});this.points(this.spectral,Math.floor(budget*.16));}yield;
 
       // A stable surface population shares the shape/camera and the existing
@@ -191,6 +205,14 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
+      }else{
+        this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.artBackground);yield;
+        this.bind(scene);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        if(style.index<3){this.use(this.artSurface,uniforms);gl.drawArrays(gl.TRIANGLES,0,style.index===1?64*20*6:13*18*6);yield;}
+        const count=Math.floor(budget*.20),density=Math.min(3,26214/count)*Math.pow(h/900,1.2);
+        for(const layer of [0,1]){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:layer,u_spectrumLight:this.emptySpectrum});this.points(this.artPoints,count);yield;}
+        if(d.spectrumLight?.some(x=>x>0)){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:2,u_spectrumLight:d.spectrumLight});this.points(this.artPoints,Math.floor(count*.55));yield;}
+      }
       gl.disable(gl.BLEND);
       // Downsample, extract emissive light, then two separable bloom passes.
       this.bind(bloomA);this.use(this.blur,{u_direction:[1/w,1/h],u_extract:1});this.texture(this.blur,'u_image',scene.texture);this.quadDraw(this.blur);
@@ -202,7 +224,7 @@ export class GPUScene {
       yield;
       if(extended&&!this.output.present()){this.uniform(this.finish,'u_hdrOutput',0);this.quadDraw(this.finish);}
       this.canvas.dataset.hdrOutput=this.output.state;
-      this.needsFrame=false;this.canvas.dataset.scene='resonance';return true;
+      this.needsFrame=false;this.canvas.dataset.scene='resonance';this.canvas.dataset.artDirection=style.index;return true;
     }catch(e){throw e;}
   }
 }

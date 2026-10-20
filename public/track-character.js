@@ -1,4 +1,4 @@
-import {SculptureMorph,sculptureFor} from './sculpture-forms.js';
+import {SculptureMorph,sculptureFor,sculptureChoice,expandedSculpture} from './sculpture-forms.js';
 import {Inertia} from './inertia.js';
 const clamp=x=>Math.max(0,Math.min(1,x));
 export const textKey=text=>String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -47,7 +47,7 @@ export function createTrackCharacter(track={},lyrics={cues:[],source:''},notes='
 export class CharacterMixer{
  constructor(){this.sculpture=new SculptureMorph();this.profile=createTrackCharacter();this.session='';this.springs=null;this.variation=[];}
  select(profile,session=''){this.profile=profile;this.session=session;const r=random(hashText(profile.seed+'|'+session));this.variation=Array.from({length:8},()=>r()*2-1);}
- update(dt,{amount=.35,theme='auto',enabled=true,frozen=false,reduced=false,direction=null}={}){
+ update(dt,{amount=.35,theme='auto',enabled=true,frozen=false,reduced=false,direction=null,shape='auto'}={}){
   const p=enabled?this.profile:createTrackCharacter(),v=enabled?amount:0,r=this.variation.length?this.variation:Array(8).fill(0);
   const index=THEME_NAMES.indexOf(theme),themes=characterThemes(p,enabled,theme);
   const signature=p.signature.map((x,i)=>clamp(x+r[i]*v*.14));
@@ -59,6 +59,8 @@ export class CharacterMixer{
   if(reduced&&!frozen)this.springs.forEach((s,i)=>{s.value=targets[i];s.velocity=0;values[i]=targets[i];});
   let sculpture=enabled?sculptureFor(p):-1;
   if(enabled&&direction?.chapter&&!reduced){const family=sculpture<6?sculpture:Math.floor((sculpture-6)/3),variant=hashText(p.seed+'|'+direction.chapter.kind+'|'+direction.chapter.start)%4;sculpture=variant===0?family:6+family*3+variant-1;}
+  if(enabled)sculpture=expandedSculpture(p,reduced?null:direction?.chapter)??sculpture;
+  const chosen=sculptureChoice(shape);if(chosen!=='auto')sculpture=Number(chosen.slice(5));
   return {backgroundTarget:{signature,character,themes,recipe},sculpture:this.sculpture.update(sculpture,dt,{frozen,reduced,signature}),shapeFrom:this.sculpture.fromSignature,shapeTo:this.sculpture.toSignature,signature:values.slice(0,4),character:values.slice(4,8),themes:values.slice(8,14),recipe:values.slice(14,22),label:p.label,dominant:index<0?p.dominant:theme,basis:p.basis};
  }
 }
