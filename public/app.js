@@ -316,7 +316,7 @@ const immersive=installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
 const settingsMenu=installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress});
 installBrand();installPortableUpdateUI({toast,state,openUpdates:()=>settingsMenu.open('updates')});
 await yieldSceneWork();
-const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast,getSongProfile:id=>listening.track?.id===id?listening.profile:null});
+const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast,getNext:()=>getTrack(playQueue.items[playQueue.cursor+1]),getSongProfile:id=>listening.track?.id===id?listening.profile:null});
 organizeVisualMenu($('.visual-tools'));
 installSonaDesktop({state,reactor,audio,togglePlay,nextTrack,setPreferences,toast});
 installWindowUI({button:$('#fullscreen'),onError:e=>toast('Fullscreen unavailable: '+e.message)});

@@ -6,9 +6,13 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
  const canInstall=app.isPackaged&&require('node:fs').existsSync(path.join(portableRoot,'portable.flag'));
  const updater=new OnlineUpdate({directory:path.join(app.getPath('userData'),'app-updates'),current:app.getVersion(),canInstall,emit:state=>{if(!win.isDestroyed())win.webContents.send('resonance:update-state',state);}});
  const trusted=event=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||!event.senderFrame.url.startsWith(url+'/'))throw Error('Update request rejected');};
- let checkTimer,periodic;
+ let checkTimer,periodic,cleanupTimer,cleaning=false;
+ async function cleanup(){
+  if(!canInstall||busy||cleaning)return;cleaning=true;
+  try{const result=await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','cleanup-updates.ps1'),'-Destination',portableRoot,'-Apply'],{windowsHide:true,timeout:600000,maxBuffer:100000});await fs.writeFile(path.join(portableRoot,'.updates','cleanup.json'),result.stdout).catch(()=>{});}catch{/* Locked files are retried on the next launch. Playback never waits for cleanup. */}finally{cleaning=false;}
+ }
  const check=()=>void updater.check(true).catch(()=>{});
- win.webContents.once('did-finish-load',()=>{checkTimer=setTimeout(check,30000);periodic=setInterval(check,60000);});
+ win.webContents.once('did-finish-load',()=>{checkTimer=setTimeout(check,30000);periodic=setInterval(check,60000);cleanupTimer=setTimeout(()=>void cleanup(),60000);});
  ipcMain.handle('resonance:online-update',async(event,action,data={})=>{
   trusted(event);await updater.ready;
   switch(action){
@@ -39,22 +43,26 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
  async function installArchive(archive,expectedVersion){
   if(busy)return {message:'An update is already being prepared.'};
   if(!canInstall)return {message:'This workspace installation is updated in place. The update installer is available in the portable release for friends.'};
-  busy=true;
+  busy=true;let run,handedOff=false;
   try{
    if(!archive){const picked=await dialog.showOpenDialog(win,{title:'Choose a newer Resonance portable ZIP',properties:['openFile'],filters:[{name:'Resonance portable update',extensions:['zip']}]});if(picked.canceled)return {cancelled:true};archive=picked.filePaths[0];}
-   const run=path.join(portableRoot,'.updates',randomUUID()),stage=path.join(run,'payload');await fs.mkdir(run,{recursive:true});
+   run=path.join(portableRoot,'.updates',randomUUID());const stage=path.join(run,'payload');await fs.mkdir(run,{recursive:true});
+   await fs.writeFile(path.join(run,'owner.json'),JSON.stringify({pid:process.pid,phase:'preparing'}));
    const result=await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','prepare-update.ps1'),'-Archive',archive,'-Stage',stage],{windowsHide:true,timeout:300000,maxBuffer:1000000});
    const info=JSON.parse(result.stdout.replace(/^\uFEFF/,'').trim());
    if(expectedVersion&&info.version!==expectedVersion)throw Error('The archive version does not match the GitHub release.');
-   const choice=await dialog.showMessageBox(win,{type:'info',title:'Resonance update is ready',message:'Install Resonance '+info.version+'?',detail:'Your music, playlists and settings stay in this folder. Resonance will restart. A backup of replaced app files will be kept in .updates.',buttons:['Restart & update','Cancel'],defaultId:0,cancelId:1});if(choice.response!==0)return {cancelled:true};
+   const choice=await dialog.showMessageBox(win,{type:'info',title:'Resonance update is ready',message:'Install Resonance '+info.version+'?',detail:'Your music, playlists and settings stay in this folder. Resonance will restart. One rollback backup is kept; older update files are cleaned up automatically.',buttons:['Restart & update','Cancel'],defaultId:0,cancelId:1});if(choice.response!==0)return {cancelled:true};
    await Promise.race([win.webContents.executeJavaScript('window.resonancePrepareClose?.()'),new Promise(resolve=>setTimeout(resolve,2500))]);
    const helper=path.join(run,'apply-update.ps1');await fs.copyFile(path.join(root,'electron','apply-update.ps1'),helper);
    await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','launch-update.ps1'),'-Helper',helper,'-Destination',portableRoot,'-Stage',stage,'-WaitFor',String(process.pid)],{windowsHide:true,timeout:25000,maxBuffer:100000});
    // The independent helper has acknowledged startup and is waiting for this PID.
    // The playback checkpoint above is complete, so do not re-enter window close hooks.
-   setTimeout(exitForUpdate,150);return {restarting:true};
-  }catch(error){const detail=String(error.stderr||error.message).trim().split(/\r?\n/)[0].slice(0,350);return {error:'The update could not be installed. Your current app is still available. '+detail+' Check for updates to look for a newer release.'};}finally{busy=false;}
+   handedOff=true;setTimeout(exitForUpdate,150);return {restarting:true};
+  }catch(error){const detail=String(error.stderr||error.message).trim().split(/\r?\n/)[0].slice(0,350);return {error:'The update could not be installed. Your current app is still available. '+detail+' Check for updates to look for a newer release.'};}finally{
+   if(run&&!handedOff)await fs.writeFile(path.join(run,'owner.json'),JSON.stringify({pid:0,phase:'discarded'})).catch(()=>{});
+   busy=false;if(!handedOff)void cleanup();
+  }
  }
- win.on('closed',()=>{clearTimeout(checkTimer);clearInterval(periodic);updater.close();ipcMain.removeHandler('resonance:update');ipcMain.removeHandler('resonance:online-update');});
+ win.on('closed',()=>{clearTimeout(checkTimer);clearTimeout(cleanupTimer);clearInterval(periodic);updater.close();ipcMain.removeHandler('resonance:update');ipcMain.removeHandler('resonance:online-update');});
 }
 module.exports={installPortableUpdate};

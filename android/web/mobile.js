@@ -4,6 +4,7 @@ import {readMobileLyrics,searchMobileLyrics,saveMobileLyrics,mobileLyricsTiming}
 import {lyricDocument} from './lyrics.js';
 import {SPECTRUM_SETTINGS} from './spectrum-settings.js';
 import {playbackRange} from './song-analysis.js';
+import {installMusicEdition} from './music-edition.js';
 import {paintListeningMode} from './listening-modes.js';
 import {createConstellation} from './constellation.js';
 import {artworkKey,artworkURL,installArtworkRecovery} from './mobile-artwork.js';
@@ -46,6 +47,7 @@ function updateTimeline(){paintTimeline({duration:current()?.duration||audio.dur
 const state={tracks:[],sources:[],playlists:[],prefs:{...defaults},view:'',filter:'all',search:'',sort:'playlist',active:true,limit:60,detail:null,destination:{},revision:0,previewRevision:0,jobs:{scan:{},downloads:{}}};
 let saveTimer,analysisTimer,statusTimer,selectedDownloads=[],discoveryId='',artKey='',pollGeneration=0,discovering=false;
 const current=()=>state.tracks.find(t=>t.id===audio.snapshot.id),toast=createNotifier($('#toasts'),{host:()=>$('#sheet').open?$('#sheet'):document.body}),safe=fn=>(...args)=>{try{return Promise.resolve(fn(...args)).catch(e=>toast(e.message));}catch(e){toast(e.message);}};
+const musicEdition=installMusicEdition({mobile:true,artwork:t=>artworkKey(t)?artworkURL(artworkKey(t)):'',details:t=>details(t.id),queue:safe(queue)});
 installDynamicLyrics({audio,current,read:readMobileLyrics,palette:()=>reactor.visualColors||reactor.coverColors,delay:()=>reactor.visualSync?.delayMs,capturing:()=>audio.snapshot.capturing});
 installAppUpdateUI({request:(action,preferences)=>rpc('appUpdate',{action,preferences}),host:()=>$('#app-update-slot'),active:()=>state.view==='settings-updates',toast,platform:'android',openUpdates:()=>settings('updates')});
 const sona=installDanceCompanion({reactor,audio,savePosition:position=>preferences({dancePosition:position}),onError:()=>toast('Sona could not load. Try reopening the app.')});
@@ -91,6 +93,7 @@ const visualSelection=new VisualTrackSelection({
  apply:value=>{reactor.selectVisualTrack(value);listeningProfile=value.profile;listeningEdit=value.edit;updateTimeline();if(value.id)void loadSongProfile(value.id);}
 });
 function renderNow(){document.dispatchEvent(new Event('resonance-track-change'));const t=current();$('#now-title').textContent=t?.title||'Find your frequency';$('#now-artist').textContent=t?.artist||t?.channel||'Your music, wherever you are';$('#now-art').innerHTML=cover(t);$('#music-only-title').textContent=t?.title||'Your pocket universe';$('#music-only-artist').textContent=t?.artist||t?.channel||'';$('#music-only-cover').innerHTML=cover(t);paintIcon($('#favorite'),'heart');$('#favorite').setAttribute('aria-pressed',String(!!t?.favorite));$('#favorite').disabled=!t;
+ musicEdition.select(t,state.tracks.find(t=>t.id===upcomingIds(audio.snapshot)[0]));
  void visualSelection.select(t,audio.snapshot.id||'');
  const artwork=artworkKey(t),key=t?.id+':'+artwork;if(key!==artKey){artKey=key;document.documentElement.style.setProperty('--cover-image',artwork?`url('${artworkURL(artwork)}')`:'none');void palette.select(artwork);}
 }
