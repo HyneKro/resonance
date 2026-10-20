@@ -6,4 +6,4 @@ An unmeasured song waits with **Matching song loudness** feedback and a **Play o
 
 Very quiet masters are no longer restricted to a 6 dB boost when measured peak headroom allows more. Peak protection remains; particularly dynamic recordings may be quieter. This is not automatic volume adjustment within a song.
 
-Install over the existing app to keep music and settings. Package identity and signing certificate are unchanged; versionCode is 18. Native JVM tests, build/lint and extracted APK assets are checked; no physical S22+ was available, so on-device/background playback still needs confirmation.
+Install over the existing app to keep music and settings. Package identity and signing certificate are unchanged; versionCode is 18. Native JVM tests, build/lint and extracted APK assets are checked; no physical Android device was available, so on-device/background playback still needs confirmation.

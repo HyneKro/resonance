@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Downloads and installation
+    url: https://hynekro.github.io/resonance/#downloads
+    about: Download the latest Windows ZIP or Android APK.
+  - name: Feature guide
+    url: https://hynekro.github.io/resonance/guide.html
+    about: Controls, features, platform differences and privacy.

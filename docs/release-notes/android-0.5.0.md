@@ -6,4 +6,4 @@
 - The regular playback, volume and queue controls stay accessible. Map panels adapt to the phone; the map runs at up to 30 FPS, suspends normal visual analysis and stops rendering when hidden.
 - Updates retain the existing package, signing identity, music and settings. Install over your existing app.
 
-Validation: shared 239-test suite, 86 Android JVM tests, APK/instrumentation builds and lint, complete extracted APK startup graph, plus a phone-width browser check using a simulated native bridge. No physical phone was connected; touch feel, battery usage and native audio playback still need confirmation on the S22+.
+Validation: shared 239-test suite, 86 Android JVM tests, APK/instrumentation builds and lint, complete extracted APK startup graph, plus a phone-width browser check using a simulated native bridge. No physical phone was connected; touch feel, battery usage and native audio playback still need confirmation on an Android testing device.

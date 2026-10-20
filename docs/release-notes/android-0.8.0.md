@@ -6,6 +6,6 @@ Constellation has a persistent, scrollable song-details panel and a breadcrumb t
 
 Genre research checks missing songs first, uses cached artist-catalogue suggestions, and can verify a missing artist against an exact song match using its uploader as a search clue. Repost channels are not automatically treated as artists. Suggestions and unresolved genres remain identified, with a missing percentage. The under-1% unknown target has not been verified.
 
-Validation: 95 JVM tests, build and lint passed; all APK frontend dependencies verified; phone browser flow tested using a simulated native bridge. Shared JavaScript suite: 258 tests. Physical S22+ testing remains necessary.
+Validation: 95 JVM tests, build and lint passed; all APK frontend dependencies verified; phone browser flow tested using a simulated native bridge. Shared JavaScript suite: 258 tests. Physical-device testing remains necessary.
 
 ARM64, package `music.resonance.mobile`, versionCode 26, existing signing certificate. Install over the existing app; do not uninstall to update.

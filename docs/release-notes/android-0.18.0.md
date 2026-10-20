@@ -8,4 +8,4 @@
 
 Open Settings → Library & downloads → Library review. Comparisons never remove or substitute music. Existing files, playlists and signing identity are preserved; install over the previous app.
 
-Verified with native unit tests, Android lint, both ABI builds, instrumentation-test compilation, shared regressions and phone-size UI previews. The published APK is ARM64. Physical-device playback/background behavior has not been retested on an S22+.
+Verified with native unit tests, Android lint, both ABI builds, instrumentation-test compilation, shared regressions and phone-size UI previews. The published APK is ARM64. Physical-device playback/background behavior has not been retested on an Android testing device.

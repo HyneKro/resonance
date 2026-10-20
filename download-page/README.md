@@ -1,22 +1,30 @@
-# Public download page
+# Public website
 
-Share **https://hynekro.github.io/resonance/**. The two buttons download the latest published Windows ZIP and Android APK directly from GitHub Releases, without a GitHub account.
+Share **https://hynekro.github.io/resonance/**. The homepage offers a visual tour and direct downloads; **[the feature guide](https://hynekro.github.io/resonance/guide.html)** explains controls, limits, platform differences and privacy.
 
-## Automatic updates
+## Automatic release links
 
-The `Publish download page` Actions workflow runs on release publication/edit/removal, relevant source changes on `main`, and manual dispatch. It reads the complete release list and uses the same version and asset validation as the Windows updater, separately for PC and Android. Preview releases are included for Android only. It checks out `main` explicitly so a release pointing at an older app tag cannot restore old website source.
+`.github/workflows/download-page.yml` runs on release publication/edit/removal, website changes on `main` and manual dispatch. The builder reads the complete release list and uses the same version/asset validation as the updater, independently for Windows and Android. Android previews are included; Windows previews are excluded. The workflow explicitly checks out `main`, even when a release points at an older app tag.
 
-After tests pass, the build writes ordinary HTML, CSS, the existing app icon and a small `downloads.json` manifest into ignored `download-page/dist/`. GitHub Pages receives only that directory, not the repository or any music. The page works with JavaScript disabled, avoids per-visitor GitHub API limits and makes no analytics requests. Version links refresh after the deployment completes, normally within a few minutes of a release.
+The deployed `download-page/dist/` contains two static HTML pages, CSS, the app icon, an explicit allowlist of reviewed media and `downloads.json`. Downloads, navigation and expandable FAQs work without JavaScript. No visitor-side API requests, analytics, remote fonts or credentials are added. GitHub receives normal hosting/download requests.
 
-If fetching releases fails or either platform has no valid release asset, the build fails and leaves the previous website intact. Check the workflow result as part of publishing each app release. For releases created with the default Actions `GITHUB_TOKEN`, explicitly dispatch this workflow if GitHub suppresses the release-triggered workflow; releases published with the existing owner-authenticated CLI trigger it normally.
+Release lookup or missing-platform failures stop the build and leave the previous site online. Verify deployment and both download buttons after each app release. Releases made with the default Actions `GITHUB_TOKEN` may require an explicit workflow dispatch; owner-authenticated CLI release events trigger it normally.
 
-## Local checks
+## Public previews and privacy
 
-```powershell
+`scripts/capture-site-previews.cjs` captures actual app views using an isolated, fictional library, original procedural cover artwork and synthetic audio. It uses public source's procedural sky and never reads the installed app or personal library. The temporary library and browser profile stay under ignored `test-output/site-preview/`. Only reviewed JPGs go into `download-page/media/`. The wordmark comes from `public/brand.js`.
+
+Run capture with the local Electron binary through a hidden process and persistent file logging, as with the other UI checks. Do not attach a shell pipe that can close while Electron is still running. Review every screenshot before staging. Do not substitute screenshots from a personal session, purchased standalone textures or private artwork caches.
+
+No personal names, machine paths, playlist links, account identifiers or library statistics belong in site copy. Device models, if relevant, must be described only as testing devices, with accurate physical-test limitations. Public previews are labeled as fictional demos.
+
+## Check and publish
+
+```sh
 node --test tests/download-page.test.mjs
 node scripts/build-download-page.mjs
 ```
 
-Serve `download-page/dist/` with a local static server for visual checks. No package installation is needed. The builder uses the public API locally; `GH_TOKEN` is optional for authenticated rate limits and is never written into the page. In Actions it receives GitHub's short-lived read-only token. Upload and deploy use the standard Pages permissions, with no permanent deployment credentials.
+The builder requires network access to GitHub's public API; optional `GH_TOKEN` is never written into output. `tests/download-page-ui.cjs` exercises the built site at desktop/phone widths, keyboard FAQ use, overflow, images and internal links without a site-script dependency. Run it through a hidden Electron process with persistent logs.
 
-The HTML and CSS sources are here; `scripts/build-download-page.mjs` embeds the established wordmark and draws a decorative SVG sculpture. Keep the buttons prominent, phone layout usable and app branding unchanged. Website-only edits do not require new APKs or Windows binaries.
+Review and audit staged files, then push to `main`. Wait for the Pages workflow and check the public home page, feature guide and versioned downloads. Website/documentation-only changes do **not** require new app binaries or version bumps. Keep the release-event workflow when changing the site.

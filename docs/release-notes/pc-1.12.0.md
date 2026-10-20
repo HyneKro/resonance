@@ -12,6 +12,6 @@
 
 289 automated JavaScript tests pass. A 2,600-song Electron scene measured a 16.6 ms median frame interval, 2.5 ms median CPU draw time and 3.1 ms p95 locally. These are local fixture results, not a guaranteed frame rate on every device. Desktop/portrait graphics checks cover shader compilation, group zoom, journey playback visibility and disposal. The restored collage is static at desktop and portrait sizes. A restored-session startup check confirms the intended dock throughout the splash handoff. Android UI fixture checks retain portrait rotation, camera/kaleidoscope controls and Music Only suspension.
 
-Both distributable startup module graphs and a clean empty-library Windows welcome screen are checked before publication. Android build, device-test compilation, JVM tests and lint are checked; no physical S22+ was connected. GPU/driver initialization can still add hardware-dependent startup work.
+Both distributable startup module graphs and a clean empty-library Windows welcome screen are checked before publication. Android build, device-test compilation, JVM tests and lint are checked; no physical Android device was connected. GPU/driver initialization can still add hardware-dependent startup work.
 
 Install over the existing version to preserve music and settings. Choose Restart & update when ready.

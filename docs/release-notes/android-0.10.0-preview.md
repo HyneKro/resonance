@@ -7,4 +7,4 @@ Constellation now has a more detailed blue nebula, layered dust, subtle orbiting
 
 Android also gains the verified MusicBrainz → Wikidata artist-genre fallback, cached locally. This preview preserves the app ID and signing certificate; install over the existing app to retain music and settings.
 
-The optional microphone mix is a Windows desktop-listening feature. Android capture retains its existing platform permissions and restrictions. Mobile graphics use fewer background stars/cloud layers and a compact 2K rendition of the licensed Space Skybox Collection 4 panorama by Makemake. Native build, unit tests and lint plus portrait browser UI checks were run; physical S22+ validation remains with the owner.
+The optional microphone mix is a Windows desktop-listening feature. Android capture retains its existing platform permissions and restrictions. Mobile graphics use fewer background stars/cloud layers and a compact 2K rendition of the licensed Space Skybox Collection 4 panorama by Makemake. Native build, unit tests and lint plus portrait browser UI checks were run; physical Android device validation remains pending.

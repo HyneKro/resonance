@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { latestDownloads, readReleases, renderPage } from '../scripts/build-download-page.mjs';
+import { latestDownloads, readReleases, renderPage, SITE_MEDIA } from '../scripts/build-download-page.mjs';
 
 function release(platform, version, overrides = {}) {
   const tag = `${platform}-v${version}`;
@@ -15,6 +15,46 @@ test('download page picks each platform independently by version, including Andr
   assert.equal(result.pc.version, '1.1.10');
   assert.equal(result.android.version, '0.1.12-preview');
   assert.throws(() => latestDownloads([release('pc', '1.1.10')]), /Both/);
+});
+
+test('public tour and guide have complete local links and media, without private data or script dependencies', async () => {
+  const latest = latestDownloads([release('pc', '1.24.0'), release('android', '0.24.0-preview')]);
+  const pages = new Map();
+  for (const name of ['index.html', 'guide.html']) {
+    const html = renderPage(await fs.readFile(new URL('../download-page/' + name, import.meta.url), 'utf8'), latest);
+    const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
+    assert.equal(new Set(ids).size, ids.length, name + ' unique ids');
+    assert.equal((html.match(/<h1\b/g) || []).length, 1);
+    assert.doesNotMatch(html, /<script|<iframe|https?:\/\/(?:fonts\.|analytics\.)|\b[A-Z]:[\\/]|\\Users\\|gh[pousr]_[A-Za-z0-9]{20,}|\{\{/i);
+    assert.ok(html.includes('fictional'));
+    pages.set(name, {html, ids});
+  }
+  const base = new URL('https://example.test/resonance/');
+  for (const [name, {html}] of pages) {
+    for (const [, ref] of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
+      const url = new URL(ref, new URL(name, base));
+      if (url.origin !== base.origin) continue;
+      assert.ok(url.pathname.startsWith(base.pathname), 'works under GitHub project subpath: ' + ref);
+      const file = url.pathname.slice(base.pathname.length) || 'index.html';
+      if (pages.has(file)) {
+        if (url.hash) assert.ok(pages.get(file).ids.includes(url.hash.slice(1)), `${name} target ${ref} exists`);
+      } else {
+        const source = file === 'icon.svg' ? '../public/icon.svg' : '../download-page/' + file;
+        await fs.access(new URL(source, import.meta.url));
+        if (file.startsWith('media/')) assert.ok(SITE_MEDIA.includes(file.slice(6)), 'media is deployed: ' + file);
+      }
+    }
+    for (const [, img] of html.matchAll(/<img\b([^>]+)>/g)) {
+      assert.match(img, /\balt="[^"]+"/);
+      assert.match(img, /\bwidth="\d+"/);
+      assert.match(img, /\bheight="\d+"/);
+    }
+  }
+  for (const file of SITE_MEDIA) {
+    const bytes = await fs.readFile(new URL('../download-page/media/' + file, import.meta.url));
+    assert.ok(bytes.length < 750_000, file + ' fits the static preview budget');
+    if (file.endsWith('.jpg')) assert.equal(bytes.readUInt16BE(0), 0xffd8);
+  }
 });
 
 test('release lookup paginates and fails on incomplete or unavailable responses', async () => {

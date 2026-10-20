@@ -3,59 +3,107 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101017">
-  <meta name="description" content="Download Resonance for Windows or Android. Your local music, expressive audio-reactive visuals, and Sona by your side.">
-  <meta property="og:title" content="Download Resonance">
-  <meta property="og:description" content="Your music, in another light. Get the latest Windows or Android version.">
+  <meta name="theme-color" content="#0c0e15">
+  <meta name="description" content="Your local music, in another light. Discover Resonance's reactive Visualizer, 3D Constellation and artwork-led Music only view. Download for Windows and Android.">
+  <meta property="og:title" content="Resonance · Your music, in another light">
+  <meta property="og:description" content="One library. Three ways to get lost in it. A local music player for Windows and Android.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hynekro.github.io/resonance/">
+  <meta property="og:image" content="https://hynekro.github.io/resonance/media/visualizer.jpg">
+  <meta property="og:image:alt" content="Resonance's particle visualizer with a fictional demo collection.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://hynekro.github.io/resonance/">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
-  <title>Download Resonance · Windows & Android</title>
+  <title>Resonance · Your music, in another light</title>
 </head>
 <body>
-  <a class="skip" href="#downloads">Skip to downloads</a>
+  <a class="skip" href="#main">Skip to content</a>
   <div class="page">
-    <header>
+    <header class="site-header">
       <a class="brand" href="./" aria-label="Resonance home">{{BRAND}}</a>
-      <a class="project-link" href="https://github.com/HyneKro/resonance">The project <span aria-hidden="true">↗</span></a>
+      <nav aria-label="Main navigation"><a href="#experience">The experience</a><a href="./guide.html">Feature guide</a><a class="nav-download" href="#downloads">Download <span aria-hidden="true">↓</span></a></nav>
     </header>
-    <main>
+    <main id="main">
       <section class="hero" aria-labelledby="headline">
-        <div class="hero-copy">
-          <p class="eyebrow"><span aria-hidden="true"></span> A different kind of music player</p>
+        <div>
+          <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> Your library. Your listening room.</p>
           <h1 id="headline">Your music,<br><em>in another light.</em></h1>
-          <p class="intro">A home for your local music. Visuals that move with every sound. And Sona, your little listening companion.</p>
+          <p class="intro">A local music player that gives your collection a world of its own. Feel the sound, follow a constellation, or settle into the artwork.</p>
+          <div class="hero-actions"><a class="button primary" href="#downloads">Get Resonance <span aria-hidden="true">↓</span></a><a class="text-link" href="#experience">Take a look around <span aria-hidden="true">↘</span></a></div>
+          <p class="quiet">Windows & Android · No account or subscription needed</p>
         </div>
-        <div class="universe" aria-hidden="true">{{SCULPTURE}}<span class="orbit-caption">SOUND INTO SOMETHING YOU CAN FEEL</span></div>
+        <div class="hero-index" aria-label="Three listening modes">
+          <a href="#visualizer"><span>01</span><b>Feel it.</b><small>Visualizer ↘</small></a>
+          <a href="#constellation"><span>02</span><b>Explore it.</b><small>Constellation ↘</small></a>
+          <a href="#music-only"><span>03</span><b>Stay a while.</b><small>Music only ↘</small></a>
+        </div>
       </section>
-      <section class="downloads" id="downloads" aria-label="Download Resonance">
-        <article class="download-card pc">
-          <div class="card-heading">
-            <span class="platform-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 4.5 10.5 3.3V11H2Zm10-1.4L22 1.7V11H12ZM2 12.5h8.5v7.7L2 19Zm10 0h10v9.3l-10-1.4Z"/></svg></span>
-            <div><h2>On your PC</h2><p>Windows · 64-bit</p></div>
-            <span class="format">PORTABLE ZIP</span>
-          </div>
-          <a class="download-button" href="{{PC_URL}}" aria-describedby="pc-version">Download for PC <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/></svg></a>
-          <p class="version" id="pc-version">Version {{PC_VERSION}} <span aria-hidden="true">·</span> {{PC_SIZE}}</p>
-          <p class="install-note">Extract the ZIP, then open <strong>Resonance.exe</strong>.<br>No installer needed. Your music stays with you.</p>
-          <a class="release-link" href="{{PC_NOTES}}">What’s new <span aria-hidden="true">↗</span></a>
+      <figure class="hero-screen">
+        <a href="./media/visualizer.jpg" aria-label="Open the full Visualizer preview"><img src="./media/visualizer.jpg" width="1600" height="1000" fetchpriority="high" alt="Glowing ribbons and fine particles respond to sound in Resonance, with Sona and playback controls nearby."></a>
+        <figcaption><span>THIS IS RESONANCE</span><span>Actual app views · fictional demo collection</span></figcaption>
+      </figure>
+      <section id="experience" class="section" aria-labelledby="experience-title">
+        <div class="section-heading"><div><p class="eyebrow">One collection, different moods</p><h2 id="experience-title">Choose how you <em>listen.</em></h2></div><p>Switch between three views.<br>Your song keeps playing.</p></div>
+        <article class="mode" id="visualizer">
+          <div class="mode-number" aria-hidden="true">01 /</div>
+          <div class="mode-copy"><p class="eyebrow">Visualizer</p><h3>Give every sound<br>a little space.</h3><p>Ribbons, particles and a shifting atmosphere follow the music. Cover colors set the palette; rhythm and frequency detail bring it to life.</p><a class="text-link" href="./guide.html#visualizer">Explore the visual controls ↗</a></div>
+          <div class="mode-notes"><p><b>Shape the scene</b>Orbit by dragging, try camera rails, or ease into a kaleidoscope.</p><p><b>Follow the words</b>Switch on Dynamic Lyrics when a song has timed lyrics.</p><p><b>Meet Sona</b>An optional animated companion, with a floating desktop mode.</p></div>
         </article>
-        <article class="download-card android">
-          <div class="card-heading">
-            <span class="platform-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m7 4-2-3m12 3 2-3M3 12a9 9 0 0 1 18 0Z"/><circle cx="8" cy="8" r=".8"/><circle cx="16" cy="8" r=".8"/><path d="M4 14h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Zm4 7v2m8-2v2"/></svg></span>
-            <div><h2>On your phone</h2><p>Android 10+ · ARM64</p></div>
-            <span class="format">APK{{ANDROID_BADGE}}</span>
-          </div>
-          <a class="download-button" href="{{ANDROID_URL}}" aria-describedby="android-version">Download for Android <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/></svg></a>
-          <p class="version" id="android-version">Version {{ANDROID_VERSION}} <span aria-hidden="true">·</span> {{ANDROID_SIZE}}</p>
-          <p class="install-note">Open the APK and follow Android’s install steps.<br>Already have Resonance? Install over it to keep your music.</p>
-          <a class="release-link" href="{{ANDROID_NOTES}}">What’s new <span aria-hidden="true">↗</span></a>
-        </article>
+        <div class="mode-pair">
+          <article class="mode-card" id="constellation">
+            <a class="preview" href="./media/constellation.jpg" aria-label="Open the full Constellation preview"><img src="./media/constellation.jpg" width="1600" height="1000" loading="lazy" alt="Songs form a 3D star map with genre groups, connected upcoming songs and a details panel."></a>
+            <div class="mode-card-copy"><p class="eyebrow">02 / Constellation</p><h3>Find your next<br><em>favorite star.</em></h3><p>Every song is a star. Explore artists and genres, follow the light along your queue, or build a journey through your own collection.</p><a class="text-link" href="./guide.html#constellation">How discovery works ↗</a></div>
+          </article>
+          <article class="mode-card" id="music-only">
+            <a class="preview" href="./media/music-only.jpg" aria-label="Open the full Music only preview"><img src="./media/music-only.jpg" width="1600" height="1000" loading="lazy" alt="Music only frames the Night Atlas demo cover beside expressive typography, album details and the next song."></a>
+            <div class="mode-card-copy"><p class="eyebrow">03 / Music only</p><h3>The cover.<br><em>The moment.</em></h3><p>Artwork, color and typography make room for the recording. Four visual treatments adapt to genre, while the animated scenes take a break.</p><a class="text-link" href="./guide.html#music-only">Inside the listening edition ↗</a></div>
+          </article>
+        </div>
       </section>
-      <p class="reassurance"><span aria-hidden="true">✦</span> No account needed. Future updates arrive in the app.</p>
+      <section class="section collection" aria-labelledby="collection-title">
+        <div class="section-heading"><div><p class="eyebrow">Made for the music you keep</p><h2 id="collection-title">Beautiful on the surface.<br><em>Thoughtful underneath.</em></h2></div><a class="text-link" href="./guide.html">Read the full feature guide ↗</a></div>
+        <div class="feature-grid">
+          <article><span class="feature-mark" aria-hidden="true">01</span><h3>A library with context</h3><p>Browse artists, genres, favorites and playlists. Review uncertain credits and keep your own corrections.</p><a href="./guide.html#library">Library & metadata ↗</a></article>
+          <article><span class="feature-mark" aria-hidden="true">02</span><h3>A more even listen</h3><p>Optional song-level loudness leveling, EQ and silent-edge skipping. Set listening edits without changing the audio file.</p><a href="./guide.html#sound">Playback & sound ↗</a></article>
+          <article><span class="feature-mark" aria-hidden="true">03</span><h3>Words in the moment</h3><p>Timed lines move with playback, with a colored sweep through each phrase. Adjust a song’s offset when it needs a nudge.</p><a href="./guide.html#lyrics">Dynamic Lyrics ↗</a></article>
+          <article><span class="feature-mark" aria-hidden="true">04</span><h3>Bring your playlists</h3><p>Add local folders or supported public YouTube, Spotify and Deezer playlists. Review recordings before downloading.</p><a href="./guide.html#imports">Sources & downloads ↗</a></article>
+          <article><span class="feature-mark" aria-hidden="true">05</span><h3>Sound beyond the player</h3><p>On Windows, let the Visualizer react to other apps. An optional microphone input includes your side of the conversation.</p><a href="./guide.html#desktop-audio">Live audio & Sona ↗</a></article>
+          <article><span class="feature-mark" aria-hidden="true">06</span><h3>Keep listening, keep updating</h3><p>Updates arrive in the app. Your library stays in place, and Windows clears obsolete update files while keeping a rollback.</p><a href="./guide.html#updates">Updates & storage ↗</a></article>
+        </div>
+      </section>
+      <section class="section download-section" id="downloads" aria-labelledby="download-title">
+        <div class="section-heading"><div><p class="eyebrow">Make yourself at home</p><h2 id="download-title">Your next listening room.</h2></div><p>Latest published builds.<br>Directly from GitHub, without an account.</p></div>
+        <div class="downloads">
+          <article class="download-card pc">
+            <div class="card-heading"><div><span class="eyebrow">Portable · 64-bit</span><h3>Windows</h3></div><span class="platform-symbol" aria-hidden="true">⊞</span></div>
+            <a class="download-button" href="{{PC_URL}}" aria-describedby="pc-version">Download for PC <span aria-hidden="true">↓</span></a>
+            <p class="version" id="pc-version">Version {{PC_VERSION}} <span aria-hidden="true">·</span> {{PC_SIZE}} · ZIP</p>
+            <p>Extract the <strong>whole ZIP</strong> into a folder, then open <strong>Resonance.exe</strong>. Keep its <code>data</code> folder with the app.</p>
+            <div class="download-links"><a href="{{PC_NOTES}}">What’s new ↗</a><a href="./guide.html#install">Installation help ↗</a></div>
+          </article>
+          <article class="download-card android">
+            <div class="card-heading"><div><span class="eyebrow">Android 10+ · ARM64</span><h3>Android</h3></div><span class="format">APK{{ANDROID_BADGE}}</span></div>
+            <a class="download-button" href="{{ANDROID_URL}}" aria-describedby="android-version">Download for Android <span aria-hidden="true">↓</span></a>
+            <p class="version" id="android-version">Version {{ANDROID_VERSION}} <span aria-hidden="true">·</span> {{ANDROID_SIZE}} · APK</p>
+            <p>Open the APK and confirm installation in Android. Already have Resonance? <strong>Install over it</strong> to keep your library.</p>
+            <div class="download-links"><a href="{{ANDROID_NOTES}}">What’s new ↗</a><a href="./guide.html#install">Installation help ↗</a></div>
+          </article>
+        </div>
+        <p class="download-note">Bring your own music. No songs are included. Android is a preview; features and device behavior are still being refined.</p>
+      </section>
+      <section class="section faq" aria-labelledby="faq-title">
+        <div><p class="eyebrow">Before you press play</p><h2 id="faq-title">A few good<br><em>questions.</em></h2><a class="text-link" href="./guide.html#privacy">Privacy & platform details ↗</a></div>
+        <div class="questions">
+          <details><summary>Is this a streaming service?</summary><p>No. Resonance is a player for your local music collection. You supply the songs; no subscription or Resonance account is required. Once files are on your device, local playback works offline.</p></details>
+          <details><summary>Does it download Spotify or Deezer audio?</summary><p>No. Public Spotify and Deezer playlists provide titles, artists and order. Resonance helps you review matching YouTube recordings and downloads audio from the selected match. Availability varies; use music you’re allowed to download.</p></details>
+          <details><summary>Will updates keep my library?</summary><p>Yes. Use the in-app update flow: <strong>Restart & update</strong> on Windows, or <strong>Install update</strong> on Android. Keep the Windows data folder and don’t uninstall the Android app to update it.</p></details>
+          <details><summary>Does my music get uploaded?</summary><p>Local playback and sound analysis stay on your device. Optional lyrics, artwork and metadata searches send song or artist search terms to external services. Update checks contact GitHub. <a href="./guide.html#privacy">See what goes online →</a></p></details>
+          <details><summary>Can I sync my PC and phone?</summary><p>There is no automatic PC-to-phone library sync yet. Each installation manages its own files, playlists and settings. Windows and Android also have independent version numbers.</p></details>
+        </div>
+      </section>
     </main>
-    <footer><span>Made for getting lost in music.</span><a href="https://github.com/HyneKro/resonance/releases">All releases <span aria-hidden="true">↗</span></a></footer>
+    <footer><div><a class="brand" href="./" aria-label="Resonance home">{{FOOTER_BRAND}}</a><p>Made for getting lost in music.</p></div><nav aria-label="Footer"><a href="./guide.html">Feature guide</a><a href="https://github.com/HyneKro/resonance">Source & project ↗</a><a href="https://github.com/HyneKro/resonance/releases">All releases ↗</a><a href="https://github.com/HyneKro/resonance/issues">Report an issue ↗</a></nav><p class="preview-note">Previews show the app with fictional song and artist names, original demo artwork and synthetic audio. No personal library is shown.</p></footer>
   </div>
 </body>
 </html>

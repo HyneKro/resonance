@@ -10,6 +10,6 @@ Constellation now shows the playing song and the next four songs in native playb
 
 ARM64, package `music.resonance.mobile`, versionCode **47**, existing signing identity retained. Install over the existing app; uninstalling is unnecessary and would remove private app data.
 
-Shared tests, native unit tests, build/lint checks and isolated phone-layout/bridge checks cover this release. No physical S22+ or Android installer test was performed; sustained performance and battery use remain device-test items. Dense views can omit some floating labels to prevent overlaps; the upcoming list remains accessible.
+Shared tests, native unit tests, build/lint checks and isolated phone-layout/bridge checks cover this release. No physical Android device or Android installer test was performed; sustained performance and battery use remain device-test items. Dense views can omit some floating labels to prevent overlaps; the upcoming list remains accessible.
 
 Release checks: **393 shared tests**, **124 Android unit tests**, both ABI builds and instrumentation-test compilation passed. Android lint: **0 errors**, 9 existing warnings. Both extracted distributables passed the full nested startup-module check. A clean, empty-library Windows extraction reached the welcome screen with no renderer errors. The isolated desktop/phone UI checks passed, including saved spectrum controls and native queue order. Repository audit: 672 files, no reported issues.

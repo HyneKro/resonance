@@ -11,6 +11,6 @@ Inline artist and genre choices protect only the selected field. Explicitly keep
 
 Genre evidence can be reused from another local copy only when title, artist credits, version and duration agree. Estimates and already copied evidence cannot seed further copies. Conflicting labels must agree before reuse. Artist catalogue suggestions remain marked as estimates. Editing an artist/title invalidates the old recording reference and flags an unlocked genre for rechecking.
 
-This release improves evidence handling and correction workflows; it does not claim that every artist or genre is automatically identifiable, nor that the owner's unknown-genre percentage has been measured or reduced to a particular target. Repost channels, sparse catalogue entries and ambiguous versions can still require review.
+This release improves evidence handling and correction workflows; it does not claim that every artist or genre is automatically identifiable, nor that a specific unknown-genre percentage is guaranteed. Repost channels, sparse catalogue entries and ambiguous versions can still require review.
 
 Verification: shared identity/API tests, native Android evidence/lock tests, isolated PC and phone UI checks including long titles, save/undo/back, searching past 150 songs, responsive layouts and startup asset graphs. Physical Android device testing is separate.

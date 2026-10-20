@@ -10,7 +10,7 @@
 | Library and metadata | 8.0 | 8.8 | Save operations resist duplicate submission; newer edits and Back state survive asynchronous work. Automatic artist/genre matching remains imperfect; no unverified labels were invented to improve coverage. |
 | Playback and reliability | 8.5 | 9.0 | Existing playback, queue, analysis, updater and data-protection regressions pass. This pass deliberately preserves audio gain and authored animation behavior. Physical output/headset and long screen-off tests remain necessary. |
 | Visuals and performance | 8.6 | 9.0 | A 3,000-song local Constellation probe runs near 60 FPS. Exploring 1,000 artist labels no longer leaves an accumulating hidden DOM list. This does not prove every GPU, thermal state or large library behaves equally well. |
-| Android ergonomics | 8.1 | 9.3 | Compact header, consistent SVG transport icons, reachable Queue, clearer sliders and a separate landscape player column. Actual touch events verify vertical scrolling does not alter EQ, horizontal dragging does, and Reset preserves focus/scroll. Physical S22+ verification is outstanding. |
+| Android ergonomics | 8.1 | 9.3 | Compact header, consistent SVG transport icons, reachable Queue, clearer sliders and a separate landscape player column. Actual touch events verify vertical scrolling does not alter EQ, horizontal dragging does, and Reset preserves focus/scroll. Physical-device verification is outstanding. |
 | Release and recovery | 8.0 | 9.2 | Clean two-platform packaging, startup dependency checks and public update validation are release gates. A failed diagnostic test exposed fragile test-process logging; supervised file-backed logging prevents that failure from generating repeated native dialogs. |
 
 ## Changes made
@@ -37,7 +37,7 @@ All fixtures are isolated from the owner's music and current installation. A tes
 
 ## What would justify 9.9
 
-1. A physical S22+ matrix: screen-off listening, update over the previous APK, folder grants, Bluetooth/headset changes, downloads and interruption recovery.
+1. A physical Android device matrix: screen-off listening, update over the previous APK, folder grants, Bluetooth/headset changes, downloads and interruption recovery.
 2. Long listening sessions on at least an integrated-GPU Windows machine and the phone, including thermal throttling and repeated mode changes. A short 60 FPS sample is insufficient.
 3. User review of difficult artist/genre/alternate-recording matches, with measured false-match rates rather than only a lower Unknown count.
 4. A keyboard and assistive-technology audit, plus usability feedback from people who did not build the app.

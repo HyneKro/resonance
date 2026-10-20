@@ -5,4 +5,4 @@
 - Choose Musical or the preserved Classic response in Visuals → Motion → Reactivity. Switching is smooth and the choice is saved.
 - Keep phone performance defaults, Bluetooth delay, audio playback and mascot animation speed. No additional rendering pass or model download.
 
-The ARM64 APK retains the existing package and signing identity. Install over the previous app to keep your library. Verified with shared regressions, phone-size UI checks, Android unit/lint/build checks and startup asset verification. No physical S22+ was available for this release; musical roles remain estimates, not isolated stems.
+The ARM64 APK retains the existing package and signing identity. Install over the previous app to keep your library. Verified with shared regressions, phone-size UI checks, Android unit/lint/build checks and startup asset verification. No physical Android device was available for this release; musical roles remain estimates, not isolated stems.

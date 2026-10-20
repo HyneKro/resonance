@@ -9,6 +9,6 @@
 
 Validation: 415 app tests, 128 native unit tests, both ABI builds, device-test compilation, and Android lint with zero errors and nine existing warnings. Hidden browser checks cover phone/landscape lyric layouts and timing behavior. A blocked-worker regression exercises 10,000 nonblocking snapshot reads. The extracted APK's complete web module graph and existing signing certificate were verified.
 
-No physical S22+ test was available. The changes address concrete blocking paths found in the code; they do not establish that every device-specific freeze is eliminated. Please check prolonged Visualizer/Constellation use and lock-screen controls on your phone.
+No physical Android device test was available. The changes address concrete blocking paths found in the code; they do not establish that every device-specific freeze is eliminated. Please check prolonged Visualizer/Constellation use and lock-screen controls on your phone.
 
 Install over the existing app. Package identity and signing certificate are unchanged; do not uninstall. Timed lyrics are not available for every recording, and this release does not invent missing timestamps or upload audio.

@@ -6,4 +6,4 @@
 
 ARM64 APK, package `music.resonance.mobile`, versionCode 48, with the existing signing certificate. Install over the previous version without uninstalling; Android still asks for installation confirmation.
 
-Verification: 400 shared tests, 124 native JVM tests, both ABI builds, instrumentation compilation, and Android lint (0 errors; 9 existing warnings). The extracted APK's complete startup module graph and changed assets were checked. Isolated Android-interface previews checked setting defaults, maximums and persistence, the native queue adapter and narrow layouts. No physical S22+ or Android installation test was available.
+Verification: 400 shared tests, 124 native JVM tests, both ABI builds, instrumentation compilation, and Android lint (0 errors; 9 existing warnings). The extracted APK's complete startup module graph and changed assets were checked. Isolated Android-interface previews checked setting defaults, maximums and persistence, the native queue adapter and narrow layouts. No physical Android device or Android installation test was available.

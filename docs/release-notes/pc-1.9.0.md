@@ -8,4 +8,4 @@ The Milky Way uses a detailed baked texture with a display-resolution projection
 
 Constellation has its own preparation screen. Returning to Visualizer waits behind a neutral transition until graphics are ready, without showing Music only. A hidden loading spinner no longer changes mode-button widths.
 
-Validation: 261 JavaScript tests, 95 Android JVM tests, Android build/lint checks, desktop and phone browser flows, clean Windows startup and extracted ZIP/APK startup dependencies. No physical S22+ test was performed. Existing music and preferences are preserved.
+Validation: 261 JavaScript tests, 95 Android JVM tests, Android build/lint checks, desktop and phone browser flows, clean Windows startup and extracted ZIP/APK startup dependencies. No physical Android device test was performed. Existing music and preferences are preserved.

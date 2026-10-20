@@ -8,4 +8,4 @@
 
 Install over the existing app. Package ID and signing certificate are unchanged; versionCode is 51.
 
-Validation: ARM64 and x86_64 builds, device-test compilation, 128 native unit tests and lint passed (existing lint warnings remain). The shared suite passed 427 tests. Phone browser previews checked controls, saved offsets, word timing, compact portrait and landscape. The extracted ARM64 APK passed the complete frontend dependency check and signature verification. No connected physical phone was available; native picker behavior and sustained S22+ playback still need device testing.
+Validation: ARM64 and x86_64 builds, device-test compilation, 128 native unit tests and lint passed (existing lint warnings remain). The shared suite passed 427 tests. Phone browser previews checked controls, saved offsets, word timing, compact portrait and landscape. The extracted ARM64 APK passed the complete frontend dependency check and signature verification. No connected physical phone was available; native picker behavior and sustained Android-device playback still need device testing.

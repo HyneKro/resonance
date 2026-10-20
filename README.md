@@ -1,53 +1,132 @@
-# Resonance
+<p align="center">
+  <img src="download-page/media/wordmark.svg" width="300" alt="Resonance">
+</p>
+<h1 align="center">Your music, in another light.</h1>
+<p align="center">A local music player for Windows and Android.<br>One library. Three ways to get lost in it.</p>
+<p align="center">
+  <a href="https://hynekro.github.io/resonance/#downloads"><strong>Download the app</strong></a> ·
+  <a href="https://hynekro.github.io/resonance/guide.html">Explore the features</a> ·
+  <a href="https://github.com/HyneKro/resonance/releases">Release notes</a> ·
+  <a href="https://github.com/HyneKro/resonance/issues">Report an issue</a>
+</p>
 
-A local music library with three ways to listen: an audio-reactive Visualizer, a 3D Constellation of your collection, and a quiet Music only view.
+![Resonance's audio-reactive Visualizer, showing glowing ribbons, particles and the Sona companion.](download-page/media/visualizer.jpg)
 
-**[Download for Windows or Android](https://hynekro.github.io/resonance/)** â€” the page always offers the latest published builds. No account is needed.
+**Feel the sound. Explore the collection. Settle into the artwork.** Resonance brings expressive visuals and thoughtful library tools to the music you keep. No Resonance account or subscription is needed. Bring your own audio files; no songs are included.
 
 ## Start listening
 
-1. Open **Library** and add a folder containing music, or connect a supported online playlist through **Library & downloads**.
-2. Online playlists show a review screen before downloading. Choosing an empty folder sets a download destination; it does not add songs until files are downloaded.
-3. Tap a song's cover or title in Library to play it. The player at the bottom handles pause, skip, seeking, volume and Queue.
-4. Choose **Visualizer**, **Constellation** or **Music only** along the top. Library and Settings stay in the same place.
+| Windows | Android |
+| --- | --- |
+| **64-bit portable ZIP** | **Android 10+ · ARM64 APK · preview** |
+| Extract the whole ZIP and open `Resonance.exe`. | Open the APK and follow Android's installation steps. |
+| Keep the `data` folder with the app. | Install over the previous version; don't uninstall to update. |
 
-Click the playing song's cover or title to open **Behind the sound**: overview, lyrics, listening edits and editable metadata. Back returns to the previous panel and keeps your place.
+**[Get the latest Windows or Android build →](https://hynekro.github.io/resonance/#downloads)**
 
-## Make it yours
+The download page always follows the latest published release for each platform. GitHub's green **Code → Download ZIP** button downloads source code, not the app.
 
-- **Visualizer:** audio-reactive particles and nebulae, smooth track-character changes, kaleidoscope patterns, manual orbit and optional camera motion. Visuals contains Style, Motion, Display and Extras; these controls belong to this mode.
-- **Reactivity:** Steadier note detail and subtle phrase movement are always enabled. Saved analysis supports anticipation; live audio reacts as it arrives. A mirrored spectrum of emissive particles follows the ribbon, lights up only where sound is present, and uses the background palette. See [Musical response](docs/MUSICAL-RESPONSE.md).
-- **Constellation:** explore the collection through genre and artist groups, click a star to play, and build a journey through related songs. Drag to orbit, right-drag to pan and scroll to zoom on PC. Background stars are decoration; labelled song stars belong to your library.
-- **Music only:** a static composition built from the cover. The visualizer and mascot stop rendering to reduce work.
-- **Mascots:** Sona is the default, with optional guest appearances. Authored motion uses fixed timing; music does not stretch the sprites or speed up the animation. Windows can keep the companion above other windows with compact playback controls.
-- **Playback & sound:** optional per-song loudness leveling, silent-edge skipping, EQ, visual delay and interface sounds. Leveling targets a shared overall song loudness while retaining each song's internal dynamics. Peak protection can limit how much a recording is raised.
-- **Listening edit:** see measured energy and skipped edges, or set start/end points for a video intro/outro. Original audio files remain unchanged. Automatic speech removal is not provided.
-- **Library & downloads:** refresh sources, review uncertain metadata, research genres and manage playlists. Manual metadata edits take priority over automatic suggestions. Missing or ambiguous information can still require review.
+Open **Library**, add a folder, and play a song. The mode switch chooses Visualizer, Constellation or Music only without interrupting playback. Click the playing cover or title for **Behind the sound**; Queue keeps listening history and upcoming songs together.
 
-Windows desktop-audio mode can react to other applications, with an optional microphone input. Capture is for live visuals; it is not recorded or uploaded. Android capture requires the system consent screen and only receives audio from applications that permit capture.
+## Three ways to listen
 
-## Updates and your data
+### Visualizer — feel it
 
-Download the Windows ZIP, extract the complete folder, then open `Resonance.exe`. Keep its `data` folder with the app. The tray icon indicates that Resonance is running; click it to reopen the window, or use its menu to quit.
+Ribbons, particles and an evolving atmosphere follow the music, with colors drawn from cover art. Orbit the scene, try camera rails and kaleidoscopes, or enable timed lyrics. Quality, motion and spectrum controls let you shape the result.
 
-Install the Android ARM64 APK over the previous version. **Do not uninstall to update:** uninstalling removes private app storage. Android requires confirmation through its system installer.
+### Constellation — explore it
 
-Both apps check for updates and show an update-ready indicator. Windows applies an update when you choose **Restart & update**; Android uses **Install update**. Music, playlists and preferences are retained. See the [update guide](docs/SHARING.md).
+![A 3D map of the fictional demo collection, with genre regions and connected songs.](download-page/media/constellation.jpg)
 
-Storage shows music and cache estimates. Cache cleanup does not delete songs. Metadata searches send track and artist names to catalogue services; local analysis does not upload audio. Spotify imports use public track listings and reviewed YouTube matches, not Spotify audio. Availability and catalogue accuracy depend on the providers.
+Every available song is a star. Navigate artist and genre groups, play a star, or follow the upcoming queue as light travels along its connections. Build a journey, review the route and play it now or after the current song. Discovery uses your own collection and its available metadata and sound profiles.
 
-## Development and verification
+### Music only — stay a while
 
-Use Node 24: `npm ci`, then `npm start` for the desktop app or `npm run dev` for a browser. A fresh checkout starts with an empty library. Optional local configuration belongs in ignored `config.json`; `config.example.json` is the clean template.
+![The Music only listening edition, using an original fictional Night Atlas cover.](download-page/media/music-only.jpg)
 
-- `npm test` runs the automated regression suite.
-- [Android setup](android/README.md) covers native builds, unit tests, lint and device checks.
-- [Sharing and releases](docs/SHARING.md) covers clean packaging, two-platform publication, updater verification and retention.
-- [Polish review](docs/POLISH-REVIEW.md) records the current assessment, evidence and remaining gaps.
-- [Release notes](docs/release-notes/) retain version-specific changes and validation limits.
+Cover artwork, sampled color and expressive typography form a quiet listening edition. Four treatments adapt to genre. Playback, song details and the next track remain close, while the animated scenes stop rendering.
 
-The approved 15 October 2026 checkpoint remains separate in `CHECKPOINT.json` and the local `checkpoints/2026-10-15-major-baseline/` folder. Do not prune it. Personal music, library databases, caches, keys, local tools and used portable folders must never be committed or distributed.
+*All previews use fictional song and artist names, original procedural demo artwork and synthetic audio. No personal collection or device data is shown.*
 
-Artwork and dependency notices are available in the app's Credits. Original particle studies took inspiration from the visual references supplied during development; tutorial projects and videos are not bundled. The licensed skybox is embedded only in authorized app builds, with a procedural fallback for public source builds.
+## More to explore
 
-Lyric offsets, word highlighting and optional local Windows timing checks are described in [Lyric timing](docs/LYRICS.md).
+<details>
+<summary><strong>A library with context</strong> — artist credits, genres and recording details</summary>
+
+Browse artists, genres, favorites, recent plays, tracks and long mixes. Library review separates uncertain artist credits, missing genres and possible copies. Saved corrections take priority over automatic suggestions, with Undo available. Original audio files are not retagged, and possible duplicates are never automatically deleted.
+
+Catalogue coverage is imperfect. Repost channels, ambiguous titles and unusual recordings can still need review.
+
+[Library guide](https://hynekro.github.io/resonance/guide.html#library) · [How evidence and corrections work](docs/LIBRARY-UNDERSTANDING.md)
+
+</details>
+
+<details>
+<summary><strong>Playback with care</strong> — loudness leveling, listening edits and EQ</summary>
+
+Optional loudness leveling aims for a shared overall song loudness while preserving dynamics within the recording. Peak protection can limit gain. Silent-edge skipping marks skipped portions on the timeline; manual start/end points handle intros and outros without changing files. EQ and visual-sync adjustments are available; experimental crossfade is Windows-only.
+
+[Sound guide](https://hynekro.github.io/resonance/guide.html#sound)
+
+</details>
+
+<details>
+<summary><strong>Dynamic Lyrics</strong> — timed lines and a luminous text sweep</summary>
+
+The Lyrics button becomes available in Visualizer when a song has timed lyrics. Actual word timings drive word fills; line-only timing gets an approximate phrase sweep. Plain lyrics remain readable in Behind the sound. Save a per-song offset or import a supported timed lyric file when needed.
+
+Lyrics and timing depend on the recording and source. No recognition model is downloaded; the app does not transcribe songs.
+
+[Lyrics guide](https://hynekro.github.io/resonance/guide.html#lyrics) · [Timing details](docs/LYRICS.md)
+
+</details>
+
+<details>
+<summary><strong>Playlist imports</strong> — YouTube, Spotify and Deezer</summary>
+
+Add supported public playlists, check for new entries and review recording matches before downloading. Spotify and Deezer supply playlist metadata; downloaded audio comes from your selected YouTube match, not those services. Genuine unavailable recordings can be matched to alternate uploads or music videos. Availability varies; use recordings you have permission to download.
+
+[Import guide and limitations](https://hynekro.github.io/resonance/guide.html#imports)
+
+</details>
+
+<details>
+<summary><strong>Live audio and Sona</strong> — a scene beyond your library</summary>
+
+Windows desktop-audio mode reacts to other apps, with an optional microphone input. Capture drives the visuals and is not recorded or uploaded. Android uses system consent and can receive audio only from apps that permit capture.
+
+Sona is the default optional companion, with additional appearances. Windows can keep the companion above other windows with compact playback controls.
+
+[Live audio and companion guide](https://hynekro.github.io/resonance/guide.html#desktop-audio)
+
+</details>
+
+**[Read the complete feature guide →](https://hynekro.github.io/resonance/guide.html)** It includes controls, platform differences, installation help and what goes online.
+
+## Updates and privacy
+
+Both apps check GitHub for updates. Windows installs when you choose **Restart & update**; Android requires its system installer confirmation. Your library and settings are preserved. Windows automatically removes obsolete completed update files while retaining one rollback backup.
+
+Local playback and sound measurements stay on the device. Online artwork, lyric and metadata lookups send song/artist search terms to providers. Downloads contact their source; update checks contact GitHub. There is no automatic PC-to-phone library sync.
+
+When reporting an issue, remove personal paths, names and playlist links from screenshots or diagnostics. Never upload library databases, cookies or credentials. See [privacy and help](https://hynekro.github.io/resonance/guide.html#privacy).
+
+## For contributors and curious minds
+
+Use **Node 24**. A fresh checkout starts with an empty library:
+
+```sh
+npm ci
+npm start
+```
+
+`npm run dev` starts the browser version; `npm test` runs the regression suite. Optional local configuration belongs in ignored `config.json`; begin with `config.example.json`.
+
+- [Documentation index](docs/README.md) — feature internals and design notes.
+- [Android development](android/README.md) — native build, tests and device checks.
+- [Sharing and updates](docs/SHARING.md) — packaging, publishing and retention.
+- [Website maintenance](download-page/README.md) — automatic release links and public demo assets.
+
+Automated tests and browser previews do not guarantee physical-device performance. Version-specific validation and limitations are recorded in the [release notes](docs/release-notes/).
+
+Artwork and dependency notices are available in the app's Credits. The licensed skybox is included only in authorized app builds; public source builds use a procedural fallback. Personal music, databases, credentials, signing keys and used portable folders must never be committed or distributed.

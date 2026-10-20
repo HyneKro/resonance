@@ -1,14 +1,14 @@
 # Resonance for Android
 
-The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.24.0-preview** (versionCode 57), built for ARM64 phones such as the Galaxy S22+.
+The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.24.0-preview** (versionCode 57), built for ARM64 phones.
 
 **[Download the latest APK](https://hynekro.github.io/resonance/)** and install it over the existing app. The package ID and signing identity must stay unchanged. Uninstalling deletes private app music and data; an update does not require uninstalling.
 
 ## Everyday use
 
 - **Library** opens your music. Tap a song's cover or title to play; tap the playing song in the bottom player for details.
-- **Settings Ã¢â€ â€™ Library & downloads** adds local folders or online playlist sources. An empty selected folder is a download destination. Check the playlist, review the selection, then download songs before listening offline.
-- Public **Deezer playlists** are supported alongside YouTube and Spotify. Paste the full `https://www.deezer.com/playlist/Ã¢â‚¬Â¦` browser link (localized links work too). Deezer supplies titles, artists and playlist order; use **Choose recording** to review a YouTube version, then download its audio. Private playlists and short sharing links are not supported. All pages are read, up to 10,000 songs; an incomplete response is reported rather than silently accepting the first page.
+- **Settings → Library & downloads** adds local folders or online playlist sources. An empty selected folder is a download destination. Check the playlist, review the selection, then download songs before listening offline.
+- Public **Deezer playlists** are supported alongside YouTube and Spotify. Paste the full `https://www.deezer.com/playlist/123456789` browser link (localized links work too). Deezer supplies titles, artists and playlist order; use **Choose recording** to review a YouTube version, then download its audio. Private playlists and short sharing links are not supported. All pages are read, up to 10,000 songs; an incomplete response is reported rather than silently accepting the first page.
 - **Visualizer**, **Constellation** and **Music only** are three separate views. Visual settings appear only with the Visualizer. One-finger swipes rotate the scene; settings sliders require a deliberate sideways drag, so vertical scrolling does not change a value accidentally.
 - **Music only** presents a still listening edition with cover colors, genre-sensitive typography and layered artwork. Compact phones get a tighter layout around the existing player. No continuous graphics or extra artwork downloads are added. See [the design guide](../docs/MUSIC-ONLY.md).
 - **Lyrics** in Visualizer lights up when matching line timestamps are available. Tap it for animated lyrics. Seeking and Bluetooth visual sync are respected; lyrics remain available offline after lookup. Text-only results stay in Behind the sound. Lyrics timing provides per-song offsets and timed-lyrics import/export; words fill smoothly when real word timestamps include their duration. Line-only lyrics use an approximate phrase sweep, with palette-colored glow and a dark backing. The optional recognition tool has been removed ([guide](../docs/LYRICS.md)). Lyrics availability depends on the catalogue and recording; unsupported versions are not given invented timestamps.
@@ -26,11 +26,11 @@ Downloads preserve compressed audio by default without deliberately converting i
 
 Wi-Fi/unmetered playlist checks and downloads are on by default. A 512 MB free-space reserve is checked before each download. Artwork is resized to at most 640 px and the cache defaults to 128 MB. Settings displays linked audio, downloaded audio, artwork, database, extracted tools, APK and free space. Cache clearing never removes songs. Android may also evict artwork itself; rescan/research can restore covers.
 
-The downloader bundles Python/FFmpeg, so the APK is approximately 80 MB and uses additional space when its tools are first extracted. The much larger `.toolchain` folder is PC-only development tooling, never shipped inside the APK.
+The downloader bundles Python/FFmpeg and uses additional space when its tools are first extracted. See the [download page](https://hynekro.github.io/resonance/#download) for the current APK size. The much larger `.toolchain` folder is PC-only development tooling, never shipped inside the APK.
 
 ## Verification and device checks
 
-Native unit tests, Android lint and both ABI builds run through the build script below. Shared web regressions and isolated browser previews cover touch gestures, menus, saved state and representative phone layouts. Browser simulations are not physical S22+ tests.
+Native unit tests, Android lint and both ABI builds run through the build script below. Shared web regressions and isolated browser previews cover touch gestures, menus, saved state and representative phone layouts. Browser simulations are not physical Android device tests.
 
 Before treating a preview as fully device-verified, check:
 

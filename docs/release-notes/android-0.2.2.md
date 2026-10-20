@@ -6,4 +6,4 @@ Includes the 0.2.1 per-track loudness behavior and silence markers. Native playb
 
 Install over the existing app to retain downloaded music and settings. Package ID and signing certificate are preserved; versionCode is 17.
 
-Validation: shared source regressions, rendered transition checks, Android JVM tests, build and lint, plus the startup module graph from the actual APK. No physical S22+ was connected for this release; on-device playback and graphics still need confirmation.
+Validation: shared source regressions, rendered transition checks, Android JVM tests, build and lint, plus the startup module graph from the actual APK. No physical Android device was connected for this release; on-device playback and graphics still need confirmation.

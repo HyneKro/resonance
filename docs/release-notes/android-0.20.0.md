@@ -5,4 +5,4 @@
 - Keep Musical reactivity and remove the old response dropdown, including migration of saved Classic preferences.
 - Preserve the rotated phone scene, Bluetooth visual delay, reduced motion, existing audio playback and phone performance defaults. The extra layer shares the existing buffers and bloom, with a smaller particle budget on mobile.
 
-The ARM64 APK retains the existing package and signing certificate; install over the previous version to preserve your library. Verified with 386 shared tests, 124 native tests, Android builds/lint, phone-size interface and GPU checks, and extracted startup assets. No physical S22+ was available; on-device frame rate, heat and battery use remain device checks.
+The ARM64 APK retains the existing package and signing certificate; install over the previous version to preserve your library. Verified with 386 shared tests, 124 native tests, Android builds/lint, phone-size interface and GPU checks, and extracted startup assets. No physical Android device was available; on-device frame rate, heat and battery use remain device checks.
