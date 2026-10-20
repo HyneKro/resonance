@@ -26,7 +26,7 @@ Downloads preserve compressed audio by default without deliberately converting i
 
 Wi-Fi/unmetered playlist checks and downloads are on by default. A 512 MB free-space reserve is checked before each download. Artwork is resized to at most 640 px and the cache defaults to 128 MB. Settings displays linked audio, downloaded audio, artwork, database, extracted tools, APK and free space. Cache clearing never removes songs. Android may also evict artwork itself; rescan/research can restore covers.
 
-The downloader bundles Python/FFmpeg and uses additional space when its tools are first extracted. See the [download page](https://hynekro.github.io/resonance/#download) for the current APK size. The much larger `.toolchain` folder is PC-only development tooling, never shipped inside the APK.
+The downloader bundles Python/FFmpeg and uses additional space when its tools are first extracted. See the [download page](https://hynekro.github.io/resonance/#downloads) for the current APK size. The much larger `.toolchain` folder is PC-only development tooling, never shipped inside the APK.
 
 ## Verification and device checks
 
