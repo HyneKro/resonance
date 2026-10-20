@@ -52,9 +52,9 @@ test('network failure preserves matching evidence and retries later; ambiguous c
 });
 test('lyrics prefer local files, reuse the persistent network cache, and never use mismatched versions',async()=>{
  const dir=await fs.mkdtemp(path.resolve('test-output/lyrics-')),lib=memory({...track,path:path.join(dir,'song.mp3')}),r={id:2,trackName:track.title,artistName:track.artist,duration:180,plainLyrics:'A test lyric'};let calls=0;
- const reader=createLyricsReader(lib,{json:async()=>{calls++;return r;}});assert.equal((await reader('t')).text,'A test lyric');assert.equal((await reader('t')).source,'LRCLIB');assert.equal(calls,1);
- await fs.writeFile(path.join(dir,'song.lrc'),'[00:01.00]My local lyric');assert.equal((await reader('t')).text,'My local lyric');assert.equal(calls,1);
- lib.tracks.set('t',{...track,path:path.join(dir,'other.mp3'),title:'Tidal live'});assert.equal((await reader('t')).text,'');assert.equal(calls,3);
+ const reader=createLyricsReader(lib,{json:async()=>{calls++;return r;}});assert.equal((await reader('t')).text,'A test lyric');assert.equal((await reader('t')).source,'LRCLIB');assert.equal(calls,2);
+ await fs.writeFile(path.join(dir,'song.lrc'),'[00:01.00]My local lyric');assert.equal((await reader('t')).text,'My local lyric');assert.equal(calls,2);
+ lib.tracks.set('t',{...track,path:path.join(dir,'other.mp3'),title:'Tidal live'});assert.equal((await reader('t')).text,'');assert.equal(calls,4);
 });
 test('artwork downloads reject private redirects, oversized responses and low resolution placeholders',async()=>{
  assert.equal(allowedRemote('https://127.0.0.1/a'),false);assert.equal(allowedRemote('https://i.ytimg.com.evil.org/a'),false);assert.equal(allowedRemote('https://x.archive.org/a'),true);

@@ -1,0 +1,21 @@
+#dynamic-lyrics{white-space:nowrap;gap:7px;transition:background .25s,color .25s,box-shadow .25s}
+#dynamic-lyrics::before{content:'♪';font-size:15px;opacity:.55}
+#dynamic-lyrics:disabled{opacity:.48;cursor:default}
+#dynamic-lyrics.lyrics-ready{color:var(--accent-light,#eee6ff);border-color:color-mix(in srgb,var(--ui-accent,#cbb3ff) 65%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--ui-accent,#cbb3ff) 12%,transparent)}
+#dynamic-lyrics.lyrics-ready::before{opacity:1;text-shadow:0 0 8px var(--ui-accent,#cbb3ff)}
+#dynamic-lyrics[aria-pressed=true]{background:color-mix(in srgb,var(--ui-accent,#cbb3ff) 24%,#11111b);box-shadow:inset 0 0 0 1px #ffffff25}
+.dynamic-lyrics{position:absolute;z-index:3;inset:24% 12% 24%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;pointer-events:none;text-align:center;color:#fff;isolation:isolate}
+.dynamic-lyrics[hidden],body:not([data-listening-mode=visualizer]) .dynamic-lyrics{display:none}
+.dynamic-lyrics::before{content:'';position:absolute;z-index:-1;inset:-10% -8%;background:radial-gradient(ellipse,#080a137a 0%,#080a1340 45%,transparent 72%);pointer-events:none}
+.dynamic-lyrics p{margin:0;white-space:pre-line;overflow-wrap:anywhere;max-width:100%;text-wrap:balance;letter-spacing:var(--lyric-tracking,0);text-shadow:0 2px 12px #000,0 1px 3px #000}
+.lyric-current{font-family:system-ui,sans-serif;font-weight:650;font-size:clamp(24px,calc(3.2vw * var(--lyric-scale,1)),55px);line-height:1.28}
+.lyric-context{font:400 clamp(13px,1.2vw,20px)/1.4 system-ui,sans-serif;opacity:.5;max-height:3em;overflow:hidden}
+.lyric-previous{opacity:.32}
+.dynamic-lyrics[data-style=serif] .lyric-current{font-family:Georgia,'Noto Serif',serif;font-weight:500}
+.dynamic-lyrics[data-style=bold] .lyric-current{font-family:'Arial Black',system-ui,sans-serif;font-weight:850}
+.dynamic-lyrics[data-style=electronic] .lyric-current{font-family:'Trebuchet MS',system-ui,sans-serif;font-weight:650}
+.dynamic-lyrics[data-style=soft] .lyric-current{font-family:'Segoe UI',system-ui,sans-serif;font-weight:500}
+.dynamic-lyrics.lyric-break .lyric-previous{visibility:hidden}
+@media(max-width:700px){.dynamic-lyrics{inset:25% 6% 38%;gap:14px}.lyric-current{font-size:clamp(18px,calc(6vw * var(--lyric-scale,1)),30px);line-height:1.32}.lyric-context{font-size:13px}.lyric-previous{display:none}#dynamic-lyrics{font-size:12px}}
+@media(max-height:500px){.dynamic-lyrics{inset:27% 16% 33%;gap:7px}.lyric-current{font-size:22px}.lyric-context{display:none}}
+@media(prefers-reduced-motion:reduce){#dynamic-lyrics{transition:none}}

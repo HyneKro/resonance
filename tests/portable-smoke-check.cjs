@@ -1,4 +1,6 @@
 const {app,BrowserWindow,ipcMain,screen}=require('electron'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
+// A detached test launcher may close its output pipe before Electron exits.
+for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.code!=='EPIPE')app.exit(1);});
 const workspace=path.resolve(__dirname,'..'),root=process.env.RESONANCE_TEST_APP_ROOT||path.join(workspace,'test-output/portable-full-install/resources/app'),out=path.join(workspace,'test-output/release-work/portable-smoke'),errors=[];
 fs.mkdirSync(out,{recursive:true});
 app.setPath('userData',path.join(out,'portable-smoke-profile'));let win,service,finished=false;

@@ -27,7 +27,8 @@ public class DownloadedAudioTest {
                 Files.write(saved.toPath(),audio);
                 JSONObject track=app.library.readAudio(Uri.fromFile(saved),saved.getName(),saved.length(),saved.lastModified(),"test",1,Json.object("downloaded",true));
                 Json.put(track,"path",Uri.fromFile(new File(app.library.music,"stale/"+saved.getName())).toString());app.library.save(track);
-                app.onMain(()->{PlaybackService.instance.load(new JSONArray().put(track.optString("id")),0,0,true);return null;});
+                var prepared=PlaybackService.prepareQueue(new JSONArray().put(track.optString("id")));
+                app.onMain(()->{PlaybackService.instance.loadPrepared(prepared,track.optString("id"),0,true);return null;});
                 assertPlaying(app,ext+" with an outdated file path");
                 assertEquals(Uri.fromFile(saved).toString(),app.library.track(track.optString("id")).optString("path"));
                 JSONObject probe=app.library.audioDetails(track.optString("id"));assertTrue(probe.optBoolean("readable"));assertEquals(saved.length(),probe.optLong("actualBytes"));
@@ -35,7 +36,7 @@ public class DownloadedAudioTest {
                 // An existing library entry whose file becomes available after a failed attempt.
                 File late=new File(app.library.music,"instrumentation-retry-"+System.nanoTime()+"."+ext);
                 JSONObject retry=Json.object("id",LibraryStore.id(late.toString()),"title","Retry test","path",Uri.fromFile(late).toString(),"fileName",late.getName(),"downloaded",true);
-                app.library.save(retry);app.onMain(()->{PlaybackService.instance.load(new JSONArray().put(retry.optString("id")),0,0,true);return null;});
+                app.library.save(retry);var retryPrepared=PlaybackService.prepareQueue(new JSONArray().put(retry.optString("id")));app.onMain(()->{PlaybackService.instance.loadPrepared(retryPrepared,retry.optString("id"),0,true);return null;});
                 deadline=System.currentTimeMillis()+15000;JSONObject status;
                 do{Thread.sleep(100);status=app.onMain(()->PlaybackService.instance.state());}while(status.optString("errorCode").isEmpty()&&System.currentTimeMillis()<deadline);
                 assertEquals("ERROR_CODE_IO_FILE_NOT_FOUND",status.optString("errorCode"));

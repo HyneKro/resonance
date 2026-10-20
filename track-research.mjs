@@ -1,3 +1,4 @@
+import {lyricsJSON} from './lyrics-provider.mjs';
 import {GENRE_RESEARCH_VERSION} from './genre-research.mjs';
 import {createTrackCharacter,themeCues} from './public/track-character.js';
 import {exactLyrics,lyricKey,lyricRecord,findExactLyrics} from './track-lyrics.mjs';
@@ -35,7 +36,7 @@ export class TrackResearch{
    const list=await attempt(()=>this.lib.candidates(id));const best=list?.[0];if(best?.confidence>=95&&(!list[1]||best.confidence>list[1].confidence||best.title===list[1].title&&best.artist===list[1].artist))candidate=best;
    if(candidate&&!['manual','confirmed'].includes(t.metadataStatus)){await attempt(()=>this.lib.applyCandidate(id,candidate.id,true,candidate));t=this.lib.tracks.get(id)||t;}
    const chosen=this.lib.getSetting('trackLyrics:'+id);
-   const lyrics=chosen?.confirmed&&chosen.stamp===lyricKey(t)?null:await attempt(()=>findExactLyrics(t,this.json,{signal:this.abort.signal}));
+   const lyrics=chosen?.confirmed&&chosen.stamp===lyricKey(t)?null:await attempt(()=>findExactLyrics(t,this.json===remoteJSON?lyricsJSON:this.json,{signal:this.abort.signal}));
    if(chosen?.confirmed&&chosen.stamp===lyricKey(t)){result.cues=themeCues(chosen.text);result.sources.push({name:'LRCLIB',url:chosen.url});}
    if(exactLyrics(t,lyrics)){result.lyrics=lyricRecord(t,lyrics);result.cues=themeCues((lyrics.plainLyrics||lyrics.syncedLyrics||'').slice(0,64000));result.instrumental=!!lyrics.instrumental;result.sources.push({name:'LRCLIB',url:'https://lrclib.net/api/get/'+lyrics.id});}
   }

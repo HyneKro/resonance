@@ -26,8 +26,9 @@ public class ShufflePlaybackTest {
         }
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
             long deadline=System.currentTimeMillis()+20000;while(PlaybackService.instance==null&&System.currentTimeMillis()<deadline)Thread.sleep(50);assertNotNull(PlaybackService.instance);
+            var prepared=PlaybackService.prepareQueue(ids);
             JSONObject shuffled=app.onMain(()->{
-                PlaybackService s=PlaybackService.instance;s.player.setVolume(0);s.shuffle(false);s.load(ids,2,800,false);
+                PlaybackService s=PlaybackService.instance;s.player.setVolume(0);s.shuffle(false);s.loadPrepared(prepared,ids.optString(2),800,false);
                 s.player.setRepeatMode(Player.REPEAT_MODE_ONE);s.shuffle(true);
                 assertEquals(ids.optString(2),s.state().optString("id"));assertEquals(800,s.player.getCurrentPosition());
                 assertFalse(s.player.getPlayWhenReady());assertEquals(Player.REPEAT_MODE_ALL,s.player.getRepeatMode());return s.state();

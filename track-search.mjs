@@ -1,10 +1,10 @@
 import {randomUUID} from 'node:crypto';
 import {matchScore,searchTitle,searchArtist} from './metadata.mjs';
 import {lyricKey,lyricRecord} from './track-lyrics.mjs';
-import {remoteJSON} from './remote-artwork.mjs';
+import {lyricsJSON,searchLyrics} from './lyrics-provider.mjs';
 import {themeCues} from './public/track-character.js';
 import {metadataSnapshot} from './public/metadata-review.js';
-export function createTrackSearch(lib,{json=remoteJSON}={}){
+export function createTrackSearch(lib,{json=lyricsJSON}={}){
  const pending=new Map();
  async function search(id,{artist,title}={}){
   const track=lib.tracks.get(id);if(!track)throw Error('Track not found');
@@ -13,7 +13,7 @@ export function createTrackSearch(lib,{json=remoteJSON}={}){
   if(!title)throw Error('Enter a song title.');
   const results=await Promise.allSettled([
    lib.candidates(id,artist?artist+' - '+searchTitle(title,artist):searchTitle(title,artist),{force:true}),
-   json('https://lrclib.net/api/search?'+new URLSearchParams({track_name:searchTitle(title,artist),...(artist?{artist_name:artist}:{})}))
+   searchLyrics({...track,title,artist,artists:undefined,artistIds:undefined},json)
   ]);
   const recordings=results[0].status==='fulfilled'?results[0].value:[],raw=results[1].status==='fulfilled'&&Array.isArray(results[1].value)?results[1].value:[];
   const lyrics=raw.filter(r=>Number.isSafeInteger(r.id)&&r.id>0&&(r.plainLyrics||r.syncedLyrics||r.instrumental)).slice(0,50).map(r=>({id:String(r.id),title:r.trackName,artist:r.artistName,album:r.albumName||'',duration:r.duration||0,confidence:Math.round(matchScore(track,{title:r.trackName,artist:r.artistName,duration:r.duration})*100),...lyricRecord(track,r)})).sort((a,b)=>b.confidence-a.confidence).slice(0,12);
@@ -28,7 +28,7 @@ export function createTrackSearch(lib,{json=remoteJSON}={}){
   if(!saved||saved.request!==request||saved.stamp!==lyricKey(t))throw Error('These results are out of date. Search again.');
   if(kind==='lyrics'){
    const c=saved.lyrics.find(c=>c.id===String(candidateId));if(!c)throw Error('Choose a result from this search.');
-   const value={stamp:lyricKey(t),savedAt:Date.now(),source:c.source,url:c.url,text:c.text,instrumental:c.instrumental,confirmed:true};
+   const value={stamp:lyricKey(t),savedAt:Date.now(),source:c.source,url:c.url,text:c.text,instrumental:c.instrumental,syncedLyrics:c.syncedLyrics,lines:c.lines,status:c.status,version:c.version,timingNotice:c.timingNotice,confirmed:true};
    lib.setSetting('trackLyrics:'+id,value);
    // A chosen lyric also refreshes the stored visual cues without inventing themes.
    const prior=lib.getSetting('characterResearch:'+id)||{};lib.setSetting('characterResearch:'+id,{...prior,trackKey:lyricKey(t),cues:themeCues(c.text),sources:[...(prior.sources||[]).filter(s=>s.name!=='LRCLIB'),{name:'LRCLIB',url:c.url}]});
