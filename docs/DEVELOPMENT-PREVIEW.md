@@ -1,6 +1,6 @@
-# Development preview: discovery and personal setup
+# Discovery and personal setup: approved development batch
 
-This batch is on `development` for testing through a separate development update channel. It is **not an approved live release**. Windows is `1.25.0-dev.8`; Android is `0.25.0-dev.8` (versionCode 65). Regular installations and the main download page stay on the approved versions.
+This batch was approved after testing Windows `1.25.0-dev.8` and Android `0.25.0-dev.8` (versionCode 65). It ships in **Windows 1.25.0** and **Android 0.25.0-preview** (versionCode 66). See the [release notes](release-notes/pc-1.25.0.md). The checklist below records the reviewed scope; future development work still requires separate approval.
 
 ## What to try
 
@@ -30,9 +30,9 @@ If you already have Windows 1.25.0-dev.3 or Android 0.25.0-dev.3, use the normal
 
 Extract the Windows development ZIP into its own folder. It starts with a separate, empty portable data folder. Keep the ordinary installation intact; do not extract this preview over it. Import a settings export and connect music folders if you want to try your own collection.
 
-The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The next approved APK must use a versionCode above 65. Do not uninstall to return to a release, since uninstalling removes private app data.
+The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The approved 0.25.0-preview APK uses versionCode 66 and can update dev.8 in place. Do not uninstall to return to a release, since uninstalling removes private app data.
 
-Automated checks and desktop simulations do not establish physical-phone performance, Android file-picker behavior or screen-reader usability. Those still need device testing before release approval.
+Automated checks and desktop simulations do not establish physical-phone performance, Android file-picker behavior or screen-reader usability. Those remain physical-device testing limitations of this release.
 
 ## Transport checks in dev.6
 

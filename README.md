@@ -44,7 +44,7 @@ Every available song is a star. Navigate artist and genre groups, play a star, o
 
 ![The Music only listening edition, using an original fictional Night Atlas cover.](download-page/media/music-only.jpg)
 
-Cover artwork, sampled color and expressive typography form a quiet listening edition. Four treatments adapt to genre. Playback, song details and the next track remain close, while the animated scenes stop rendering.
+Cover artwork, sampled color and expressive typography form a quiet listening edition. Four treatments adapt to genre. Layers from the current cover drift slowly on Windows; Android and reduced-motion layouts remain still. Playback, song details and the next track remain close, while the animated scenes stop rendering.
 
 *All previews use fictional song and artist names, original procedural demo artwork and synthetic audio. No personal collection or device data is shown.*
 
@@ -56,6 +56,8 @@ Cover artwork, sampled color and expressive typography form a quiet listening ed
 Browse artists, genres, favorites, recent plays, tracks and long mixes. Library review separates uncertain artist credits, missing genres and possible copies. Saved corrections take priority over automatic suggestions, with Undo available. Original audio files are not retagged, and possible duplicates are never automatically deleted.
 
 Catalogue coverage is imperfect. Repost channels, ambiguous titles and unusual recordings can still need review.
+
+**Smart collections** live in Library and fill themselves from your music. Start with the built-in collections or combine rules for artists, genres, favorites, listening history and duration. **Activity & checks** gathers background progress and quick actions for library maintenance.
 
 [Library guide](https://hynekro.github.io/resonance/guide.html#library) · [How evidence and corrections work](docs/LIBRARY-UNDERSTANDING.md)
 
@@ -107,7 +109,7 @@ Sona is the default optional companion, with additional appearances. Windows can
 
 Both apps check GitHub for updates. Windows installs when you choose **Restart & update**; Android requires its system installer confirmation. Your library and settings are preserved. Windows automatically removes obsolete completed update files while retaining one rollback backup.
 
-Local playback and sound measurements stay on the device. Online artwork, lyric and metadata lookups send song/artist search terms to providers. Downloads contact their source; update checks contact GitHub. There is no automatic PC-to-phone library sync.
+Local playback and sound measurements stay on the device. Online artwork, lyric and metadata lookups send song/artist search terms to providers. Downloads contact their source; update checks contact GitHub. **Transfer settings** moves shared preferences, playlist links and supported song customizations through a small file you export and import yourself. It does not move music or listening history, and there is no automatic PC-to-phone library sync. Keep exported files private: they contain your preferences and song/playlist details.
 
 When reporting an issue, remove personal paths, names and playlist links from screenshots or diagnostics. Never upload library databases, cookies or credentials. See [privacy and help](https://hynekro.github.io/resonance/guide.html#privacy).
 

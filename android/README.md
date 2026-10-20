@@ -1,6 +1,6 @@
 # Resonance for Android
 
-The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.24.0-preview** (versionCode 57), built for ARM64 phones.
+The Android app shares Resonance's visual identity and music-library features, with native Media3 playback, system media controls and a touch interface. The current preview is **0.25.0-preview** (versionCode 66), built for ARM64 phones.
 
 **[Download the latest APK](https://hynekro.github.io/resonance/)** and install it over the existing app. The package ID and signing identity must stay unchanged. Uninstalling deletes private app music and data; an update does not require uninstalling.
 
