@@ -7,6 +7,14 @@ param(
 )
 $ErrorActionPreference='Stop'
 $project=Split-Path $PSScriptRoot -Parent
+if(!$ValidateOnly){
+ # Android prereleases are consumed by installed apps, so they cannot be used
+ # as a development channel. Owner approval is required by AGENTS.md as well.
+ $branch=& git -C $project symbolic-ref --quiet --short HEAD
+ if($LASTEXITCODE -ne 0 -or $branch -ne 'main'){
+  throw 'Release uploads require the approved source on main. Keep development builds local; use -ValidateOnly to check an artifact without uploading.'
+ }
+}
 $archive=Get-Item -LiteralPath $File
 $notesFile=Get-Item -LiteralPath $Notes
 $repository='HyneKro/resonance'

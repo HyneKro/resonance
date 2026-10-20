@@ -21,13 +21,23 @@ Clients read public GitHub release metadata without a token. Checks share normal
 
 Personal music, library databases, cache, local configuration, signing keys, downloaded tools, build folders and checkpoints are excluded from source control. Use `npm run audit:repository` before pushing; `node scripts/audit-repository.mjs --history` also checks committed history. This is an additional check, not a guarantee. Review files before publication. Signing keys stay private and must be backed up independently.
 
-## Publishing a new version
+## Develop, test, then approve
 
-**Standing owner instruction:** every new application release includes both Windows and Android builds published here, unless the owner explicitly requests a narrower release. Publication of tested releases is already authorized. See [AGENTS.md](../AGENTS.md). Documentation-only changes do not need an app version bump or binary release.
+`codex/development` is the working branch; `main` is the live source. Push reviewed development commits to the working branch and prepare local Windows/Android builds for testing. Keep the installed Windows app separate from the test portable folder and use isolated test data by default. Never include a personal library in a shared test build.
+
+The owner must explicitly confirm the current changes before merging or pushing them to `main`, publishing app releases, or deploying the live website. This approval step replaces the earlier automatic-publication instruction. Prepare the changes and test builds first so the owner can approve a concrete result. Implementation requests and requests for test builds do not authorize a live release.
+
+Development builds must not be published as ordinary GitHub Releases: Android clients also discover prereleases, so marking a build as a prerelease does not isolate it from friends' updaters. Use local ZIP/APK artifacts for testing unless a separate distribution method is requested. Explain whether an Android test APK will update the existing installation; retain signing identity and user data.
+
+Once the tested batch is approved, integrate it into `main` and follow the two-platform release process below. Approval applies to that batch, not all future changes. Development-branch pushes do not deploy the website; its push trigger remains restricted to `main`.
+
+## Publishing an approved version
+
+**Standing owner instruction:** every approved application release includes both Windows and Android builds published here, unless the owner explicitly requests a narrower release. Once the owner approves the current batch, finish publication without asking again. See [AGENTS.md](../AGENTS.md). Documentation-only changes do not need an app version bump or binary release, but live publication still follows the approval step above.
 
 1. Increase both platform versions beyond their latest published versions; their numbering remains independent. For Android also increase versionCode and preserve the original signing key. Update `android/tools/build.ps1`'s output name.
 2. Test and build both platforms. Windows: `npm test`, `npm run package`, then `npm run share`. Android: follow `android/README.md` and run the build/unit/lint checks. Copy the clean Windows ZIP to its versioned filename. To leave a running desktop installation untouched, use `node scripts/package.mjs --stage-only`, then set `RESONANCE_RUNTIME_DIR` to `desktop-staging/Resonance-win32-x64` when sharing.
-3. Commit and push the reviewed source. A source push alone does not create an app update.
+3. Commit and push the approved, reviewed source to `main`. A source push alone does not create an app update. The release upload helper refuses uploads from other branches; `-ValidateOnly` remains available on the development branch.
 4. Upload a draft release with the helper, using platform-specific tags and tested artifacts:
 
 ```powershell

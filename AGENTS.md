@@ -1,8 +1,19 @@
 # Resonance project instructions
 
-## Standing release requirement
+## Development and approval workflow
 
-The owner requested on 2026-10-17 that every future application version be published on GitHub for **both Windows and Android**, so friends receive it through the in-app updater. Treat building, verifying and publishing both platforms as part of completing a new app release, unless the owner explicitly narrows that release's scope. Routine publication of tested releases to the public `HyneKro/resonance` repository is already authorized; do not ask for the same permission again.
+On 2026-10-20 the owner requested a testing stage before changes go live. This supersedes the earlier blanket authorization to publish tested releases automatically.
+
+- `codex/development` is the working branch. Implement, review, commit and push development work there. `main` is the live branch; keep it unchanged until the owner explicitly confirms the proposed changes for release.
+- Prepare and verify local Windows and Android test builds, then let the owner test them. A request to implement a feature or produce a test build is not release approval. Report the tested revision, what changed, how to try it and any limitations.
+- Do not merge or push to `main`, publish GitHub Releases, or deploy the live website before approval for the current batch. Once that approval is given, complete the release without asking for the same permission again. Material changes after approval need renewed review.
+- Development builds stay out of the public updater feed. In particular, an Android GitHub prerelease is a live update, not an isolated testing channel. Use local artifacts for testing unless the owner explicitly requests a separate distribution method.
+- Keep Windows test builds in a separate portable folder with isolated test data by default. Do not overwrite the owner's installed app or copy personal data into a distributable. Android tests must clearly explain whether they update the existing app; preserve its signing identity and data, and never require uninstalling to switch versions.
+- After approval, integrate the reviewed work into `main`, run the release checks below, and publish both platforms. If integration changes the reviewed behavior, test and resolve that before publication.
+
+## Approved release requirements
+
+The owner requested on 2026-10-17 that every application release include **both Windows and Android**, so friends receive it through the in-app updater. This still applies after the approval step above, unless the owner explicitly narrows that release's scope. An unapproved development batch is complete for review when its changes and test builds are ready; do not publish merely to satisfy the two-platform requirement.
 
 - Finish and test the requested changes before releasing. Group intermediate edits into a completed release; do not publish every work-in-progress change.
 - Apply relevant shared changes to both runtimes while preserving platform-specific behavior and mobile performance defaults.
