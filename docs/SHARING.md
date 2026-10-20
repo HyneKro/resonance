@@ -23,7 +23,7 @@ Personal music, library databases, cache, local configuration, signing keys, dow
 
 ## Develop, test, then approve
 
-`codex/development` is the working branch; `main` is the live source. Push reviewed development commits to the working branch and prepare local Windows/Android builds for testing. Keep the installed Windows app separate from the test portable folder and use isolated test data by default. Never include a personal library in a shared test build.
+`development` is the working branch; `main` is the live source. Push reviewed development commits to the working branch and prepare local Windows/Android builds for testing. Keep the installed Windows app separate from the test portable folder and use isolated test data by default. Never include a personal library in a shared test build.
 
 The owner must explicitly confirm the current changes before merging or pushing them to `main`, publishing app releases, or deploying the live website. This approval step replaces the earlier automatic-publication instruction. Prepare the changes and test builds first so the owner can approve a concrete result. Implementation requests and requests for test builds do not authorize a live release.
 
