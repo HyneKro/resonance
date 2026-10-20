@@ -1,3 +1,4 @@
+import {accessibilitySettings} from './accessibility.js';
 import {settingsHub,sectionTabs} from './menu-kit.js';
 import {storageCard,mountStorage} from './storage-ui.js';
 export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress}){
@@ -5,9 +6,10 @@ export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,ap
  function open(page='home'){
   if(page==='playback'){soundDialog();return;}
   if(page==='home'){showDialog('Settings','',settingsHub());return;}
+  if(page==='accessibility'){showDialog('Accessibility','Make the interface comfortable to read and navigate.',accessibilitySettings(state.prefs));return;}
   if(page==='library'){
    showDialog('Library & downloads','Connect, refresh and organize your collection.',
-    card('Add & update music','<div class="source-actions"><button class="primary" data-source-add>Add music</button><button class="secondary" data-action="sync">Playlist downloads</button><button class="secondary" data-source-manage>Manage sources</button><button class="secondary" data-action="scan">Rescan folders</button></div><p>Rescan finds files already on your computer. Playlist downloads finds new songs online.</p><p id="scan-errors" class="fine-print"></p>')+
+    card('Add & update music','<div class="source-actions"><button class="primary" data-source-add>Add music</button><button class="secondary" data-smart-open>Smart collections</button><button class="secondary" data-action="sync">Playlist downloads</button><button class="secondary" data-source-manage>Manage sources</button><button class="secondary" data-action="scan">Rescan folders</button></div><p>Rescan finds files already on your computer. Playlist downloads finds new songs online.</p><p id="scan-errors" class="fine-print"></p>')+
     card('Download quality',`<div class="setting-row"><div><h3>New downloads</h3><p>Original quality avoids another encode. FLAC uses more space without restoring lost detail.</p></div><select id="download-format" aria-label="Download quality"><option value="best" ${state.config.downloadFormat==='best'?'selected':''}>Original quality</option><option value="flac" ${state.config.downloadFormat==='flac'?'selected':''}>FLAC</option></select></div>`)+
     card('Library details','<p>Find missing artists, releases and genres. Your manual edits are protected.</p><div class="source-actions"><button class="secondary" data-action="review-metadata">Library review</button><button class="secondary" data-action="enrich">'+(state.status.enrich?.running?'Pause matching':'Find artist & release details')+'</button></div><p id="enrich-status" class="fine-print"></p><div class="setting-row"><div><h3>Genre discovery</h3><p data-genre-progress role="status"></p></div><button class="secondary" data-action="genres">Discover genres</button></div><button class="text-button" data-settings-genres>Browse genres →</button>'));
    updateGenreProgress(state.status.genres);return;

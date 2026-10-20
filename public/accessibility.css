@@ -1,0 +1,18 @@
+/* Interface scale changes text, never the canvas or viewport. */
+:root{--ui-text-scale:1}
+:root.strong-text dialog,:root[data-text-size=large] dialog{background:#11101b!important}
+.accessibility-switch{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px}
+.accessibility-switch input{width:20px;height:20px;flex-shrink:0}
+:where(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid #e7d7ff!important;outline-offset:4px!important;box-shadow:0 0 0 6px #080b16c9!important}
+.strong-text :is(.fine-print,.muted,.cx-muted,.menu-footnote,.menu-intro,.cx-song p,.cx-song-facts,.cx-discovery-artist,.cx-discovery p,.track-info small,.card-meta p,.edition-format,.edition-genre,.edition-album,.help-grid p,.settings-card p,.card p,.nav-count){color:#d0cbdc!important}
+.strong-text :is(.cx-song small,.cx-track-panel h4,.cx-map-hint,.cx-map-controls span){color:#d8d0e4!important;opacity:1}
+:is(.settings-card,.card) label.field{display:grid;gap:9px;margin:16px 0}
+.settings-card select{max-width:100%}
+[data-text-size=large] :is(.room-top,.cx-command){flex-wrap:wrap}
+[data-text-size=large] .cx-track-panel{--cx-rail:350px}
+@media(max-width:750px){
+ [data-text-size=large] .constellation .cx-track-panel{height:182px}
+ [data-text-size=large] .constellation .cx-map-controls{bottom:calc(var(--cx-bottom) + 193px)}
+ [data-text-size=large] .constellation.cx-detail-expanded .cx-track-panel{height:auto}
+ [data-text-size=large] .mobile-modes button{padding-inline:8px}
+}

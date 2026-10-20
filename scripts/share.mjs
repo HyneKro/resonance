@@ -13,7 +13,7 @@ await fs.mkdir(appDir,{recursive:true});
 // music, cookies, thumbnail cache, download archive, debug log, or source configuration.
 for(const name of ['locales','chrome_100_percent.pak','chrome_200_percent.pak','d3dcompiler_47.dll','dxcompiler.dll','dxil.dll','ffmpeg.dll','icudtl.dat','LICENSE','LICENSES.chromium.html','Resonance.exe','resources.pak','snapshot_blob.bin','v8_context_snapshot.bin','version','vk_swiftshader_icd.json','vk_swiftshader.dll','vulkan-1.dll'])await fs.cp(path.join(runtime,name),path.join(destination,name),{recursive:true});
 await resedit(path.join(destination,'Resonance.exe'),{iconPath:path.join(root,'public','icon.ico')});
-for(const name of ['lyrics-settings.mjs','audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','deezer.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','lyrics-provider.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
+for(const name of ['portable-settings.mjs','lyrics-settings.mjs','audio-research.mjs','storage.mjs','genre-research.mjs','spotify.mjs','deezer.mjs','metadata.mjs','genres.mjs','track-search.mjs','server.mjs','track-lyrics.mjs','lyrics-provider.mjs','track-research.mjs','remote-artwork.mjs','visual-identity.mjs','library.mjs','metadata.mjs','genres.mjs','sync.mjs','sources.mjs','public','electron'])await fs.cp(path.join(root,name),path.join(appDir,name),{recursive:true});
 await embedSkybox(root,path.join(appDir,'public'));
 await fs.cp(path.join(runtime,'resources','app','node_modules'),path.join(appDir,'node_modules'),{recursive:true});
 const pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));delete pkg.devDependencies;delete pkg.scripts;
@@ -94,6 +94,11 @@ Drag the translucent title bar to move the window; double-click to maximize/rest
 This clean copy contains no music, personal sources, listening history or accounts.
 Once you use it, its data folder is personal: do not redistribute that used folder.
 `);
+if(pkg.version.includes('-dev.')){
+  const instructions=await fs.readFile(path.join(destination,'START HERE.txt'),'utf8');
+  const preview=await fs.readFile(path.join(root,'docs','DEVELOPMENT-PREVIEW.md'),'utf8');
+  await fs.writeFile(path.join(destination,'START HERE.txt'),'DEVELOPMENT PREVIEW — FOR TESTING\n\nExtract into a separate folder. Do not overwrite your regular installation.\nThis build is not published in the updater feed.\n\n'+preview+'\n\n'+instructions);
+}
 // Every distributable carries an integrity manifest for in-place portable updates.
 const updateFiles=[];
 async function inventory(dir,relative=''){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const name=relative+entry.name,file=path.join(dir,entry.name);if(entry.isDirectory())await inventory(file,name+'/');else{const bytes=await fs.readFile(file);updateFiles.push({path:name,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}}}

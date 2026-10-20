@@ -48,8 +48,15 @@ export function paintMapMarkers(root,markers){
   let entry=pool.get(marker.id);
   if(!entry){const button=root.ownerDocument.createElement('button');button.type='button';button.dataset.cxGroup=marker.id;root.append(button);entry={button};pool.set(marker.id,entry);}
   const {button}=entry;button.classList.toggle('cx-queue-marker',!!marker.queue);
-  const values={label:marker.name,aria:marker.aria||(marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs'),navigation:!!marker.navigation,opacity:(marker.opacity??1).toFixed(3),pointerEvents:marker.interactive===false?'none':'auto',transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
-  if(values.label!==entry.label)button.textContent=values.label;
+  const values={label:marker.name,queueIndex:marker.queueIndex,aria:marker.aria||(marker.caption?'Play '+marker.name:null)||(marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs'),navigation:!!marker.navigation,opacity:(marker.opacity??1).toFixed(3),pointerEvents:marker.interactive===false?'none':'auto',transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
+  const kind=marker.queue?(marker.queueIndex===0?'playing':'upcoming'):marker.caption?'song':marker.kind||'home';
+  button.dataset.markerKind=kind;
+  if(marker.caption){delete button.dataset.cxGroup;button.dataset.cxSelect=marker.id.slice(8);}
+  if(values.label!==entry.label||kind!==entry.kind||marker.queueIndex!==entry.queueIndex){
+   const tag=root.ownerDocument.createElement('span'),name=root.ownerDocument.createElement('span');
+   tag.className='cx-marker-kind';tag.textContent={playing:'Playing',upcoming:marker.queueIndex===1?'Next':String(marker.queueIndex),song:'Song',genre:'Genre',artist:'Artist',home:'◎'}[kind]||'';
+   name.className='cx-marker-name';name.textContent=values.label;button.replaceChildren(tag,name);entry.kind=kind;
+  }
   if(values.aria!==entry.aria){button.setAttribute('aria-label',values.aria);button.title=values.aria;}
   if(values.navigation!==entry.navigation)button.classList.toggle('cx-waypoint',values.navigation);
   for(const key of ['transform','width','height','opacity','pointerEvents'])if(values[key]!==entry[key])button.style[key]=values[key];

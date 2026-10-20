@@ -49,8 +49,8 @@ export function drawJourneyThread(c,segment,time,index,reduced=false){
 export function drawListeningLink(c,segment,{elapsed,head,active=false,paused=false,color='#b8d8ff'}={}){
  c.save();c.globalCompositeOperation='screen';c.setLineDash([]);
  const stroke=(edge,width,ink)=>{if(!edge)return;c.strokeStyle=ink;c.lineWidth=width;c.beginPath();c.moveTo(edge.a.x,edge.a.y);c.lineTo(edge.b.x,edge.b.y);c.stroke();};
- stroke(segment,active?2:1,color+(active?'40':'50'));
- if(active){stroke(elapsed,11,color+'12');stroke(elapsed,5,color+'30');stroke(elapsed,1.8,color+'ef');
+ stroke(segment,active?2.4:1.5,color+(active?'95':'80'));
+ if(active){stroke(elapsed,11,color+'18');stroke(elapsed,5,color+'45');stroke(elapsed,2.2,'#f1f6ff');
   if(head){const {x,y}=head,size=paused?8:13,g=c.createRadialGradient(x,y,0,x,y,size);g.addColorStop(0,'#ffffff');g.addColorStop(.13,'#f2f6ff');g.addColorStop(.35,color+'c0');g.addColorStop(1,color+'00');c.fillStyle=g;c.fillRect(x-size,y-size,2*size,2*size);c.strokeStyle='#ffffffc0';c.lineWidth=.8;c.beginPath();c.arc(x,y,paused?4:5,0,Math.PI*2);c.stroke();}
  }
  c.restore();

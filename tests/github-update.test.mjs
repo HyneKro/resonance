@@ -11,6 +11,12 @@ const {OnlineUpdate,restoreRelease,checkInterval}=require('../electron/online-up
 const content=Buffer.from('verified portable archive'),hash=createHash('sha256').update(content).digest('hex');
 function release(v='1.1.5',platform='pc'){const name=platform==='pc'?`Resonance-PC-${v}-portable.zip`:`Resonance-Android-${v}.apk`,tag=platform+'-v'+v;return {tag_name:tag,assets:[{name,size:content.length,state:'uploaded',digest:'sha256:'+hash,browser_download_url:RELEASES_URL+'/download/'+tag+'/'+name}],body:'Changes'};}
 const dir=async()=>fs.mkdtemp(path.join(process.cwd(),'test-output','github-update-'));
+test('development installs can upgrade to approved versions without exposing development releases',()=>{
+ assert.equal(selectRelease([release('1.25.0'),release('99.0.0-dev.1')],'1.25.0-dev.1').version,'1.25.0');
+ assert.equal(selectRelease([release('0.25.0-preview','android'),release('99.0.0-dev.1','android')],'0.25.0-dev.1','android').version,'0.25.0-preview');
+ assert.equal(selectRelease([release('99.0.0-dev.1','android')],'0.24.0-preview','android'),null);
+ assert.equal(selectRelease([release('1.24.0')],'1.25.0-dev.1'),null);
+});
 test('platform-specific updates use numeric versions, skip drafts, incomplete releases and downgrades',()=>{
  assert.equal(compareVersions('1.1.10','1.1.9'),1);assert.equal(compareVersions('0.1.12','0.1.12-preview'),1);
  const bad=release('9.0.0');bad.assets[0].digest='';

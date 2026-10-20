@@ -12,7 +12,8 @@ export function editionMetadata(track={}){
   format:[track.codec?.toUpperCase(),track.sampleRate?`${Number(track.sampleRate)/1000} kHz`:'',track.bits?`${track.bits} bit`:''].filter(Boolean).join(' / ')};
 }
 const element=(tag,className,text)=>{const node=document.createElement(tag);node.className=className;if(text)node.textContent=text;return node;};
-export function installMusicEdition({mobile=false,artwork=track=>track?.artwork?'/artwork/'+encodeURIComponent(track.artwork):'',details=()=>{},queue=()=>{},assets=null}={}){
+export function editionComposition(track={}){const identity=[track.artist||track.channel,track.title,track.album,track.genre].join('|');let seed=2166136261;for(const c of identity)seed=Math.imul(seed^c.charCodeAt(0),16777619);return {variant:Math.abs(seed)%3,tilt:(Math.abs(seed>>>4)%9)-4,number:String((seed>>>0)%999+1).padStart(3,'0')};}
+export function installMusicEdition({related=()=>[],motion=()=>true,mobile=false,artwork=track=>track?.artwork?'/artwork/'+encodeURIComponent(track.artwork):'',details=()=>{},queue=()=>{},assets=null}={}){
  const stage=document.querySelector('#music-only-stage'),wall=document.querySelector('#music-wallpaper');
  if(!stage||!wall)return {select(){}};
  stage.classList.add('music-edition');stage.dataset.platform=mobile?'mobile':'desktop';
@@ -21,6 +22,7 @@ export function installMusicEdition({mobile=false,artwork=track=>track?.artwork?
  const cover=stage.querySelector('#music-cover-play,#cover-play'),title=stage.querySelector('#music-only-title'),artist=stage.querySelector('#music-only-artist'),note=stage.querySelector('.music-stage-note');
  stage.querySelector('.eyebrow')?.remove();
  const art=element('div','edition-art'),frame=element('div','edition-frame'),disc=element('div','edition-disc'),fragment=element('div','edition-fragment');
+ const memory=element('div','edition-memory');memory.setAttribute('aria-hidden','true');art.append(memory);
  disc.setAttribute('aria-hidden','true');fragment.setAttribute('aria-hidden','true');frame.append(cover);art.append(disc,fragment,frame);
  const caption=element('div','edition-art-caption');caption.innerHTML='<span>RESONANCE</span><span>THE LISTENING EDITION</span>';art.append(caption);
  const swatches=element('div','edition-swatches');swatches.setAttribute('aria-hidden','true');swatches.innerHTML='<i></i><i></i><i></i>';art.append(swatches);
@@ -48,14 +50,19 @@ export function installMusicEdition({mobile=false,artwork=track=>track?.artwork?
  }
  const observer=new ResizeObserver(boundaries);for(const node of [document.querySelector('.room-dock'),document.querySelector('.room-top'),document.querySelector('.mobile-modes')])if(node)observer.observe(node);
  window.addEventListener('resize',boundaries);
- new MutationObserver(()=>{const mode=document.body.dataset.listeningMode;if(mode===lastMode)return;lastMode=mode;boundaries();if(mode==='music'){enter();void loadAssets();}}).observe(document.body,{attributes:true,attributeFilter:['data-listening-mode']});
+ document.addEventListener('resonance-text-size',boundaries);
+ let pointerFrame=0,px=0,py=0;
+ const paintPointer=()=>{pointerFrame=0;art.style.setProperty('--edition-x',px+'px');art.style.setProperty('--edition-y',py+'px');};
+ if(!mobile){stage.addEventListener('pointermove',e=>{if(document.body.dataset.listeningMode!=='music'||!motion()||matchMedia('(prefers-reduced-motion: reduce)').matches)return;const r=stage.getBoundingClientRect();px=(e.clientX-r.left-r.width/2)/r.width*10;py=(e.clientY-r.top-r.height/2)/r.height*8;if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);});stage.addEventListener('pointerleave',()=>{px=py=0;if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);});}
+ new MutationObserver(()=>{const mode=document.body.dataset.listeningMode;if(mode===lastMode)return;lastMode=mode;boundaries();if(mode==='music'){enter();void loadAssets();}else{px=py=0;paintPointer();}}).observe(document.body,{attributes:true,attributeFilter:['data-listening-mode']});
  async function loadAssets(){
   if(!assets||!track||document.body.dataset.listeningMode!=='music'||assetKey===key)return;
   assetKey=key;const request=generation;
   try{const value=await assets(track);if(request!==generation)return;
-   const item=value?.find(a=>a.file&&a.kind!=='cover')||value?.[0];if(!item)return;
+   const items=(value||[]).filter(a=>a.file).slice(0,3),item=items.find(a=>a.kind!=='cover')||items[0];if(!item)return;
    const img=new Image();img.alt='';img.decoding='async';img.src='/wallpapers/'+encodeURIComponent(item.file);
-   img.onload=()=>{if(request===generation)fragment.replaceChildren(img);};
+   img.onload=()=>{if(request===generation){fragment.replaceChildren(img);stage.classList.add('edition-has-portrait');}};
+   const extra=items.find(a=>a.file!==item.file);if(extra){const photo=new Image();photo.alt='';photo.decoding='async';photo.src='/wallpapers/'+encodeURIComponent(extra.file);photo.onload=()=>{if(request===generation)memory.replaceChildren(photo);};}
    const rows=credits.querySelector('div');rows.replaceChildren();
    for(const a of value){let url;try{url=new URL(a.source);}catch{continue}
     if(url.protocol!=='https:'||!['musicbrainz.org','www.youtube.com','en.wikipedia.org','commons.wikimedia.org','creativecommons.org'].includes(url.hostname))continue;
@@ -68,7 +75,7 @@ export function installMusicEdition({mobile=false,artwork=track=>track?.artwork?
   next.hidden=!upNext;next.querySelector('.edition-next-name').textContent=upNext?[upNext.title,upNext.artist||upNext.channel].filter(Boolean).join(' · '):'';
   next.setAttribute('aria-label',upNext?'Open queue. Next: '+upNext.title:'Open queue');
   const signature=JSON.stringify([value?.id,value?.title,source,meta]);if(signature===key){boundaries();return}
-  key=signature;generation++;assetKey='';stage.dataset.edition=wall.dataset.edition=meta.style;stage.classList.toggle('edition-empty',!value);stage.classList.toggle('edition-long-title',(value?.title?.length||0)>55);
+  key=signature;generation++;assetKey='';const composition=editionComposition(value||{});stage.dataset.composition=String(composition.variant);stage.style.setProperty('--edition-tilt',composition.tilt+'deg');caption.lastElementChild.textContent='LISTENING EDITION / '+composition.number;stage.classList.remove('edition-has-portrait');memory.replaceChildren();const companion=related(value).find(t=>artwork(t)&&artwork(t)!==source);if(companion){const pic=new Image();pic.alt='';pic.decoding='async';pic.src=artwork(companion);memory.append(pic);}stage.dataset.edition=wall.dataset.edition=meta.style;stage.classList.toggle('edition-empty',!value);stage.classList.toggle('edition-long-title',(value?.title?.length||0)>55);
   title.textContent=value?.title||'Find your frequency';artist.textContent=value?meta.artist:'Open your library to begin';backdrop.textContent=value?meta.artist:'resonance.';
   album.querySelector('.edition-album-name').textContent=meta.album;year.textContent=meta.year;album.hidden=!meta.album&&!meta.year;
   genre.textContent=meta.genre;genre.hidden=!meta.genre;format.textContent=meta.format||'Your music. Your moment.';detail.hidden=!value;

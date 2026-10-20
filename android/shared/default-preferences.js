@@ -1,3 +1,5 @@
+import {normalizeCollections} from './smart-collections.js';
+import {accessibilityPreferences} from './accessibility.js';
 import {spectrumPreferences} from './spectrum-settings.js';
 import {visualSyncPreferences} from './visual-sync.js';
 import {CAMERA_SPEED} from './scene-camera.js';
@@ -6,6 +8,12 @@ import {companionPosition} from './companion-model.js';
 import {companionAppearance} from './companion-appearances.js';
 // The approved listening / visual preset. Contains no sources or library data.
 export const DEFAULT_PREFERENCES=Object.freeze({
+  "smartCollections": Object.freeze([]),
+  "eqLow": 0,
+  "eqMid": 0,
+  "eqHigh": 0,
+  "textSize": "standard",
+  "strongText": false,
   "leveling": false,
   "skipSilence": false,
   "crossfadeSeconds": 0,
@@ -74,4 +82,4 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "signatureVersion": 1
 });
 export const REMOVED_LAYERS=new Set(['galaxyDensity','comets','gravity','pointerForce']);
-export function preferencesWithDefaults(saved={},defaults=DEFAULT_PREFERENCES){const p={...defaults,...saved,...visualSyncPreferences({...defaults,...saved}),...spectrumPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}
+export function preferencesWithDefaults(saved={},defaults=DEFAULT_PREFERENCES){const p={...defaults,...saved,...accessibilityPreferences(saved),smartCollections:normalizeCollections(saved.smartCollections),...visualSyncPreferences({...defaults,...saved}),...spectrumPreferences(saved)};p.dancePosition=companionPosition(p.dancePosition);p.companionAppearance=companionAppearance(p.companionAppearance);p.kaleidoscopeMode=kaleidoscopeMode(p.kaleidoscopeMode);delete p.reactivityStyle;delete p.cameraZoomIntensity;if(saved.cameraDesignVersion!==1&&Math.abs(Number(saved.cameraSpeed)-6.67)<.005)p.cameraSpeed=CAMERA_SPEED.default;p.cameraDesignVersion=1;delete p.laserShow;delete p.oscilloscope;p.kaleidoscope=saved.kaleidoscope===true||(typeof saved.kaleidoscope==='number'&&saved.kaleidoscope>0);if(saved.danceDesignVersion!==2){p.danceCompanion=false;p.danceDesignVersion=2;}if(saved.sfxGainVersion!==2){p.sfxVolume=.5;p.sfxGainVersion=2;}for(const k of REMOVED_LAYERS)p[k]=0;return p;}

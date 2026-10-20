@@ -17,7 +17,7 @@ export const saveMobileLyrics=(track,record)=>rpc('lyricsSave',{id:track.id,reco
 export function readMobileLyricsBase(track){
  const key=track.id+'|'+lyricsStamp(track);if(pending.has(key))return pending.get(key);
  const promise=(async()=>{
-  const saved=await rpc('lyricsCached',{id:track.id}),old=saved.record;
+  const saved=await rpc('lyricsCached',{id:track.id}),old=saved.record||{};
   if(saved.track?.lyrics&&/selected by you/i.test(saved.track.lyricsSource)&&!old.stamp)return {text:saved.track.lyrics,source:saved.track.lyricsSource,status:'text',lines:[],confirmed:true};
   if(old.stamp===lyricsStamp(track)&&(old.confirmed||old.version===LYRICS_VERSION&&(old.text||old.instrumental||Date.now()-old.savedAt<86400000)))return old;
   try{const r=chooseLyrics(track,await searchMobileLyrics(track));

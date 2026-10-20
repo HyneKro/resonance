@@ -2,6 +2,8 @@
 export const SETTINGS_SECTIONS = [
   ['playback', 'Playback & sound', 'Loudness, silent edges, equalizer and audio sync', 'sound'],
   ['library', 'Library & downloads', 'Add music, update playlists and find missing details', 'library'],
+  ['accessibility', 'Accessibility', 'Text size, reading contrast and keyboard access', 'help'],
+  ['transfer', 'Transfer settings', 'Take preferences, playlist links and song edits to another device', 'storage'],
   ['storage', 'Storage', 'Music size, artwork and space on this device', 'storage'],
   ['updates', 'App updates', 'Check, download and install the latest version', 'updates'],
   ['help', 'Help & gestures', 'Controls, shortcuts and listening tips', 'help'],

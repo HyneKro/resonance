@@ -1,13 +1,13 @@
 const fs=require('node:fs/promises'),{createHash}=require('node:crypto');
 const REPOSITORY='HyneKro/resonance',RELEASES_URL='https://github.com/'+REPOSITORY+'/releases';
 const API='https://api.github.com/repos/'+REPOSITORY+'/releases';
-function version(value){const m=/^(\d+)\.(\d+)\.(\d+)(?:-(preview)(?:\.(\d+))?)?$/.exec(value);if(!m)return null;const parts=[+m[1],+m[2],+m[3],m[4]?0:1,+(m[5]||0)];return parts.every(Number.isSafeInteger)?parts:null;}
+function version(value){const m=/^(\d+)\.(\d+)\.(\d+)(?:-(dev|preview)(?:\.(\d+))?)?$/.exec(value);if(!m)return null;const parts=[+m[1],+m[2],+m[3],m[4]==='dev'?0:m[4]==='preview'?1:2,+(m[5]||0)];return parts.every(Number.isSafeInteger)?parts:null;}
 function compareVersions(a,b){const x=version(a),y=version(b);if(!x||!y)throw Error('Unsupported release version');for(let i=0;i<x.length;i++){if(x[i]!==y[i])return Math.sign(x[i]-y[i]);}return 0;}
 function selectRelease(releases,current,platform='pc'){
  const candidates=[];
  for(const r of releases){
   const v=String(r.tag_name||'').replace(new RegExp('^'+platform+'-v'),'');
-  if(r.draft||!r.tag_name?.startsWith(platform+'-v')||!version(v)||compareVersions(v,current)<=0||platform==='pc'&&(r.prerelease||v.includes('-')))continue;
+  if(r.draft||!r.tag_name?.startsWith(platform+'-v')||v.includes('-dev')||!version(v)||compareVersions(v,current)<=0||platform==='pc'&&(r.prerelease||v.includes('-')))continue;
   const name=platform==='pc'?`Resonance-PC-${v}-portable.zip`:`Resonance-Android-${v}.apk`,assets=(r.assets||[]).filter(a=>a.name===name);
   if(assets.length!==1)continue;const a=assets[0];
   if(a.state!=='uploaded'||!/^sha256:[a-f0-9]{64}$/.test(a.digest||'')||!Number.isSafeInteger(a.size)||a.size<=0||a.size>(platform==='pc'?2e9:512e6)||a.browser_download_url!==`${RELEASES_URL}/download/${r.tag_name}/${name}`)continue;
