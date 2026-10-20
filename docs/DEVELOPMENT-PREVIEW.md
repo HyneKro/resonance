@@ -1,6 +1,6 @@
 # Development preview: discovery and personal setup
 
-This batch is on `development` for owner testing. It is **not a public release** and is not in either updater feed. Windows is `1.25.0-dev.2`; Android is `0.25.0-dev.2` (versionCode 59).
+This batch is on `development` for testing through a separate development update channel. It is **not an approved live release**. Windows is `1.25.0-dev.3`; Android is `0.25.0-dev.3` (versionCode 60). Regular installations and the main download page stay on the approved versions.
 
 ## What to try
 
@@ -26,8 +26,10 @@ This first iteration does not move audio files, local folder connections, playba
 
 ## Test installation
 
+Install this channel-aware build once manually. In an existing Windows dev installation, use Settings → App updates → **Install a downloaded ZIP…**. Android users can install the APK over the current app. Future dev builds arrive through the normal updater; the update screen identifies the Development channel. Switching back to the approved channel requires manually installing a later approved build.
+
 Extract the Windows development ZIP into its own folder. It starts with a separate, empty portable data folder. Keep the ordinary installation intact; do not extract this preview over it. Import a settings export and connect music folders if you want to try your own collection.
 
-The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The next approved APK must use a versionCode above 59. Do not uninstall to return to a release, since uninstalling removes private app data.
+The Android APK retains the existing package ID and signing certificate. Installing it **updates the installed app**, preserving its data; it is not a side-by-side installation. The next approved APK must use a versionCode above 60. Do not uninstall to return to a release, since uninstalling removes private app data.
 
 Automated checks and desktop simulations do not establish physical-phone performance, Android file-picker behavior or screen-reader usability. Those still need device testing before release approval.

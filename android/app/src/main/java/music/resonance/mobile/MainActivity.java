@@ -70,7 +70,7 @@ public final class MainActivity extends Activity {
                     case "cancel":app.updates.cancel();break;
                     case "preferences":app.updates.preferences(data.optJSONObject("preferences")==null?new JSONObject():data.optJSONObject("preferences"));break;
                     case "install":app.updates.install(this);break;
-                    case "releases":app.onMain(()->{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(AppRelease.PAGE)));return null;});break;
+                    case "releases":app.onMain(()->{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(AppRelease.page(app.updates.snapshot().optString("current")))));return null;});break;
                     default:throw new IOException("Unknown update action");
                 }
                 return app.updates.snapshot();

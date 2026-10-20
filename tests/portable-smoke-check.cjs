@@ -12,10 +12,16 @@ app.whenReady().then(async()=>{
  require(path.join(root,'electron/window-controls.cjs')).installWindowControls({ipcMain,win,url:service.url,screen});
  require(path.join(root,'electron/audio-output.cjs')).installAudioOutput({ipcMain,win,url:service.url});
  require(path.join(root,'electron/sona-window.cjs')).installSonaWindow({BrowserWindow,ipcMain,win,url:service.url,screen,lib:service.lib});
- require(path.join(root,'electron/portable-update.cjs')).installPortableUpdate({app,ipcMain,dialog:require('electron').dialog,win,root,url:service.url});
+ const packageVersion=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')).version;
+ // The harness runs in Electron; report the tested package version to the
+ // production updater instead of the harness runtime's Electron version.
+ const updateApp={isPackaged:false,getVersion:()=>packageVersion,getPath:app.getPath.bind(app),quit:app.quit.bind(app)};
+ require(path.join(root,'electron/portable-update.cjs')).installPortableUpdate({app:updateApp,ipcMain,dialog:require('electron').dialog,win,root,url:service.url});
  win.webContents.on('console-message',d=>{if(d.level==='error')errors.push(d.message);});
  await win.loadURL(service.url);await new Promise(r=>setTimeout(r,7000));
  const ready=await win.webContents.executeJavaScript(`(async()=>({ready:document.body.classList.contains('startup-ready'),device:await window.resonanceDesktop.audioOutput(),camera:!!document.querySelector('[data-preference=rollercoaster]'),zoom:!!document.querySelector('[data-preference=cameraZoom]'),slider:!!document.querySelector('[data-preference=cameraZoomIntensity]'),zoomMaximum:(await import('/scene-camera.js')).CAMERA_ZOOM.max,emblem:(await import('/companion-emblem.js')).SONA_BADGES.length}))()`);
  if(!ready.ready||!ready.camera||!ready.zoom||ready.slider||ready.zoomMaximum!==3||ready.emblem!==13||!ready.device.id||errors.length)throw Error(JSON.stringify({ready,errors}));
+ const updateState=await win.webContents.executeJavaScript("window.resonanceDesktop.appUpdate('status')");
+ if(updateState.current!==packageVersion||updateState.channel!==(packageVersion.includes('-dev.')?'development':'release'))throw Error('Packaged update channel is incorrect');
  fs.writeFileSync(path.join(out,'portable-smoke.png'),(await win.webContents.capturePage()).toPNG());await finish(true);
 }).catch(e=>finish(false,e.stack));setTimeout(()=>finish(false,'Timed out'),30000).unref();

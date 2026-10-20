@@ -133,3 +133,41 @@ test('Windows cleanup leaves used portable folders and filesystem junctions inta
   await fs.access(path.join(f.root, 'checkpoints/approved/keep.txt'));
   await fs.unlink(link);
 });
+
+function devRelease(platform,v){
+ const row=release(platform,v);row.tag_name='development-'+row.tag_name;row.prerelease=true;
+ row.assets[0].browser_download_url='https://github.com/HyneKro/resonance/releases/download/'+row.tag_name+'/'+row.assets[0].name;return row;
+}
+test('development cleanup verifies its own artifacts while preserving the live download page and releases',async t=>{
+ const {root,rows,folder}=await fixture(t);
+ for(const platform of ['pc','android'])for(const n of [1,2,3]){
+  const r=devRelease(platform,(platform==='pc'?'1.11.0':'0.11.0')+'-dev.'+n);rows.push(r);
+  // Fixture content keeps the same digest as release(), independent of the tag namespace.
+  await put(root,(platform==='pc'?'releases':'android/releases')+'/'+r.assets[0].name,r.tag_name.replace('development-',''));
+ }
+ await put(root,'package.json',{version:'1.11.0-dev.3'});
+ await put(root,'android/app/build.gradle',"versionName '0.11.0-dev.3'");
+ await put(root,folder+'/resonance-update.json',{product:'resonance-portable',version:'1.11.0-dev.3'});
+ const keep=await verifyPublished(root,rows,{fetchImpl:mockFetch(rows)});
+ assert.equal(keep.pc[0].version,'1.11.0-dev.3');
+ const plan=await planCleanup(root,rows,keep);assert.equal(plan.channel,'development');
+ assert.ok(plan.targets.includes('releases/Resonance-PC-1.11.0-dev.1-portable.zip'));
+ assert.ok(plan.targets.includes('android/releases/Resonance-Android-0.11.0-dev.1.apk'));
+ assert.ok(!plan.targets.includes('releases/Resonance-PC-1.10.0-portable.zip'));
+ assert.ok(!plan.targets.includes('releases/Resonance-PC-1.11.0-dev.2-portable.zip'));
+ assert.equal(plan.keep.length,8);
+ await assert.rejects(verifyPublished(root,rows.filter(r=>r.tag_name!=='development-android-v0.11.0-dev.3'),{fetchImpl:mockFetch(rows)}),/not publicly/);
+});
+
+test('Windows development cleanup retains ordinary releases and both development rollback packages', {skip:process.platform!=='win32'}, async t=>{
+ const f=await executionFixture(t);
+ for(const platform of ['pc','android'])for(const n of [1,2,3]){
+  const r=devRelease(platform,(platform==='pc'?'1.11.0':'0.11.0')+'-dev.'+n);f.rows.push(r);
+  await put(f.root,(platform==='pc'?'releases':'android/releases')+'/'+r.assets[0].name,r.tag_name.replace('development-',''));
+ }
+ await put(f.root,f.folder+'/resonance-update.json',{product:'resonance-portable',version:'1.11.0-dev.3'});
+ f.plan=await planCleanup(f.root,f.rows,retainedReleases(f.rows,'development'));
+ assert.match(await f.execute(),/Release cleanup:/);
+ for(const p of ['releases/Resonance-PC-1.10.0-portable.zip','releases/Resonance-PC-1.11.0-dev.2-portable.zip','releases/Resonance-PC-1.11.0-dev.3-portable.zip','android/releases/Resonance-Android-0.11.0-dev.2.apk'])await fs.access(path.join(f.root,p));
+ await assert.rejects(fs.access(path.join(f.root,'releases/Resonance-PC-1.11.0-dev.1-portable.zip')));
+});

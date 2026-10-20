@@ -32,7 +32,7 @@ final class AppUpdates {
     private final File readyFile;
     AppUpdates(ResonanceApp app){this.app=app;manager=app.getSystemService(DownloadManager.class);String installed="";try{installed=app.getPackageManager().getPackageInfo(app.getPackageName(),0).versionName;}catch(Exception ignored){}current=installed;
         compatible=Arrays.asList(Build.SUPPORTED_ABIS).contains("arm64-v8a");readyFile=new File(app.getCacheDir(),"app-updates/update.apk");
-        saved=app.library.setting("appUpdates");failedVersion=saved.optString("failedVersion");state=Json.object("phase","idle","current",current,"canInstall",compatible,"autoCheck",saved.optBoolean("autoCheck",true),"autoDownload",saved.optBoolean("autoDownload",true),"checkedAt",saved.optLong("checkedAt"),"message","Updates come directly from GitHub Releases.");
+        saved=app.library.setting("appUpdates");boolean sameChannel=AppRelease.channel(current).equals(saved.optString("channel"));failedVersion=sameChannel?saved.optString("failedVersion"):"";state=Json.object("phase","idle","current",current,"channel",AppRelease.channel(current),"canInstall",compatible,"autoCheck",saved.optBoolean("autoCheck",true),"autoDownload",saved.optBoolean("autoDownload",true),"checkedAt",sameChannel?saved.optLong("checkedAt"):0,"message","Updates come directly from GitHub Releases.");
         worker.execute(()->{try{release=AppRelease.restore(saved.optJSONObject("release"),current);downloadId=saved.optLong("downloadId");
             if(release==null){if(downloadId!=0)manager.remove(downloadId);downloadId=0;Files.deleteIfExists(readyFile.toPath());persist();}
             else{change("release",release);if(downloadId!=0)refresh();else if(UpdatePolicy.rejected(release,failedVersion))change("phase","error","message","This update could not be installed. Check for a newer release or download it again.");else if(readyFile.isFile()){change("phase","verifying","message","Checking the saved update…");verify(readyFile);ready();}else change("phase","available","message","Version "+release.optString("version")+" is available.");}
@@ -40,14 +40,14 @@ final class AppUpdates {
     }
     JSONObject snapshot(){refreshLater();return Json.parse(state.toString());}
     private void change(Object... pairs){JSONObject next=Json.parse(state.toString());for(int i=0;i<pairs.length;i+=2)Json.put(next,(String)pairs[i],pairs[i+1]);state=next;}
-    private void persist(){saved=Json.object("autoCheck",state.optBoolean("autoCheck",true),"autoDownload",state.optBoolean("autoDownload",true),"checkedAt",state.optLong("checkedAt"),"release",release,"downloadId",downloadId,"failedVersion",failedVersion);app.library.setting("appUpdates",saved);}
+    private void persist(){saved=Json.object("channel",AppRelease.channel(current),"autoCheck",state.optBoolean("autoCheck",true),"autoDownload",state.optBoolean("autoDownload",true),"checkedAt",state.optLong("checkedAt"),"release",release,"downloadId",downloadId,"failedVersion",failedVersion);app.library.setting("appUpdates",saved);}
     private void fail(Exception e){change("phase","error","message",Json.error(e));}
     void preferences(JSONObject values) throws Exception {worker.submit(()->{if(values.has("autoCheck"))change("autoCheck",values.optBoolean("autoCheck"));if(values.has("autoDownload"))change("autoDownload",values.optBoolean("autoDownload"));persist();}).get(30,TimeUnit.SECONDS);}
     void check(boolean automatic){if(!checkQueued.compareAndSet(false,true))return;int ticket=generation.get();worker.execute(()->{try{checkOnWorker(automatic,ticket);}finally{checkQueued.set(false);}});}
     private void checkOnWorker(boolean automatic,int ticket){
         if(ticket!=generation.get()||!UpdatePolicy.canCheck(state.optString("phase"),automatic,state.optBoolean("autoCheck",true),state.optLong("checkedAt"),System.currentTimeMillis(),release!=null,!failedVersion.isEmpty()))return;
         JSONObject before=Json.parse(state.toString());boolean prepared="ready".equals(before.optString("phase"));
-        change("phase","checking","checkedAt",System.currentTimeMillis(),"message","Checking GitHub Releases…");persist();
+        change("phase","checking","checkedAt",System.currentTimeMillis(),"message",AppRelease.channel(current).equals("development")?"Checking for development updates…":"Checking for approved updates…");persist();
         try{JSONArray all=new JSONArray();boolean complete=false;
         for(int page=1;page<=10;page++){if(ticket!=generation.get())return;JSONArray rows=fetch(page);for(int i=0;i<rows.length();i++)all.put(rows.get(i));if(rows.length()<100){complete=true;break;}}
         if(!complete)throw new IOException("The release list is too large. Open GitHub downloads to update manually.");if(ticket!=generation.get())return;
@@ -55,7 +55,7 @@ final class AppUpdates {
         if(prepared&&found!=null&&found.optString("version").equals(release.optString("version"))){state=Json.put(before,"checkedAt",System.currentTimeMillis());persist();return;}
         release=found;
         if(UpdatePolicy.rejected(release,failedVersion)){change("release",release,"phase","error","message","No newer release is available yet. The failed update will not be retried automatically. You can check again or download it again.");persist();return;}
-        change("release",release,"phase",release==null?"current":"available","message",release==null?"You have the latest version.":"Version "+release.optString("version")+" is available.");persist();
+        change("release",release,"phase",release==null?"current":"available","message",release==null?(AppRelease.channel(current).equals("development")?"You have the latest development build.":"You have the latest approved version."):"Version "+release.optString("version")+" is available.");persist();
         if(release!=null&&compatible&&state.optBoolean("autoDownload",true))startDownload(true);
         }catch(Exception e){if(ticket==generation.get()){if(prepared&&release!=null&&release.optString("version").equals(before.optJSONObject("release").optString("version"))){state=Json.put(Json.put(before,"checkedAt",System.currentTimeMillis()),"message",Json.error(e)+" Your downloaded update is still available.");persist();}else fail(e);}}finally{connection=null;}
     }

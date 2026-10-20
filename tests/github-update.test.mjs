@@ -6,16 +6,47 @@ import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 const require=createRequire(import.meta.url);
-const {compareVersions,selectRelease,findRelease,downloadRelease,allowedUrl,RELEASES_URL}=require('../electron/github-releases.cjs');
+const {compareVersions,selectRelease,findRelease,downloadRelease,allowedUrl,RELEASES_URL,updateChannel,releasesPage}=require('../electron/github-releases.cjs');
 const {OnlineUpdate,restoreRelease,checkInterval}=require('../electron/online-update.cjs');
 const content=Buffer.from('verified portable archive'),hash=createHash('sha256').update(content).digest('hex');
 function release(v='1.1.5',platform='pc'){const name=platform==='pc'?`Resonance-PC-${v}-portable.zip`:`Resonance-Android-${v}.apk`,tag=platform+'-v'+v;return {tag_name:tag,assets:[{name,size:content.length,state:'uploaded',digest:'sha256:'+hash,browser_download_url:RELEASES_URL+'/download/'+tag+'/'+name}],body:'Changes'};}
 const dir=async()=>fs.mkdtemp(path.join(process.cwd(),'test-output','github-update-'));
-test('development installs can upgrade to approved versions without exposing development releases',()=>{
- assert.equal(selectRelease([release('1.25.0'),release('99.0.0-dev.1')],'1.25.0-dev.1').version,'1.25.0');
- assert.equal(selectRelease([release('0.25.0-preview','android'),release('99.0.0-dev.1','android')],'0.25.0-dev.1','android').version,'0.25.0-preview');
- assert.equal(selectRelease([release('99.0.0-dev.1','android')],'0.24.0-preview','android'),null);
- assert.equal(selectRelease([release('1.24.0')],'1.25.0-dev.1'),null);
+function devRelease(v='1.25.0-dev.3',platform='pc'){
+ const r=release(v,platform);r.tag_name='development-'+r.tag_name;r.prerelease=true;
+ r.assets[0].browser_download_url=RELEASES_URL+'/download/'+r.tag_name+'/'+r.assets[0].name;return r;
+}
+test('development and release channels stay isolated, including existing clients',()=>{
+ const legacy=require('./fixtures/updater/github-releases-1.24.0.cjs');
+ for(const [platform,current,stable,next] of [['pc','1.25.0-dev.2','1.25.0','1.26.0-dev.1'],['android','0.25.0-dev.2','0.25.0-preview','0.26.0-dev.1']]){
+  const dev=devRelease(next,platform),rows=[dev,release(stable,platform),release('99.0.0-dev.1',platform)];
+  assert.equal(selectRelease(rows,current,platform).version,next);
+  assert.equal(selectRelease([dev],next,platform),null);
+  assert.equal(selectRelease([release(stable,platform)],current,platform),null);
+  assert.equal(selectRelease([dev],'0.0.0',platform),null);
+  assert.equal(legacy.selectRelease([dev],'0.0.0',platform),null,'old installed clients ignore development tags');
+  assert.equal(selectRelease(rows,'0.0.0',platform).version,stable);
+  assert.equal(selectRelease([{...dev,draft:true}],current,platform),null);
+  assert.equal(selectRelease([devRelease(stable,platform)],current,platform),null,'a release version cannot masquerade as development');
+ }
+ assert.equal(compareVersions('1.25.0-dev.10','1.25.0-dev.9'),1);
+ assert.equal(updateChannel('1.25.0-dev.3'),'development');assert.equal(updateChannel('0.24.0-preview'),'release');
+ assert.match(releasesPage('1.25.0-dev.3'),/q=development-/);
+});
+test('development cache survives relaunch and rejects packages from another channel',async()=>{
+ const directory=await dir(),current='1.25.0-dev.2',r=selectRelease([devRelease()],current);
+ const options={directory,current,canInstall:true,find:async()=>r,download:async(_r,file)=>fs.writeFile(file,content)};
+ const updater=new OnlineUpdate(options);await updater.check();assert.equal(updater.snapshot().channel,'development');
+ assert.equal((await updater.archive()).version,'1.25.0-dev.3');
+ const reopened=new OnlineUpdate(options);await reopened.ready;assert.equal(reopened.snapshot().phase,'ready');
+ assert.equal(restoreRelease(r,'1.24.0'),null);assert.equal(restoreRelease(selectRelease([release('1.26.0')],'1.24.0'),current),null);
+ const switched=new OnlineUpdate({...options,current:'1.24.0'});await switched.ready;
+ assert.equal(switched.snapshot().release,null);assert.equal(switched.snapshot().checkedAt,0);
+ assert.equal(switched.snapshot().channel,'release');await assert.rejects(fs.stat(path.join(directory,'download.zip')));
+});
+test('development discovery reads public metadata and selects the numbered test build',async()=>{
+ const found=await findRelease('1.25.0-dev.2',{fetchImpl:async(_url,options)=>{
+  assert.equal(options.headers.Authorization,undefined);return Response.json([release('1.26.0'),devRelease()]);
+ }});assert.equal(found.version,'1.25.0-dev.3');
 });
 test('platform-specific updates use numeric versions, skip drafts, incomplete releases and downgrades',()=>{
  assert.equal(compareVersions('1.1.10','1.1.9'),1);assert.equal(compareVersions('0.1.12','0.1.12-preview'),1);
@@ -124,4 +155,12 @@ test('update IPC rejects foreign frames and development installs cannot replace 
  const call=handlers.get('resonance:online-update'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
  try{assert.equal((await call(event,'status')).canInstall,false);await assert.rejects(call({...event,senderFrame:{url:url+'/'}},'status'),/rejected/);await assert.rejects(call({...event,sender:{}},'status'),/rejected/);await assert.rejects(call(event,'unknown'),/Unknown/);assert.match((await handlers.get('resonance:update')(event)).message,/workspace installation/);}finally{win.emit('closed');}
  assert.equal(handlers.size,0);
+});
+
+test('both update screens distinguish test builds from approved releases',async()=>{
+ for(const file of ['../public/app-update-ui.js','../android/shared/app-update-ui.js']){
+  const {updateChannelLabel}=await import(file);
+  assert.equal(updateChannelLabel({channel:'development'}),'Development channel · test builds');
+  assert.equal(updateChannelLabel({channel:'release'}),'Release channel · approved updates');
+ }
 });

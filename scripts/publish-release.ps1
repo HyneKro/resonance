@@ -2,18 +2,23 @@ param(
  [Parameter(Mandatory=$true)][ValidateSet('pc','android')][string]$Platform,
  [Parameter(Mandatory=$true)][string]$File,
  [Parameter(Mandatory=$true)][string]$Notes,
+ [ValidateSet('release','development')][string]$Channel='release',
  [switch]$Publish,
  [switch]$ValidateOnly
 )
 $ErrorActionPreference='Stop'
 $project=Split-Path $PSScriptRoot -Parent
 if(!$ValidateOnly){
- # Android prereleases are consumed by installed apps, so they cannot be used
- # as a development channel. Owner approval is required by AGENTS.md as well.
+ # A prerelease flag alone does not isolate Android. Development uses a
+ # separate tag namespace, checked again after reading the artifact version.
  $branch=& git -C $project symbolic-ref --quiet --short HEAD
- if($LASTEXITCODE -ne 0 -or $branch -ne 'main'){
-  throw 'Release uploads require the approved source on main. Keep development builds local; use -ValidateOnly to check an artifact without uploading.'
+ $requiredBranch=if($Channel -eq 'development'){'development'}else{'main'}
+ if($LASTEXITCODE -ne 0 -or $branch -ne $requiredBranch){
+  throw "The $Channel channel requires source on $requiredBranch. Use -ValidateOnly to check without uploading."
  }
+ if(& git -C $project status --porcelain){throw 'Commit the reviewed changes before uploading.'}
+ & git -C $project diff --quiet HEAD "origin/$requiredBranch"
+ if($LASTEXITCODE -ne 0){throw 'Push the reviewed commit before uploading.'}
 }
 $archive=Get-Item -LiteralPath $File
 $notesFile=Get-Item -LiteralPath $Notes
@@ -42,13 +47,20 @@ try{
  }
 }finally{$zip.Dispose()}
 if($version -notmatch '^\d+\.\d+\.\d+(?:-[\w.]+)?$'){throw 'Invalid release version.'}
+if($Channel -eq 'development'){
+ if($version -notmatch '^\d+\.\d+\.\d+-dev\.\d+$'){throw 'Development uploads require an explicit -dev.N version.'}
+}elseif($version -match '-dev' -or ($Platform -eq 'pc' -and $version -match '-')){
+ throw 'Development builds cannot be published to the release channel.'
+}
+$expectedName=if($Platform -eq 'pc'){"Resonance-PC-$version-portable.zip"}else{"Resonance-Android-$version.apk"}
+if($archive.Name -ne $expectedName){throw "Expected artifact name: $expectedName"}
 if($Platform -eq 'pc'){
  # Exercise the installed 1.22.0 updater against the actual archive, including
  # its path allowlist, extraction, lengths and every SHA-256, before any upload.
  $compatibility = & node (Join-Path $PSScriptRoot 'verify-portable-update.mjs') $archive.FullName
  if($LASTEXITCODE -ne 0){throw 'This portable ZIP cannot be installed by existing apps. No release was uploaded.'}
 }
-$tag="$Platform-v$version"
+$tag=$(if($Channel -eq 'development'){'development-'}else{''})+"$Platform-v$version"
 $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath $archive.FullName).Hash.ToLowerInvariant()
 if($ValidateOnly){@{platform=$Platform;version=$version;tag=$tag;file=$archive.Name;bytes=$archive.Length;sha256=$hash} | ConvertTo-Json;return}
 $gh=Join-Path $project '.local-tools/github-cli/runtime/bin/gh.exe'
@@ -62,9 +74,16 @@ $hashFile=Join-Path $output 'SHA256SUMS.txt'
 $head=(& git -C $project rev-parse HEAD).Trim()
 if($LASTEXITCODE -ne 0){throw 'Commit the reviewed source first.'}
 $arguments=@('release','create',$tag,'--repo',$repository,'--target',$head,'--title',"Resonance $Platform $version",'--notes-file',$notesFile.FullName,'--draft','--latest=false',$archive.FullName,$hashFile)
-if($Platform -eq 'android'){$arguments+='--prerelease'}
+if($Platform -eq 'android' -or $Channel -eq 'development'){$arguments+='--prerelease'}
 & $gh @arguments
 if($LASTEXITCODE -ne 0){throw 'Release upload did not finish. Check GitHub for a partial draft before retrying; no assets are overwritten automatically.'}
-if($Publish){& $gh release edit $tag --repo $repository --draft=false --latest=false;if($LASTEXITCODE -ne 0){throw 'Upload succeeded but publication failed; the release remains a draft.'}}
+# GitHub's server-side digest and length must agree before a draft can go live.
+$uploaded=& $gh api "repos/$repository/releases/tags/$tag" | ConvertFrom-Json
+if($LASTEXITCODE -ne 0){throw 'Could not inspect the draft; nothing was published.'}
+$asset=@($uploaded.assets | Where-Object {$_.name -eq $archive.Name})
+if($asset.Count -ne 1 -or $asset[0].state -ne 'uploaded' -or $asset[0].size -ne $archive.Length -or $asset[0].digest -ne "sha256:$hash"){
+ throw 'The uploaded asset does not match the local artifact. The release remains a draft.'
+}
+if($Publish){& $gh release edit $tag --repo $repository --draft=false --latest=false;if($LASTEXITCODE -ne 0){throw 'Upload succeeded but publication failed; inspect the draft before retrying.'}}
 & $gh release view $tag --repo $repository --json url,isDraft,tagName,assets
 if($LASTEXITCODE -ne 0){throw 'Could not verify the uploaded release.'}

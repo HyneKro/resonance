@@ -1,5 +1,6 @@
 const fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=require('node:crypto'),{execFile}=require('node:child_process'),{promisify}=require('node:util');
-const {OnlineUpdate,RELEASES_URL}=require('./online-update.cjs');
+const {OnlineUpdate}=require('./online-update.cjs');
+const {releasesPage}=require('./github-releases.cjs');
 function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()=>app.quit()}){
  let busy=false;
  const portableRoot=path.dirname(process.execPath);
@@ -21,7 +22,7 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
    case 'check':if(!busy)void updater.check();return updater.snapshot();
    case 'download':if(!busy)void updater.startDownload();return updater.snapshot();
    case 'cancel':return updater.cancel();
-   case 'releases':await require('electron').shell.openExternal(RELEASES_URL);return updater.snapshot();
+   case 'releases':await require('electron').shell.openExternal(releasesPage(app.getVersion()));return updater.snapshot();
    case 'install':if(busy)return updater.snapshot();return updater.install(installArchive);
    default:throw Error('Unknown update action');
   }

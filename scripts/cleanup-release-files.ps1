@@ -36,27 +36,31 @@ foreach($p in $state.preserved){$protected+=Resolve-WorkspacePath $p}
 $tracked=@(& git -C $root ls-files)
 if($LASTEXITCODE -ne 0){throw 'Cannot verify tracked source files; no cleanup.'}
 $protected+=@($tracked | ForEach-Object {Join-Path $root $_})
+foreach($channel in @('release','development')){
 foreach($platform in @('pc','android')){
- $kept=@($state.keep | Where-Object {$_.tag -like "$platform-v*"})
- if($kept.Count -lt 1 -or $kept.Count -gt 2){throw 'Expected one or two retained releases per platform.'}
+ $tagPrefix=if($channel -eq 'development'){"development-$platform-v"}else{"$platform-v"}
+ $kept=@($state.keep | Where-Object {$_.tag -like "$tagPrefix*"})
+ $active=(!$state.channel -and $channel -eq 'release') -or $state.channel -eq $channel
+ if(($active -and $kept.Count -lt 1) -or $kept.Count -gt 2){throw 'Expected one or two retained releases per platform/channel.'}
  foreach($release in $kept){
   $file=Resolve-WorkspacePath $release.path
   $protected+=$file
   # A missing previous archive is allowed (e.g. the one-time cleanup preceded this policy).
   # Never remove the only remaining extracted copy of that version in the planner.
-  if(!(Test-Path -LiteralPath $file)){if($release -eq $kept[0]){throw 'Latest download is missing.'};continue}
+  if(!(Test-Path -LiteralPath $file)){if($active -and $release -eq $kept[0]){throw 'Latest download is missing.'};continue}
   if((Get-Item -LiteralPath $file).Length -ne $release.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $release.sha256){throw "Retained download changed: $($release.path)"}
  }
+}
 }
 $processes=@(Get-CimInstance Win32_Process)
 $result=[Collections.Generic.List[object]]::new()
 $approved=[Collections.Generic.List[object]]::new()
-$v='\d+\.\d+\.\d+(?:-preview(?:\.\d+)?)?'
+$v='\d+\.\d+\.\d+(?:-(?:preview|dev)(?:\.\d+)?)?'
 $fixtures='identity|atmosphere|companion-api|constellation|archive|api|display-api|fresh-checkout|frontend-assets|genre-test|github-update|genre-remix|genre-outage|genre-credit|history|catalogue|level-library|metadata-review|lyrics|discovery|refinement-api|order|portable-update|song-analysis|normalized-audio|profile-cache|sources|spotify-source|spotify-api|storage|storage-api|sync-api|desktop-next-data|refinement-111-data|portable-smoke-data'
 foreach($relative in $state.targets){
  $allowed=$relative -match '^(desktop-staging|android/app/build|android/build|test-output/release-work)$' -or
   $relative -match "^releases/Resonance-PC-$v-portable\.zip$" -or $relative -match "^android/releases/Resonance-Android-$v\.apk$" -or
-  $relative -match "^releases/publish-(pc|android)-v$v$" -or $relative -match '^releases/Resonance-Portable-\d{4}-\d{2}-\d{2}T[\d-]+Z(?:\.zip)?$' -or
+  $relative -match "^releases/publish-(?:development-)?(pc|android)-v$v$" -or $relative -match '^releases/Resonance-Portable-\d{4}-\d{2}-\d{2}T[\d-]+Z(?:\.zip)?$' -or
   $relative -match "^test-output/(?:$fixtures)-[A-Za-z0-9]{6}$" -or
   $relative -match '^test-output/(?:(?:constellation|ux|mobile-repair)[\w-]*-release(?:-[\w-]+)?|(?:verify-|startup-artifacts-)[\w-]+|portable-full-install|portable-online-update-[a-f0-9-]{36}|(?:android-mobile-ux|android-shuffle|android-visual-update|camera-zoom|desktop-next|kaleidoscope|refinement-111|sona-emblem|window-check)-profile)$'
  if(!$allowed){throw "Unrecognized cleanup target: $relative"}
