@@ -9,7 +9,7 @@ Development test update: Windows **1.25.0-dev.5** and Android **0.25.0-dev.5** (
 
 ## Verification
 
-457 JavaScript regression tests passed. The isolated UI tour passed 63 screens and 31 behavioral checks, plus Music only compact-window, phone/landscape, enlarged-text, cover-only, automatic-drift and reduced-motion checks. Constellation and startup checks passed.
+458 JavaScript regression tests passed. The isolated UI tour passed 63 screens and 31 behavioral checks, plus Music only compact-window, phone/landscape, enlarged-text, cover-only, automatic-drift and reduced-motion checks. Constellation and startup checks passed.
 
 A 2,600-song synthetic Windows library reached the 25th next song after a 25-click burst in approximately 0.9 seconds, despite an injected 700 ms listening-history response delay. Only one recording was opened. The largest observed animation-frame gap was about 17 ms in that Music only test. Reverse skipping, pausing during a pending skip and selecting another song also passed. This is an isolated regression result, not a guarantee for every device, file or background workload.
 

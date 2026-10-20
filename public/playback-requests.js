@@ -19,11 +19,13 @@ export class LatestStateWriter {
  schedule(){this.dirty=true;clearTimeout(this.timer);this.timer=setTimeout(()=>void this.flush(),this.delay);}
  async flush(){
   clearTimeout(this.timer);
-  if(this.running){await this.running;if(this.dirty)return this.flush();return;}
-  if(!this.dirty)return;
-  this.dirty=false;
-  this.running=Promise.resolve().then(this.write);
-  try{await this.running;}finally{this.running=null;}
+  if(!this.running&&this.dirty){
+   this.running=(async()=>{
+    do{this.dirty=false;await this.write();}while(this.dirty);
+   })().finally(()=>{this.running=null;});
+  }
+  // All callers, including window shutdown, await the entire drain.
+  if(this.running)await this.running;
   if(this.dirty)return this.flush();
  }
 }

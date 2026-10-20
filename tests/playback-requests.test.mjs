@@ -28,3 +28,12 @@ test('player saves collapse bursts and write the latest state after an in-flight
  state=25;writer.schedule();const closing=writer.flush();release();await closing;
  assert.deepEqual(written,[19,25]);
 });
+test('closing waits for the newest queued save, including its disk acknowledgement',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const releases=[];
+ const writer=new LatestStateWriter(()=>new Promise(resolve=>releases.push(resolve)));
+ writer.schedule();t.mock.timers.tick(180);writer.schedule();let closed=false;
+ const closing=writer.flush().then(()=>{closed=true});releases[0]();
+ for(let i=0;i<8;i++)await Promise.resolve();
+ assert.equal(releases.length,2);assert.equal(closed,false,'Shutdown must still wait for the newest write');
+ releases[1]();await closing;assert.equal(closed,true);
+});
