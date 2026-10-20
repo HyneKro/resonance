@@ -7,7 +7,7 @@ import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 const require=createRequire(import.meta.url);
 const {compareVersions,selectRelease,findRelease,downloadRelease,allowedUrl,RELEASES_URL}=require('../electron/github-releases.cjs');
-const {OnlineUpdate,restoreRelease}=require('../electron/online-update.cjs');
+const {OnlineUpdate,restoreRelease,checkInterval}=require('../electron/online-update.cjs');
 const content=Buffer.from('verified portable archive'),hash=createHash('sha256').update(content).digest('hex');
 function release(v='1.1.5',platform='pc'){const name=platform==='pc'?`Resonance-PC-${v}-portable.zip`:`Resonance-Android-${v}.apk`,tag=platform+'-v'+v;return {tag_name:tag,assets:[{name,size:content.length,state:'uploaded',digest:'sha256:'+hash,browser_download_url:RELEASES_URL+'/download/'+tag+'/'+name}],body:'Changes'};}
 const dir=async()=>fs.mkdtemp(path.join(process.cwd(),'test-output','github-update-'));
@@ -46,10 +46,58 @@ test('manual checks can supersede a downloaded update without reinstalling the r
  let version='1.23.0',checks=0,downloads=0;
  const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>{checks++;return selectRelease([release(version)],'1.22.0');},download:async(_r,file)=>{downloads++;await fs.writeFile(file,content);}});
  await updater.check();assert.equal((await updater.archive()).version,'1.23.0');
- version='1.23.1';await updater.check(true);assert.equal(checks,1,'automatic checks leave the prepared update alone');
+ version='1.23.1';await updater.check(true);assert.equal(checks,1,'automatic checks respect the pending-update interval');
  await updater.check();assert.equal((await updater.archive()).version,'1.23.1');assert.equal(downloads,2);
  await updater.check();assert.equal(downloads,2,'the same prepared version is not downloaded again');
  assert.equal(updater.snapshot().phase,'ready');
+});
+test('queued updates are replaced automatically when due, with no repeat download or downgrade',async()=>{
+ let version='1.23.0',downloads=0;
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release(version)],'1.22.0'),download:async(_r,file)=>{downloads++;await fs.writeFile(file,content);}});
+ await updater.check();version='1.23.1';updater.set({checkedAt:Date.now()-31*60000});
+ await updater.check(true);assert.equal((await updater.archive()).version,'1.23.1');assert.equal(downloads,2);
+ version='1.23.0';await updater.check();assert.equal((await updater.archive()).version,'1.23.1');assert.equal(downloads,2);
+ assert.equal(checkInterval({release:{}}),30*60000);assert.equal(checkInterval({failedVersion:'1.23.0'}),5*60000);
+ assert.equal(checkInterval({}),6*3600000);
+ await updater.preferences({autoCheck:false});updater.set({checkedAt:0});version='1.23.2';await updater.check(true);assert.equal(updater.snapshot().release.version,'1.23.1');
+});
+test('install checks freshness before staging, and a replacement still needs a restart action',async()=>{
+ let version='1.23.0',installs=0;
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release(version)],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});
+ await updater.check();version='1.23.1';const install=async(_file,v)=>{installs++;assert.equal(v,'1.23.1');return {restarting:true};};
+ await updater.install(install);assert.equal(installs,0);assert.equal(updater.snapshot().phase,'ready');assert.equal(updater.snapshot().release.version,'1.23.1');
+ await updater.install(install);assert.equal(installs,1);assert.equal(updater.snapshot().phase,'restarting');
+});
+test('failed installation triggers one replacement search and survives relaunch without a retry loop',async()=>{
+ let version='1.23.0',downloads=0,checks=0;const directory=await dir();
+ const options={directory,current:'1.22.0',canInstall:true,find:async()=>{checks++;return selectRelease([release(version)],'1.22.0');},download:async(_r,file)=>{downloads++;await fs.writeFile(file,content);}};
+ const updater=new OnlineUpdate(options);await updater.check();
+ await updater.install(async()=>({error:'Unsafe or invalid update entry.'}));
+ assert.equal(updater.snapshot().phase,'error');assert.equal(downloads,1);assert.equal(checks,3,'initial lookup, install preflight, then bounded recovery');
+ const reopened=new OnlineUpdate(options);await reopened.ready;assert.equal(reopened.snapshot().phase,'error');
+ await reopened.check();assert.equal(downloads,1,'the rejected version is not silently downloaded again');
+ version='1.23.1';reopened.set({checkedAt:Date.now()-6*60000});await reopened.check(true);
+ assert.equal(downloads,2);assert.equal(reopened.snapshot().phase,'ready');assert.equal((await reopened.archive()).version,'1.23.1');
+});
+test('an install failure can immediately discover a newly published replacement',async()=>{
+ let version='1.23.0';const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release(version)],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});
+ await updater.check();await updater.install(async()=>{version='1.23.1';return {error:'Rejected package'};});
+ assert.equal((await updater.archive()).version,'1.23.1');assert.equal(updater.snapshot().failedVersion,'');
+});
+test('replacement checks respect download preferences and offline installs remain possible',async()=>{
+ let version='1.23.0';const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release(version)],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});
+ await updater.check();await updater.preferences({autoDownload:false});version='1.23.1';
+ await updater.install(async()=>assert.fail('the superseded package must not be installed'));assert.equal(updater.snapshot().phase,'available');
+ await updater.startDownload();updater.find=async()=>{throw Error('Offline')};
+ await updater.install(async(_f,v)=>{assert.equal(v,'1.23.1');return {cancelled:true};});assert.equal(updater.snapshot().phase,'ready');
+});
+test('cancelling install-time discovery stops installation and overlapping clicks are ignored',async()=>{
+ let started,finish;const began=new Promise(r=>started=r);
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release('1.23.1')],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});
+ await updater.check();updater.find=async(_v,{signal})=>{started();return new Promise((resolve,reject)=>{finish=resolve;signal.addEventListener('abort',()=>reject(signal.reason),{once:true});});};
+ let installs=0;const pending=updater.install(async()=>{installs++;return {restarting:true};});await began;
+ await updater.install(async()=>assert.fail('duplicate install'));updater.cancel();await pending;
+ assert.equal(installs,0);assert.equal(updater.snapshot().phase,'ready');
 });
 test('a failed manual recheck retains the verified download and preparation cannot be interrupted',async()=>{
  const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release('1.23.1')],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});

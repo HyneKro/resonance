@@ -7,7 +7,8 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
  const updater=new OnlineUpdate({directory:path.join(app.getPath('userData'),'app-updates'),current:app.getVersion(),canInstall,emit:state=>{if(!win.isDestroyed())win.webContents.send('resonance:update-state',state);}});
  const trusted=event=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||!event.senderFrame.url.startsWith(url+'/'))throw Error('Update request rejected');};
  let checkTimer,periodic;
- win.webContents.once('did-finish-load',()=>{checkTimer=setTimeout(()=>void updater.check(true),30000);periodic=setInterval(()=>void updater.check(true),6*3600000);});
+ const check=()=>void updater.check(true).catch(()=>{});
+ win.webContents.once('did-finish-load',()=>{checkTimer=setTimeout(check,30000);periodic=setInterval(check,60000);});
  ipcMain.handle('resonance:online-update',async(event,action,data={})=>{
   trusted(event);await updater.ready;
   switch(action){
@@ -17,7 +18,7 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
    case 'download':if(!busy)void updater.startDownload();return updater.snapshot();
    case 'cancel':return updater.cancel();
    case 'releases':await require('electron').shell.openExternal(RELEASES_URL);return updater.snapshot();
-   case 'install':{if(busy)return updater.snapshot();const r=await updater.archive();updater.set({phase:'preparing',message:'Checking and preparing the update…'});const result=await installArchive(r.file,r.version);updater.set({phase:result.restarting?'restarting':'ready',message:result.error||result.message||(result.restarting?'Restarting to install…':'Ready whenever you are.')});return updater.snapshot();}
+   case 'install':if(busy)return updater.snapshot();return updater.install(installArchive);
    default:throw Error('Unknown update action');
   }
  });
@@ -33,7 +34,7 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
   }catch{}
  });
  ipcMain.handle('resonance:update',async(event)=>{
-  trusted(event);return installArchive();
+  trusted(event);if(updater.busy||updater.installing)return {message:'An update is already being checked or prepared.'};return installArchive();
  });
  async function installArchive(archive,expectedVersion){
   if(busy)return {message:'An update is already being prepared.'};
