@@ -1,4 +1,4 @@
-// Read existing work only: this panel never starts scans or network lookups.
+// One activity surface; checks start only from explicit user actions.
 const requests=new Map(),listeners=new Set();
 const requestKinds={
  lyricsRequest:'lyrics',lyricsSearch:'lyrics',research:'enrich',researchGenres:'genres',
@@ -17,7 +17,7 @@ export function activityRows(status={},local={}){
   ['scan','Music folders','Scans run when folders are connected or refreshed.'],
   ['sync','Playlist downloads','Choose songs in Playlist downloads to start.'],
   ['enrich','Artists & releases','Looks up missing details when requested.'],
-  ['genres','Genre discovery','Run discovery in Library & downloads.'],
+  ['genres','Genre discovery','Find missing or suggested genres.'],
   ['covers','Cover artwork','Prepared as music is added.'],
   ['analysis','Sound preparation','Loudness and silent edges are measured locally.'],
   ['character','Track character','Sound details are prepared gradually.'],
@@ -35,6 +35,7 @@ export function activityRows(status={},local={}){
   }else if(hasCount)detail=`${done} / ${total} checked${done<total?' · paused or stopped':' · finished'}`;
   else if(r.done)detail=`${r.done} ${key==='lyrics'?'song checks':'lookups'} this session${r.errors?' · '+r.errors+' could not complete':''}`;
   else if(j.found>0)detail=`${j.found} files found`;
+  if(j.message&&!running)detail=j.message;
   if(errors)detail+=` · ${errors} ${key==='sync'?'unavailable or failed':'could not complete'}`;
   return {key,label,detail,running,progress,errors:errors+count(r.errors)};
  });
@@ -49,30 +50,77 @@ export function installLibraryActivity(){
  panel.innerHTML='<header><div><span class="activity-eyebrow">YOUR LIBRARY, TAKING SHAPE</span><h2>Library activity</h2></div><button type="button" data-activity-close aria-label="Close library activity">×</button></header><p class="activity-summary" role="status" aria-live="polite"></p><div class="activity-rows"></div><p class="activity-note">You can keep listening. Counts describe the work currently requested; some songs may have no matching metadata or lyrics. Lyrics are checked when you select a song.</p>';
  const home=document.createElement('span');home.className='library-activity-home';
  const initial=document.querySelector('.room-global')||document.querySelector('.room-top');initial?.append(home);home.append(button);document.body.append(panel);
- let status={},overrides={},signature='';
+ let status={},overrides={},actions={};const pending=new Set(),entries=new Map();
  const returnFocus=()=>{const fallback=document.querySelector('dialog[open] [data-action=close-dialog],dialog[open] #sheet-close,.room-global #room-sound,.room-top #settings,.topbar button');(button.hidden?fallback:button)?.focus({preventScroll:true});};
  // One fixed home in the main controls. Dialogs retain their own focus and layout.
  function render(){
-  const rows=activityRows({...status,...overrides},Object.fromEntries(requests)),busy=rows.filter(r=>r.running).length;
+  const rows=activityRows({...status,...Object.fromEntries(Object.entries(overrides).filter(([key,value])=>value?.running||!status[key]?.running))},Object.fromEntries(requests)),busy=rows.filter(r=>r.running).length;
   const focused=document.activeElement===button;button.hidden=!busy;home.hidden=!busy;button.classList.toggle('is-working',busy>0);if(focused&&!busy)returnFocus();
   button.setAttribute('aria-label',busy?`Library activity · ${busy} tasks running`:'Library activity');
   button.title=busy?`Library activity · ${busy} ${busy===1?'task':'tasks'} running`:'Library activity';
   const summary=busy?`${busy} ${busy===1?'task is':'tasks are'} running in the background.`:'No background tasks are running.';
   const message=panel.querySelector('.activity-summary');if(message.textContent!==summary)message.textContent=summary;
-  const key=JSON.stringify(rows);if(signature===key)return;signature=key;
-  const root=panel.querySelector('.activity-rows');root.replaceChildren();
+  const root=panel.querySelector('.activity-rows');
   for(const row of rows){
-   const section=document.createElement('div');section.className='activity-row';section.classList.toggle('is-working',row.running);
-   const title=document.createElement('h3');title.textContent=row.label;
-   const detail=document.createElement('p');detail.textContent=row.detail;section.append(title,detail);
-   if(row.running){const bar=document.createElement('progress');bar.max=1;if(row.progress!==null)bar.value=row.progress;bar.setAttribute('aria-label',row.label);section.append(bar);}
-   root.append(section);
+   let entry=entries.get(row.key);
+   if(!entry){
+    const section=document.createElement('div');section.className='activity-row';
+    const head=document.createElement('div');head.className='activity-row-head';
+    const title=document.createElement('h3');title.textContent=row.label;
+    const action=document.createElement('button');action.type='button';action.dataset.activityRun=row.key;
+    const detail=document.createElement('p'),bar=document.createElement('progress');bar.max=1;bar.setAttribute('aria-label',row.label);
+    head.append(title,action);section.append(head,detail,bar);root.append(section);
+    entry={section,detail,bar,action};entries.set(row.key,entry);
+   }
+   const {section,detail,bar,action}=entry,spec=actions[row.key]?.();
+   section.classList.toggle('is-working',row.running);detail.textContent=row.detail;
+   bar.hidden=!row.running;if(row.progress!==null)bar.value=row.progress;else bar.removeAttribute('value');
+   action.hidden=!spec;action.textContent=pending.has(row.key)?'Starting…':spec?.label||'';
+   action.disabled=!!(pending.has(row.key)||spec?.disabled||row.running&&!spec?.whileRunning);
+
   }
  }
+ const notice=document.createElement('p');notice.className='activity-action-notice';notice.setAttribute('role','status');notice.hidden=true;panel.querySelector('.activity-summary').after(notice);
+ panel.addEventListener('click',async e=>{
+  const key=e.target.closest('[data-activity-run]')?.dataset.activityRun,spec=actions[key]?.();if(!spec||pending.has(key)||e.target.closest('button').disabled)return;
+  pending.add(key);notice.hidden=true;render();
+  try{const result=await spec.run();if(typeof result==='string'){notice.textContent=result;notice.hidden=false;}}
+  catch(error){notice.textContent=error.message||'This check could not start. Try again.';notice.hidden=false;}
+  finally{pending.delete(key);render();}
+ });
+ function open(){render();if(!panel.matches(':popover-open'))panel.showPopover();panel.querySelector('[data-activity-close]').focus({preventScroll:true});}
  button.onclick=()=>{if(panel.matches(':popover-open'))panel.hidePopover();else{panel.showPopover();}};
  panel.querySelector('[data-activity-close]').onclick=()=>{panel.hidePopover();returnFocus();};
  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();panel.hidePopover();returnFocus();}});
  panel.addEventListener('toggle',()=>button.setAttribute('aria-expanded',String(panel.matches(':popover-open'))));
  listeners.add(render);render();
- return {update(value){status=value||{};render();},set(key,value){overrides={...overrides,[key]:value};render();}};
+ return {open,close(){if(panel.matches(':popover-open'))panel.hidePopover();},configure(value){actions=value;render();},update(value){status=value||{};render();},set(key,value){if(value==null)delete overrides[key];else overrides={...overrides,[key]:value};render();}};
+}
+
+// One file at a time. Playback's priority request can interrupt this work;
+// Android checks charging natively on every file and stops when backgrounded.
+export function soundPreparation({tracks,load,analyze,profile,update,active=()=>true,wait=ms=>new Promise(r=>setTimeout(r,ms))}){
+ let running=false,epoch=0;
+ return {get running(){return running;},toggle(){
+  if(running){running=false;++epoch;update(null);return 'Preparation paused. The current file may finish saving.';}
+  running=true;const token=++epoch;update({running:true,done:0,total:0});
+  void (async()=>{
+   let done=0,total=0,errors=0;
+   try{
+    const saved=await load();if(token!==epoch)return;if(saved.canPrepare===false)throw Error('Connect a charger to prepare sound data.');
+    const remaining=tracks().filter(t=>t.available!==false&&!saved.profiles?.[t.id]&&!saved.failed?.includes(t.id));total=remaining.length;
+    for(const t of remaining){
+     if(token!==epoch||!active())break;update({running:true,done,total,errors});
+     let value=await analyze(t.id),polls=0;
+     while(token===epoch&&active()&&!value.profile&&!value.error&&value.job?.running&&polls++<240){await wait(2000);if(token!==epoch||!active())break;value=await profile(t.id);}
+     if(token!==epoch)return;if(!active())break;
+     if(!value.profile&&!value.error)throw Error('Preparation paused; another song needed analysis. Resume whenever you like.');
+     if(value.error)errors++;done++;
+    }
+   }catch(error){errors++;if(token===epoch)update({running:false,done,total,errors,message:error.message});return;}
+   finally{if(token===epoch)running=false;}
+   if(token===epoch)update({running:false,done,total,errors});
+  })();
+  return 'Preparing missing sound data, one song at a time.';
+ }};
 }

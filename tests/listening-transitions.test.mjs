@@ -96,3 +96,29 @@ test('seeking clears audio history without zeroing the visible sculpture envelop
  const roles={...r.roles.output};r.resetAnalysis();assert.deepEqual(r.roles.output,roles);assert.deepEqual(r.roles.previous,{});assert.equal(r.tempo.output.phase,12.25);assert.equal(r.tempo.output.pulse,.6);assert.equal(r.tempo.output.bpm,0);assert.equal(r.features.loudness,0);
  }finally{globalThis.matchMedia=original;}
 });
+
+function preparationFixture(api){
+ const audio={paused:true,duration:90,addEventListener(){}},gains=[],states=[];
+ const c=new ListeningEnhancements({audio,reactor:{setPlaybackGain:v=>gains.push(v),updateSongProfile(){}},api,getTrack:()=>c.track,getPreferences:()=>({leveling:true}),onPreparation:v=>states.push(v)});
+ return {c,gains,states};
+}
+test('cancel and original-level playback do not wait for an unfinished profile request',async()=>{
+ for(const cancel of [true,false]){
+  let finish;const {c,states,gains}=preparationFixture(async(_,body)=>body?new Promise(r=>finish=r):{profile:null});
+  await c.select({id:'a',title:'A'});const pending=c.prepare();assert.ok(states.at(-1),'waiting is visible before the POST completes');
+  if(cancel)c.cancelPreparation();else c.playOriginal();
+  assert.equal(await pending,!cancel);assert.equal(c.preparing,false);
+  finish({profile:loud});await Promise.resolve();await Promise.resolve();
+  assert.equal(gains.at(-1),0,'a late response cannot change the original-level play or canceled gain');
+ }
+});
+test('failed analysis returns control, preserves the failure explanation, and permits an explicit bypass',async()=>{
+ const {c,states}=preparationFixture(async()=>({error:'Not decodable',profile:null,job:{running:false}}));
+ await c.select({id:'a'});assert.equal(await c.prepare(),false);assert.equal(c.preparing,false);assert.ok(states.at(-1).error);
+ c.playOriginal();assert.equal(await c.prepare(),true);
+});
+test('a stale rejected lookup cannot poison the latest song or its cached leveling',async()=>{
+ let fail;const {c}=preparationFixture(url=>url.endsWith('a')?new Promise((_,reject)=>fail=reject):Promise.resolve({profile:quiet}));
+ const first=c.select({id:'a'});await c.select({id:'b'});fail(Error('Old request'));await first;
+ assert.equal(c.error,undefined);assert.equal(await c.prepare(),true);assert.equal(c.level.db,5);
+});

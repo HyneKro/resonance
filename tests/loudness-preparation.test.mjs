@@ -31,7 +31,7 @@ test('original-level bypass is explicit, and a late cached result never changes 
  const f=fixture();await f.c.select({id:'a'});const pending=f.c.prepare();await until(()=>f.notifications.some(Boolean));f.set({profile});f.c.playOriginal();f.advance();await pending;assert.equal(f.c.level.db,0);f.events.playing();await f.c.load(false);await f.c.prepare();assert.equal(f.c.level.db,0);f.c.cancelPreparation();
 });
 test('failed measurement stays visibly paused until an explicit original-level choice',async()=>{
- const f=fixture();f.set({profile:null,error:'Unreadable',job:{running:false}});await f.c.select({id:'a'});const pending=f.c.prepare();await until(()=>f.notifications.some(p=>p?.error));assert.ok(f.c.preparing);f.c.playOriginal();f.advance();await pending;assert.equal(f.c.level.db,0);assert.equal(f.c.preparing,false);f.c.cancelPreparation();
+ const f=fixture();f.set({profile:null,error:'Unreadable',job:{running:false}});await f.c.select({id:'a'});const pending=f.c.prepare();await until(()=>f.notifications.some(p=>p?.error));assert.equal(await pending,false);assert.equal(f.c.preparing,false);f.c.playOriginal();assert.equal(await f.c.prepare(),true);assert.equal(f.c.level.db,0);assert.equal(f.c.preparing,false);f.c.cancelPreparation();
 });
 test('quiet masters can reach the target beyond the old 6dB boost cap without exceeding measured peak headroom',()=>{
  for(const p of [{integratedLufs:-8,truePeakDb:0},{integratedLufs:-30,truePeakDb:-18},{integratedLufs:-39,truePeakDb:-26}]){const db=levelingDb(p,true);assert.equal(p.integratedLufs+db,-16);assert.ok(p.truePeakDb+db<=-1);}

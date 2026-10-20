@@ -24,3 +24,11 @@
 .library-activity-button:focus-visible,.library-activity-panel button:focus-visible{outline:2px solid var(--ui-accent,#c8d9ee);outline-offset:3px}
 
 @media(max-width:750px){.library-activity-panel{inset:70px 14px auto;width:calc(100vw - 28px);padding:18px;max-height:calc(100dvh - 90px)}.library-activity-button{width:40px;height:40px;flex-basis:40px}}
+
+.activity-row-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.library-activity-panel .activity-row-head h3{margin:0}
+.activity-row-head button{flex-shrink:0;padding:7px 10px;min-height:32px;border:1px solid #c6d6eb35;border-radius:8px;background:#c6d6eb0b;color:#e1e8f4;font-size:calc(11px * var(--ui-text-scale,1));cursor:pointer}
+.activity-row-head button:disabled{opacity:.45;cursor:default}
+.activity-row [hidden]{display:none!important}
+.activity-action-notice{padding:10px;border-radius:8px;background:#c6d6eb12;color:#dce6f5;font-size:12px;line-height:1.5}
+.playback-waiting{outline:2px dotted currentColor;outline-offset:4px}

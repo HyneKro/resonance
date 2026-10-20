@@ -18,8 +18,8 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
     else{library.removeAttribute('role');library.removeAttribute('aria-modal');library.removeAttribute('aria-label');if(libraryFocus?.isConnected)libraryFocus.focus();}
   }
   function updatePlay(){
-    const playing=!audio.paused;
-    for(const id of ['dock-play']){$('#'+id).innerHTML=icon(playing?'pause':'play');$('#'+id).setAttribute('aria-label',playing?'Pause music':'Play music');}
+    const waiting=audio.paused&&state.wantsPlayback,playing=!audio.paused;
+    for(const id of ['dock-play','play']){const b=$('#'+id);b.innerHTML=icon(playing||waiting?'pause':'play');b.setAttribute('aria-label',waiting?'Cancel starting song':playing?'Pause music':'Play music');b.classList.toggle('playback-waiting',waiting);}
 
 
     room.classList.toggle('music-playing',playing);
@@ -76,5 +76,5 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
     if(e.key.toLowerCase()==='l'&&!$('#dialog').open){e.preventDefault();closeRoom();}
   });
   $('.visual-tools').inert=true;updatePlay();updateTrack();updateTime();
-  return {libraryOpen,updateTrack};
+  return {libraryOpen,updateTrack,updatePlay};
 }

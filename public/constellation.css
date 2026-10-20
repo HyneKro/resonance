@@ -170,3 +170,11 @@
 .constellation .cx-listening-dock .cx-map-hint{position:static;display:block;max-width:420px;text-align:center;opacity:1;font-size:calc(10px * var(--ui-text-scale,1));color:#c3ccdb;text-shadow:0 2px 5px #000}
 .cx-listening-dock .cx-map-hint p{white-space:normal;line-height:1.5;text-wrap:balance}
 @media(max-width:750px){.cx-listening-dock{gap:5px;width:max-content}.constellation .cx-listening-dock .cx-map-hint{max-width:300px;font-size:10px}.cx-panel-open .cx-listening-dock,.cx-detail-expanded .cx-listening-dock{visibility:hidden}}
+
+/* Let the stars carry the emphasis. Captions sit beside them as quiet callouts. */
+.constellation .cx-groups [data-marker-kind=playing],.constellation .cx-groups [data-marker-kind=upcoming]{flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding:5px 9px;border:0;border-left:1px solid var(--group-color);border-radius:0 6px 6px 0;background:linear-gradient(90deg,#080f19ed,#080f19a8);box-shadow:none;text-align:left}
+.cx-groups [data-marker-kind=playing] .cx-marker-kind,.cx-groups [data-marker-kind=upcoming] .cx-marker-kind{background:none;padding:0;font-size:calc(8px * var(--ui-text-scale,1));letter-spacing:.12em;font-weight:500;color:var(--group-color)}
+.cx-groups [data-marker-kind=playing] .cx-marker-name,.cx-groups [data-marker-kind=upcoming] .cx-marker-name{font-size:calc(11px * var(--ui-text-scale,1));max-width:100%;font-weight:550;color:#edf0f7}
+.constellation .cx-groups .cx-number-marker{align-items:center;border-left:0;background:#080f19bd;border:1px solid #b9c8df30;border-radius:50%;padding:0}
+.cx-number-marker .cx-marker-name{display:none}
+.constellation .cx-groups [data-marker-kind=home],.constellation .cx-groups [data-marker-kind=genre]{background:#080f19c9;box-shadow:none;border:0;border-radius:4px}

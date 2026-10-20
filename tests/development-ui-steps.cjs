@@ -13,6 +13,16 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  await until("document.querySelector('.library-activity-button').hidden");
  assert.ok(await run("document.querySelector('#library-activity-panel').matches(':popover-open')"),'Completion does not dismiss a panel being read');
  await click('[data-activity-close]');
+ await openSettings();await click('[data-settings-page=library]');await click('[data-action=library-activity]');
+ assert.ok(await run("document.querySelector('#library-activity-panel').matches(':popover-open')"),'Idle checks are reachable without a permanent activity icon');
+ assert.equal(await run("document.querySelectorAll('[data-activity-run]:not([hidden])').length"),6);
+ if(!mobile){
+  await run(`window.activityStarts=0;const originalActivityFetch=window.fetch;window.fetch=async(input,options)=>{if(String(input)==='/api/scan'){activityStarts++;await new Promise(r=>setTimeout(r,200));return new Response(JSON.stringify({ok:true}));}return originalActivityFetch(input,options);};void 0;`);
+  await run("document.querySelector('[data-activity-run=scan]').click();document.querySelector('[data-activity-run=scan]').click()");
+  await until("!document.querySelector('[data-activity-run=scan]').disabled");assert.equal(await run('activityStarts'),1,'Repeated clicks cannot start duplicate scans');
+  await run("window.fetch=originalActivityFetch;void 0");
+ }
+ await shot((mobile?'phone':'pc')+'-activity-controls');await click('[data-activity-close]');
  await openSettings();await click('[data-settings-page=accessibility]');
  await run("(async()=>{const {beginActivity}=await import('/library-activity.js');window.finishProbeActivity=beginActivity('lyricsRequest');})()");
  assert.ok(await run("document.querySelector('.library-activity-button').parentElement.classList.contains('library-activity-home')"),'Activity keeps its main-screen home');

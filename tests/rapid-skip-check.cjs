@@ -3,14 +3,15 @@ const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require
 const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-work/rapid-skip');fs.mkdirSync(out,{recursive:true});
 app.setPath('userData',path.join(out,'profile'));const log=s=>fs.appendFileSync(path.join(out,'report.log'),s+'\n');fs.writeFileSync(path.join(out,'report.log'),'');
 for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.code!=='EPIPE'){log(e.stack);app.exit(1)}});
-let win,service;const pause=ms=>new Promise(r=>setTimeout(r,ms)),run=js=>win.webContents.executeJavaScript(js,true);
+let win,service,failed=false;const pause=ms=>new Promise(r=>setTimeout(r,ms)),run=js=>win.webContents.executeJavaScript(js,true);
 async function until(js){for(let i=0;i<100;i++){if(await run(js))return;await pause(50)}throw Error('Timed out: '+js)}
 app.whenReady().then(async()=>{
  const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});
- Object.assign(service.lib.config.preferences,{musicOnly:true,motion:true,sfx:false,hdrMode:'off',autoDirection:false,leveling:false,danceCompanion:false});Object.assign(service.lib.config,{autoEnrich:false,autoGenres:false});service.lib.setSetting('config',service.lib.config);
+ Object.assign(service.lib.config.preferences,{musicOnly:true,motion:true,sfx:false,hdrMode:'off',autoDirection:false,leveling:true,danceCompanion:false});Object.assign(service.lib.config,{autoEnrich:false,autoGenres:false});service.lib.setSetting('config',service.lib.config);
  const wav=Buffer.alloc(44+8000*2*60);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);const file=path.join(out,'fixture.wav');fs.writeFileSync(file,wav);
  const ids=Array.from({length:2600},(_,i)=>'skip-'+i);service.lib.db.exec('BEGIN');
  for(const [i,id]of ids.entries())service.lib.save({id,kind:'track',title:'Song '+i,artist:'Fixture artist',genre:'Electronic',duration:60,path:file,available:true,size:wav.length,codec:'WAV'});
+ for(const id of ids)service.lib.setSetting('audioProfile:'+id,{version:1,stamp:[file,wav.length,undefined,60].join('|'),duration:60,integratedLufs:-10,truePeakDb:-1,trim:{start:0,end:60},timeline:[]});
  service.lib.db.exec('COMMIT');service.lib.setSetting('player',{id:ids[0],position:0,volume:.1,queue:ids,queueIndex:0});
  win=new BrowserWindow({show:false,width:1280,height:800,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});win.webContents.setAudioMuted(true);
  await win.loadURL(service.url);await until("document.body.classList.contains('startup-ready')&&!document.querySelector('#startup')");
@@ -26,5 +27,16 @@ app.whenReady().then(async()=>{
  assert.equal(await run("document.querySelector('#now-title').textContent"),'Song 15');assert.ok(await run("document.querySelector('audio').paused"));
  // A deliberate song selection supersedes the queued skip.
  await run("document.querySelector('#next').click();const pick=document.createElement('button');pick.dataset.play='skip-3';document.body.append(pick);pick.click();pick.remove()");await until("document.querySelector('#now-title').textContent==='Song 3'");await pause(250);assert.equal(await run("document.querySelector('#now-title').textContent"),'Song 3');
+ // A slow/missing loudness result must not turn the transport into an idle Play button.
+ await run(`window.heldProfiles=[];const savedFetch=window.fetch;window.fetch=(input,options)=>{const url=String(input);if(url.startsWith('/api/audio-profile')&&(url.endsWith('skip-300')||options?.body&&JSON.parse(options.body).id==='skip-300')){if(options?.method==='POST')return new Promise(resolve=>heldProfiles.push(resolve));return Promise.resolve(new Response(JSON.stringify({profile:null,job:{running:false}})));}return savedFetch(input,options)};document.querySelector('#next').click();document.querySelector('#next').click();`);
+ await until("document.querySelector('#now-title').textContent==='Song 300'&&!document.querySelector('.leveling-preparation').hidden&&heldProfiles.length>0");
+ assert.equal(await run("document.querySelector('#dock-play').getAttribute('aria-label')"),'Cancel starting song');
+ await run("document.querySelector('#dock-play').click()");
+ assert.ok(await run("document.querySelector('audio').paused&&!document.querySelector('#dock-play').classList.contains('playback-waiting')"),'Pause cancels preparation immediately, even before HTTP resolves');
+ await run("document.querySelector('#dock-play').click()");await until('heldProfiles.length===2');
+ await run("document.querySelector('.leveling-preparation button').click()");
+ await until("!document.querySelector('audio').paused");
+ await run("for(const resolve of heldProfiles)resolve(new Response(JSON.stringify({profile:{integratedLufs:-4,truePeakDb:0},job:{running:false}})));void 0");
+ log('PASS: leveling enabled, cached starts, canceled pending lookup, immediate explicit original-level playback.');
  await run('probing=false');log('PASS: 2600-song library, rapid next/back, delayed persistence, pause and explicit selection.');
-}).catch(async e=>{log(e.stack);if(win)log(JSON.stringify(await run("({title:document.querySelector('#now-title')?.textContent,paused:document.querySelector('audio')?.paused,requests:window.requestCounts,toasts:document.querySelector('#toasts')?.textContent})")));process.exitCode=1}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close()}app.exit(process.exitCode||0)});
+}).catch(async e=>{log(e.stack);if(win)log(JSON.stringify(await run("({title:document.querySelector('#now-title')?.textContent,paused:document.querySelector('audio')?.paused,requests:window.requestCounts,toasts:document.querySelector('#toasts')?.textContent})")));failed=true}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close()}app.exit(failed?1:0)});

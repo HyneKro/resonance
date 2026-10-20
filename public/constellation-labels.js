@@ -1,12 +1,19 @@
 const overlaps=(a,b,gap)=>a.x<b.x+b.width+gap&&a.x+a.width+gap>b.x&&a.y<b.y+b.height+gap&&a.y+a.height+gap>b.y;
 const clearance=(box,bounds)=>Math.min(box.x-bounds.x,box.y-bounds.y,bounds.x+bounds.width-box.x-box.width,bounds.y+bounds.height-box.y-box.height);
 
+// A fixed side offset, never a screen-space slot search. Camera and mouse
+// movement cannot switch a caption to the other side of its star.
+export function starCaption(anchor,width,height,{side=1,scale=1}={}){
+ const gap=Math.max(28*scale,(anchor.radius||0)*3+12);
+ return {x:anchor.x+side*(gap+width/2),y:anchor.y-height/2,width,height,anchor};
+}
+
 /** Camera-facing captions anchored to projected world positions. Never pack or
  * clamp text into another slot: crowded labels yield visibility, not position.
  * Existing labels win ties; new ones need sustained space before fading in. */
 export class AnchoredLabels {
  constructor(){this.states=new Map();}
- update(candidates,bounds,{dt=1/60,reduced=false,limits={group:8}}={}){
+ update(candidates,bounds,{dt=1/60,reduced=false,limits={group:8},obstacles=[]}={}){
   dt=Math.max(0,Math.min(.1,dt));
   const ids=new Set(candidates.map(c=>c.id));
   for(const id of this.states.keys())if(!ids.has(id))this.states.delete(id);
@@ -20,7 +27,7 @@ export class AnchoredLabels {
   const chosen=[],counts=new Map();
   for(const item of items){
    const {box,state,margin}=item,category=box.category||'group';
-   item.wanted=margin>=(state.selected?0:12)&&(counts.get(category)||0)<(limits[category]??Infinity)&&!chosen.some(b=>overlaps(box,b,state.selected?8:18));
+   item.wanted=margin>=(state.selected?0:12)&&(counts.get(category)||0)<(limits[category]??Infinity)&&!chosen.some(b=>overlaps(box,b,state.selected?8:18))&&!obstacles.some(b=>overlaps(box,b,8));
    if(item.wanted){chosen.push(box);counts.set(category,(counts.get(category)||0)+1);}
   }
   // Let the outgoing caption fade before another occupies the same space.

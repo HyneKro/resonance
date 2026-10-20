@@ -50,7 +50,7 @@ export function paintMapMarkers(root,markers){
   const {button}=entry;button.classList.toggle('cx-queue-marker',!!marker.queue);
   const values={label:marker.name,queueIndex:marker.queueIndex,aria:marker.aria||(marker.caption?'Play '+marker.name:null)||(marker.id==='home'?'Return to all music':'Explore '+marker.name+' · '+marker.count+' songs'),navigation:!!marker.navigation,opacity:(marker.opacity??1).toFixed(3),pointerEvents:marker.interactive===false?'none':'auto',transform:`translate(${marker.x.toFixed(2)}px,${marker.y.toFixed(2)}px)`,width:marker.width+'px',height:marker.height+'px',color:marker.color};
   const kind=marker.queue?(marker.queueIndex===0?'playing':'upcoming'):marker.caption?'song':marker.kind||'home';
-  button.dataset.markerKind=kind;
+  button.dataset.markerKind=kind;button.classList.toggle('cx-number-marker',!!marker.compact);
   if(marker.caption){delete button.dataset.cxGroup;button.dataset.cxSelect=marker.id.slice(8);}
   if(values.label!==entry.label||kind!==entry.kind||marker.queueIndex!==entry.queueIndex){
    const tag=root.ownerDocument.createElement('span'),name=root.ownerDocument.createElement('span');

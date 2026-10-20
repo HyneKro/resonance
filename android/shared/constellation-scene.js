@@ -1,4 +1,4 @@
-import {AnchoredLabels} from './constellation-labels.js';
+import {AnchoredLabels,starCaption} from './constellation-labels.js';
 import {listeningPath,pointOnLink} from './constellation-listening.js';
 import {StarAtmosphere,drawJourneyThread,drawStarFlare,drawListeningLink} from './constellation-effects.js';
 import {hash} from './constellation-model.js';
@@ -103,27 +103,30 @@ export class ConstellationScene {
   const scale=Number(document.documentElement.style.getPropertyValue('--ui-text-scale'))||1;
   const compact=w<750||this.coarse,home={id:'home',name:'All music',count:this.visible.size,color:'#b9c8df',position:[0,0,0]},genreId=this.navigationPath?.find(g=>g.id.startsWith('genre:'))?.id;
   const genre=this.data.groups.find(g=>g.id===(genreId||this.focusedGroup));
-  const addGroup=(g,navigation=false)=>{const p=project(g.position);if(!p)return;candidates.push({...g,navigation,category:navigation?'navigation':'group',priority:navigation?80:40,rank:g.count, x:p.x,y:p.y-44,width:(g.id==='home'?120:Math.min(compact?180:245,65+g.name.length*(compact?5.5:6.2)))*scale,height:36*scale,anchor:p});};
+  const addGroup=(g,navigation=false)=>{const p=project(g.position);if(!p)return;const width=(g.id==='home'?105:Math.min(compact?155:185,52+g.name.length*5.8))*scale;candidates.push({...g,navigation,category:navigation?'navigation':'group',priority:navigation?80:40,rank:g.count,...starCaption(p,width,30*scale,{scale})});};
   addGroup(home,true);if(genre)addGroup(genre,true);
   for(const [i,id] of livePath.entries()){
-   const p=projected.get(id);if(!p)continue;const prefix=i===0?(live.repeatOne?'REPEAT':'NOW'):i===1?'NEXT':String(i).padStart(2,'0');c.font='600 11px system-ui';
-   candidates.push({id:'queue:'+id,name:p.node.title,aria:'Focus '+(i?'upcoming song '+i:'playing song')+': '+p.node.title,queue:true,queueIndex:i,category:'queue',priority:100-i,color:p.node.region.color,x:p.x,y:p.y+26,width:Math.min(compact?205:310,c.measureText(p.node.title).width+95)*scale,height:38*scale,anchor:p});
+   const p=projected.get(id);if(!p)continue;c.font='600 11px system-ui';
+   const detailed=i<2||id===this.selected,width=(detailed?Math.min(compact?145:180,c.measureText(p.node.title).width+24):36)*scale,height=(detailed?42:30)*scale;
+   candidates.push({id:'queue:'+id,name:p.node.title,aria:'Focus '+(i?'upcoming song '+i:'playing song')+': '+p.node.title,queue:true,queueIndex:i,compact:!detailed,category:'queue',priority:100-i,color:p.node.region.color,...starCaption(p,width,height,{side:i%2?1:-1,scale})});
   }
   if(livePath.length===1&&live.measured){const p=projected.get(live.id);if(p){c.strokeStyle=this.byId.get(live.id).region.color;c.lineWidth=2;c.beginPath();c.arc(p.x,p.y,Math.max(14,p.radius*3),-Math.PI/2,-Math.PI/2+live.progress*Math.PI*2);c.stroke();}}
   for(const id of new Set([this.selected,this.current,this.hover])){
    if(livePath.includes(id))continue;const p=projected.get(id);if(!p)continue;
    c.font='11px system-ui';const text=p.node.title.slice(0,38);
-   candidates.push({id:'caption:'+id,caption:true,name:text,category:'caption',priority:id===this.selected||id===this.current?90:10,color:p.node.region.color,x:p.x,y:p.y+26,width:Math.min(compact?190:260,c.measureText(text).width+65)*scale,height:34*scale,anchor:p});
+   candidates.push({id:'caption:'+id,caption:true,name:text,category:'caption',priority:id===this.selected||id===this.current?90:10,color:p.node.region.color,...starCaption(p,Math.min(compact?150:185,c.measureText(text).width+40)*scale,34*scale,{scale})});
   }
   const focused=this.data.groups.find(g=>g.id===this.focusedGroup),memberSet=focused?new Set(focused.ids):null;
   const overview=!this.focusedGroup&&!this.selected;
   const groups=this.following?[]:overview?this.data.groups:this.data.artistGroups.filter(g=>this.selected?g.ids.some(id=>linked.has(id)):g.id===this.focusedGroup||memberSet&&g.ids.some(id=>memberSet.has(id)));
   for(const g of groups)if(g.id!==genre?.id&&g.ids.some(id=>this.visible.has(id)))addGroup(g);
   const now=performance.now(),dt=this.labelTime===undefined?1/60:(now-this.labelTime)/1000;this.labelTime=now;
-  const markers=this.labels.update(candidates,bounds,{dt,reduced:this.reduced.matches,limits:{group:compact?4:8}});
+  const obstacles=[...new Set([...livePath,this.selected,this.current])].map(id=>projected.get(id)).filter(Boolean).map(p=>{const r=Math.max(12,p.radius*2.8);return {x:p.x-r,y:p.y-r,width:r*2,height:r*2};});
+  const markers=this.labels.update(candidates,bounds,{dt,reduced:this.reduced.matches,limits:{group:compact?4:6},obstacles});
   for(const m of markers){
    c.globalAlpha=m.opacity;
-   c.strokeStyle=m.color+'50';c.lineWidth=.6;c.beginPath();c.moveTo(m.anchor.x,m.anchor.y);c.lineTo(m.anchor.x,m.y+(m.y<m.anchor.y?m.height:0));c.stroke();
+   const right=m.x>m.anchor.x,edge=right?m.x:m.x+m.width,gap=Math.max(9,(m.anchor.radius||0)*2);
+   c.strokeStyle=m.color+'65';c.lineWidth=.65;c.beginPath();c.moveTo(m.anchor.x+(right?gap:-gap),m.anchor.y);c.lineTo(edge,m.y+m.height/2);c.stroke();
   }
   c.globalAlpha=1;this.onGroups?.(markers);
 

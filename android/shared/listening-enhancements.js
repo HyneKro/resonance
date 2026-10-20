@@ -11,24 +11,35 @@ export class ListeningEnhancements {
  }
  async select(track){const generation=++this.generation;clearTimeout(this.timer);this.onPreparation(null);this.preparing=false;this.hasPlayed=false;this.bypassId=null;this.track=track;this.loaded=false;this.requested=false;this.error='';this.profile=null;this.edit=null;this.selecting=true;this.paintTimeline();if(track)await this.load(false);if(generation!==this.generation)return;this.selecting=false;this.level.select(this.profile,this.getPreferences().leveling);this.reactor.setPlaybackGain?.(this.level.db,{immediate:this.audio.paused});this.apply();}
  async prepare(){
-  if(!this.track||!this.getPreferences().leveling||this.hasPlayed||this.bypassId===this.track.id)return;
-  if(this.profile){this.level.select(this.profile,true);this.reactor.setPlaybackGain?.(this.level.db,{immediate:true});return;}
+  if(!this.track||!this.getPreferences().leveling||this.hasPlayed||this.bypassId===this.track.id)return true;
+  if(this.profile){this.level.select(this.profile,true);this.reactor.setPlaybackGain?.(this.level.db,{immediate:true});return true;}
   const generation=this.generation;this.preparing=true;this.selecting=true;
-  try{let value=await this.load(true);while(generation===this.generation&&this.getPreferences().leveling&&!this.profile&&this.bypassId!==this.track.id){this.onPreparation({title:this.track.title,error:this.error||(!value?.job?.running?'Analysis unavailable':''),progress:value?.job?.id===this.track.id?value.job.progress:null});await this.wait(250);if(generation!==this.generation)return;value=await this.load(false);}
-   if(generation!==this.generation)return;
+  // Cancel / play original must respond even while a profile request is pending.
+  let wake,timer,failed=false;const interrupted=new Promise(resolve=>wake=resolve);
+  this.wakePreparation=wake;timer=setTimeout(()=>wake('timeout'),30000);
+  const waitFor=promise=>Promise.race([promise,interrupted]);
+  this.onPreparation({title:this.track.title,progress:null});
+  try{let value=await waitFor(this.load(true));while(generation===this.generation&&this.getPreferences().leveling&&!this.profile&&this.bypassId!==this.track.id){
+    if(value==='timeout'||this.error||!value?.job?.running){failed=true;this.onPreparation({title:this.track.title,error:value==='timeout'?'timeout':this.error||'Analysis unavailable'});return false;}
+    this.onPreparation({title:this.track.title,progress:value.job.id===this.track.id?value.job.progress:null});await waitFor(this.wait(250));
+    if(generation!==this.generation)return false;if(this.bypassId===this.track.id)break;
+    value=await waitFor(this.load(false));
+   }
+   if(generation!==this.generation)return false;
    this.level.select(this.bypassId===this.track.id?null:this.profile,this.getPreferences().leveling);this.reactor.setPlaybackGain?.(this.level.db,{immediate:true});if(this.error)this.onLevelError('Loudness could not be measured for this song. Playing its original level.');
-  }finally{if(generation===this.generation){this.preparing=false;this.selecting=false;this.onPreparation(null);this.paintTimeline();}}
+   return true;
+  }finally{clearTimeout(timer);if(this.wakePreparation===wake)this.wakePreparation=null;if(generation===this.generation){this.preparing=false;this.selecting=false;if(!failed)this.onPreparation(null);this.paintTimeline();}}
  }
- playOriginal(){this.bypassId=this.track?.id;}
- cancelPreparation(){++this.generation;this.preparing=false;this.selecting=false;this.onPreparation(null);clearTimeout(this.timer);}
+ playOriginal(){this.bypassId=this.track?.id;this.wakePreparation?.('original');}
+ cancelPreparation(){++this.generation;this.wakePreparation?.('cancel');this.preparing=false;this.selecting=false;this.onPreparation(null);clearTimeout(this.timer);}
  prefetch(ids){if(this.getPreferences().leveling)for(const id of ids.slice(0,3))void this.api('/api/audio-profile',{id}).catch(()=>{});}
  async load(request){const track=this.track,generation=this.generation;if(!track)return;if(request)this.requested=true;
   try{const value=await this.api('/api/audio-profile'+(request?'':'?id='+encodeURIComponent(track.id)),request?{id:track.id,priority:this.preparing}:undefined);if(generation!==this.generation)return;this.loaded=true;this.error=value.error;this.profile=value.profile;this.edit=value.edit;this.reactor.updateSongProfile?.(track.id,this.profile);this.apply();if(value.job?.running&&!value.error&&!this.selecting){clearTimeout(this.timer);this.timer=setTimeout(()=>this.load(false),2000);}return value;}
-  catch{this.error='Analysis unavailable';/* Optional analysis never stops playback. */}
+  catch{if(generation===this.generation)this.error='Analysis unavailable';}
  }
  range(){return playbackRange(this.audio.duration||this.getTrack()?.duration||0,this.edit,this.profile,this.getPreferences().skipSilence);}
  paintTimeline(){const data={duration:this.track?.duration||this.audio.duration,edit:this.edit,profile:this.profile,enabled:this.getPreferences().skipSilence};this.timelines.forEach(paint=>paint(data));}
- apply(){if(this.selecting)return;const p=this.getPreferences();this.reactor.setPlaybackGain?.(this.level.update(this.profile,p.leveling));this.paintTimeline();const out=globalThis.document?.querySelector('[data-crossfade-label]');if(out)out.textContent=(p.crossfadeSeconds||0)+' seconds · 0 is off';if(this.loaded&&!this.profile&&!this.requested&&!this.error&&needsSongAnalysis(p))void this.load(true);}
+ apply(){if(this.selecting)return;const p=this.getPreferences();this.reactor.setPlaybackGain?.(this.level.update(this.profile,p.leveling));this.paintTimeline();const out=globalThis.document?.querySelector('[data-crossfade-label]');if(out)out.textContent=(p.crossfadeSeconds||0)+' seconds · 0 is off';if(this.loaded&&!this.profile&&!this.requested&&!this.error&&needsSongAnalysis(p)&&!(p.leveling&&this.audio.paused&&!this.hasPlayed))void this.load(true);}
  async tick(){if(this.audio.paused||this.audio.seeking||this.pending||!this.canAdvance())return;const range=this.range(),position=this.audio.currentTime;if(!range.end)return;
   if(position<range.start-.15){this.audio.currentTime=range.start;return;}
   const fade=this.canCrossfade()?Number(this.getPreferences().crossfadeSeconds)||0:0,seconds=Math.min(fade,(range.end-range.start)/3),trimmed=range.end<(this.audio.duration||range.end)-.15;

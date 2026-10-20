@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AnchoredLabels} from '../public/constellation-labels.js';
+import {AnchoredLabels,starCaption} from '../public/constellation-labels.js';
 import {createProjector} from '../public/constellation-space.js';
 const bounds={x:20,y:80,width:1000,height:600};
 const label=(id,x=400,y=300)=>({id,x,y,width:120,height:32,priority:40});
@@ -41,4 +41,14 @@ test('labels disappear at screen edges instead of sliding along them; reduced mo
  assert.deepEqual(settle(layout,[label('a',0)]),[]);
  assert.deepEqual(layout.update([label('a',-100)],bounds,{reduced:true}),[]);
  layout.clear();assert.equal(layout.states.size,0);
+});
+
+test('side captions leave their star clear and yield to other important stars',()=>{
+ const p={x:500,y:320,radius:4},layout=new AnchoredLabels();
+ const candidate={id:'playing',priority:100,...starCaption(p,180,42,{side:-1})};
+ const shown=settle(layout,[candidate])[0];assert.ok(shown.x+shown.width<p.x-20);
+ const obstacle={x:shown.x+40,y:shown.y,width:25,height:25};
+ for(let i=0;i<60;i++)layout.update([candidate],bounds,{obstacles:[obstacle]});
+ assert.deepEqual(layout.update([candidate],bounds,{obstacles:[obstacle]}),[]);
+ const moved=starCaption({...p,x:530,y:340},180,42,{side:-1});assert.equal(moved.x-candidate.x,30);assert.equal(moved.y-candidate.y,20);
 });
