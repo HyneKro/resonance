@@ -78,7 +78,11 @@ if($Platform -eq 'android' -or $Channel -eq 'development'){$arguments+='--prerel
 & $gh @arguments
 if($LASTEXITCODE -ne 0){throw 'Release upload did not finish. Check GitHub for a partial draft before retrying; no assets are overwritten automatically.'}
 # GitHub's server-side digest and length must agree before a draft can go live.
-$uploaded=& $gh api "repos/$repository/releases/tags/$tag" | ConvertFrom-Json
+# A new draft has no Git tag yet; GitHub's /tags endpoint returns 404.
+# Resolve it through gh's authenticated draft lookup, then inspect its ID.
+$draft=& $gh release view $tag --repo $repository --json databaseId,isDraft,tagName | ConvertFrom-Json
+if($LASTEXITCODE -ne 0 -or !$draft.isDraft -or $draft.tagName -ne $tag -or !$draft.databaseId){throw 'Could not resolve the uploaded draft; nothing was published.'}
+$uploaded=& $gh api "repos/$repository/releases/$($draft.databaseId)" | ConvertFrom-Json
 if($LASTEXITCODE -ne 0){throw 'Could not inspect the draft; nothing was published.'}
 $asset=@($uploaded.assets | Where-Object {$_.name -eq $archive.Name})
 if($asset.Count -ne 1 -or $asset[0].state -ne 'uploaded' -or $asset[0].size -ne $archive.Length -or $asset[0].digest -ne "sha256:$hash"){
