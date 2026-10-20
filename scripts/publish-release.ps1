@@ -34,6 +34,12 @@ try{
  }
 }finally{$zip.Dispose()}
 if($version -notmatch '^\d+\.\d+\.\d+(?:-[\w.]+)?$'){throw 'Invalid release version.'}
+if($Platform -eq 'pc'){
+ # Exercise the installed 1.22.0 updater against the actual archive, including
+ # its path allowlist, extraction, lengths and every SHA-256, before any upload.
+ $compatibility = & node (Join-Path $PSScriptRoot 'verify-portable-update.mjs') $archive.FullName
+ if($LASTEXITCODE -ne 0){throw 'This portable ZIP cannot be installed by existing apps. No release was uploaded.'}
+}
 $tag="$Platform-v$version"
 $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath $archive.FullName).Hash.ToLowerInvariant()
 if($ValidateOnly){@{platform=$Platform;version=$version;tag=$tag;file=$archive.Name;bytes=$archive.Length;sha256=$hash} | ConvertTo-Json;return}

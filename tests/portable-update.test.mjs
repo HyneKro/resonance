@@ -5,6 +5,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {verifyPortableUpdate} from '../scripts/verify-portable-update.mjs';
 const run=promisify(execFile),quote=s=>"'"+s.replaceAll("'","''")+"'",root=process.cwd();
 const ps=(file,args=[])=>run('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron',file),...args],{windowsHide:true,timeout:60000});
 async function fixture(){
@@ -52,4 +53,19 @@ test('a changed staged file rolls back earlier replacements',async()=>{
 });
 test('bad hashes, traversal and personal-data entries are rejected before installation',async()=>{
  for(const bad of ['hash','../outside.txt','data/library.sqlite']){const f=await fixture();if(bad==='hash')f.manifest.files[0].sha256='0'.repeat(64);else f.manifest.files[0].path=bad;await assert.rejects(ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]));assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');}
+});
+
+test('release gate rejects the 1.23.0 helper location and accepts the compatible layout',async()=>{
+ const f=await fixture(),helper=await fs.readFile(path.join(root,'electron','lyrics-extract.ps1'));
+ const entry={path:'resources/app/lyrics-extract.ps1',bytes:helper.length,sha256:createHash('sha256').update(helper).digest('hex')};
+ await fs.writeFile(path.join(f.source,entry.path),helper);f.manifest.files.push(entry);
+ await assert.rejects(verifyPortableUpdate(await f.archive()),/Unsafe or invalid update entry/);
+ const old=path.join(f.source,entry.path);entry.path='resources/app/electron/lyrics-extract.ps1';
+ await fs.rename(old,path.join(f.source,entry.path));
+ assert.equal((await verifyPortableUpdate(await f.archive())).version,'1.1.0');
+ // The relocated helper must still extract the optional lyrics tool.
+ const expanded=path.join(f.dir,'lyrics-tool');
+ await ps('lyrics-extract.ps1',[await f.archive(),expanded]);
+ assert.equal(await fs.readFile(path.join(expanded,'Resonance.exe'),'utf8'),'new app');
+ assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
 });

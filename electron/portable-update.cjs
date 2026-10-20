@@ -52,7 +52,7 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
    // The independent helper has acknowledged startup and is waiting for this PID.
    // The playback checkpoint above is complete, so do not re-enter window close hooks.
    setTimeout(exitForUpdate,150);return {restarting:true};
-  }catch(error){return {error:'The update could not be installed. Your current app is still available. '+String(error.stderr||error.message).slice(0,700)};}finally{busy=false;}
+  }catch(error){const detail=String(error.stderr||error.message).trim().split(/\r?\n/)[0].slice(0,350);return {error:'The update could not be installed. Your current app is still available. '+detail+' Check for updates to look for a newer release.'};}finally{busy=false;}
  }
  win.on('closed',()=>{clearTimeout(checkTimer);clearInterval(periodic);updater.close();ipcMain.removeHandler('resonance:update');ipcMain.removeHandler('resonance:online-update');});
 }

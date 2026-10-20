@@ -36,7 +36,7 @@ export async function installLyricsEngine(base,{signal,onProgress=()=>{}}={}){
    try{for await(const chunk of response.body){size+=chunk.length;if(size>item.size)throw Error('Unexpected download size');hash.update(chunk);await file.write(chunk);received+=chunk.length;onProgress(received/total);}}finally{await file.close();}
    if(size!==item.size||hash.digest('hex')!==item.sha256)throw Error('Lyrics tool verification failed. Nothing was installed.');
   }
-  await runQuiet('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fileURLToPath(new URL('./lyrics-extract.ps1',import.meta.url)),path.join(work,'engine.zip'),path.join(work,'runtime')],{signal,timeout:120000});
+  await runQuiet('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fileURLToPath(new URL('./electron/lyrics-extract.ps1',import.meta.url)),path.join(work,'engine.zip'),path.join(work,'runtime')],{signal,timeout:120000});
   const executable=path.join(work,'runtime','Release','whisper-cli.exe');await fs.access(executable);
   await fs.unlink(path.join(work,'engine.zip'));
   const files={};for(const name of await fs.readdir(path.join(work,'runtime','Release')))if(/\.(exe|dll)$/i.test(name))files[name]=await hashFile(path.join(work,'runtime','Release',name));

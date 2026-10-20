@@ -42,6 +42,22 @@ test('automatic check/download preferences and development copies are respected'
  await updater.preferences({autoCheck:false,autoDownload:false});await updater.check(true);assert.equal(checks,0);await updater.check();assert.equal(checks,1);assert.equal(downloads,0);assert.equal(updater.snapshot().phase,'available');
  const dev=new OnlineUpdate({directory:await dir(),current:'1.1.4',canInstall:false,find:async()=>selectRelease([release()],'1.1.4'),download:async()=>{downloads++;}});await dev.check();assert.equal(downloads,0);
 });
+test('manual checks can supersede a downloaded update without reinstalling the rejected ZIP',async()=>{
+ let version='1.23.0',checks=0,downloads=0;
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>{checks++;return selectRelease([release(version)],'1.22.0');},download:async(_r,file)=>{downloads++;await fs.writeFile(file,content);}});
+ await updater.check();assert.equal((await updater.archive()).version,'1.23.0');
+ version='1.23.1';await updater.check(true);assert.equal(checks,1,'automatic checks leave the prepared update alone');
+ await updater.check();assert.equal((await updater.archive()).version,'1.23.1');assert.equal(downloads,2);
+ await updater.check();assert.equal(downloads,2,'the same prepared version is not downloaded again');
+ assert.equal(updater.snapshot().phase,'ready');
+});
+test('a failed manual recheck retains the verified download and preparation cannot be interrupted',async()=>{
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true,find:async()=>selectRelease([release('1.23.1')],'1.22.0'),download:async(_r,file)=>fs.writeFile(file,content)});
+ await updater.check();updater.find=async()=>{throw Error('Offline');};
+ await updater.check();assert.equal(updater.snapshot().phase,'ready');assert.match(updater.snapshot().message,/Offline/);
+ assert.equal((await updater.archive()).version,'1.23.1');
+ updater.set({phase:'preparing'});await updater.check();assert.equal(updater.snapshot().phase,'preparing');
+});
 test('cancelling an in-flight download returns to an available update',async()=>{
  let started;const begun=new Promise(resolve=>started=resolve);
  const updater=new OnlineUpdate({directory:await dir(),current:'1.1.4',canInstall:true,find:async()=>selectRelease([release()],'1.1.4'),download:async(_r,_f,{signal})=>{started();await new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));}});
