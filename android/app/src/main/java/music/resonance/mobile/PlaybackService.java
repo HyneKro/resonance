@@ -93,15 +93,15 @@ public final class PlaybackService extends MediaSessionService {
         boolean refreshDue=boundary||now-profileCheck>1500;if(refreshDue){profileCheck=now;refreshProfile(id);}
         JSONObject snapshot=profileSnapshot.get(id);
         if(snapshot!=null){songProfile=snapshot.optJSONObject("profile");if(songProfile==null)songProfile=new JSONObject();listeningEdit=snapshot.optJSONObject("edit");if(listeningEdit==null)listeningEdit=new JSONObject();JSONObject prefs=snapshot.optJSONObject("preferences");if(prefs!=null)listeningPrefs=prefs;levelError=snapshot.optString("error");}
-        boolean enabled=listeningPrefs.optBoolean("leveling");
+        boolean enabled=listeningPrefs.optBoolean("leveling",true);
         if(boundary||!hasStartedTrack)leveling.selectTrack(trackLevel.select(levelGate.bypassed()?new JSONObject():songProfile,enabled));else leveling.setGain(trackLevel.update(songProfile,enabled));
-        if(refreshDue&&player.isPlaying()&&songProfile.length()==0&&(enabled||listeningPrefs.optBoolean("skipSilence")||listeningPrefs.optBoolean("autoDirection",true)&&!listeningPrefs.optBoolean("musicOnly")))requestAnalysis(id,false);
-        boolean missing=listeningPrefs.optBoolean("leveling")&&songProfile.length()==0&&!hasStartedTrack;
-        if(levelGate.waiting&&!missing){leveling.selectTrack(trackLevel.select(songProfile,listeningPrefs.optBoolean("leveling")));if(levelGate.ready())player.play();}
+        if(refreshDue&&player.isPlaying()&&songProfile.length()==0&&(enabled||listeningPrefs.optBoolean("skipSilence",true)||listeningPrefs.optBoolean("autoDirection",true)&&!listeningPrefs.optBoolean("musicOnly")))requestAnalysis(id,false);
+        boolean missing=listeningPrefs.optBoolean("leveling",true)&&songProfile.length()==0&&!hasStartedTrack;
+        if(levelGate.waiting&&!missing){leveling.selectTrack(trackLevel.select(songProfile,listeningPrefs.optBoolean("leveling",true)));if(levelGate.ready())player.play();}
         if((player.getPlayWhenReady()||resume)&&levelGate.request(missing)){leveling.selectTrack(0);if(player.getPlayWhenReady()){internalLevelPause=true;player.pause();}requestAnalysis(id,true);}
         else if(resume&&!missing)player.play();
-        if(player.getNextMediaItemIndex()!=C.INDEX_UNSET&&listeningPrefs.optBoolean("leveling")){String upcoming=player.getMediaItemAt(player.getNextMediaItemIndex()).mediaId;if(!upcoming.equals(id)&&!upcoming.equals(prefetchedId)){requestAnalysis(upcoming,false);prefetchedId=upcoming;}}
-        if(!player.isPlaying()||player.getDuration()<=0)return;JSONObject range=listeningEdit.optBoolean("enabled")?listeningEdit:listeningPrefs.optBoolean("skipSilence")?songProfile.optJSONObject("trim"):null;if(range==null)return;
+        if(player.getNextMediaItemIndex()!=C.INDEX_UNSET&&listeningPrefs.optBoolean("leveling",true)){String upcoming=player.getMediaItemAt(player.getNextMediaItemIndex()).mediaId;if(!upcoming.equals(id)&&!upcoming.equals(prefetchedId)){requestAnalysis(upcoming,false);prefetchedId=upcoming;}}
+        if(!player.isPlaying()||player.getDuration()<=0)return;JSONObject range=listeningEdit.optBoolean("enabled")?listeningEdit:listeningPrefs.optBoolean("skipSilence",true)?songProfile.optJSONObject("trim"):null;if(range==null)return;
         long duration=player.getDuration(),start=Math.max(0,Math.min(duration-1000,(long)(range.optDouble("start")*1000))),end=Math.max(start+1000,Math.min(duration,(long)(range.optDouble("end",duration/1000d)*1000)));
         if(player.getCurrentPosition()<start-150)player.seekTo(start);else if(end<duration-100&&player.getCurrentPosition()>=end-50){if(player.getRepeatMode()==Player.REPEAT_MODE_ONE)player.seekTo(start);else if(player.hasNextMediaItem())player.seekToNextMediaItem();else player.seekTo(0,0);}
     }
@@ -133,9 +133,9 @@ public final class PlaybackService extends MediaSessionService {
         throw new IllegalArgumentException("This song is no longer in the queue. Choose it in Library.");
     }
     private void clearError(){error=errorCode=errorDetails="";}
-    public void resume(){clearError();if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0)player.prepare();updateListening();boolean missing=listeningPrefs.optBoolean("leveling")&&songProfile.length()==0&&!hasStartedTrack;if(levelGate.request(missing)){leveling.selectTrack(0);requestAnalysis(analysisId,true);}else player.play();}
+    public void resume(){clearError();if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0)player.prepare();updateListening();boolean missing=listeningPrefs.optBoolean("leveling",true)&&songProfile.length()==0&&!hasStartedTrack;if(levelGate.request(missing)){leveling.selectTrack(0);requestAnalysis(analysisId,true);}else player.play();}
     public void pause(){levelGate.cancel();player.pause();}
-    public void playOriginal(){if(levelGate.original()){leveling.selectTrack(trackLevel.select(new JSONObject(),listeningPrefs.optBoolean("leveling")));player.play();}}
+    public void playOriginal(){if(levelGate.original()){leveling.selectTrack(trackLevel.select(new JSONObject(),listeningPrefs.optBoolean("leveling",true)));player.play();}}
     public void prepareAfterNavigation(){if(player.getPlaybackState()==Player.STATE_IDLE&&player.getMediaItemCount()>0){clearError();player.prepare();}}
     public JSONObject state(){return state(-1);}
     public JSONObject state(long knownQueue){Timeline timeline=player.getCurrentTimeline();boolean shuffle=player.getShuffleModeEnabled();if(timeline!=queueTimeline||shuffle!=queueShuffle){queueTimeline=timeline;queueShuffle=shuffle;queueRevision++;queueIds=new JSONArray();for(int i=0;i<player.getMediaItemCount();i++)queueIds.put(player.getMediaItemAt(i).mediaId);queueOrder=PlaybackQueue.order(player);}JSONArray queue=queueIds;MediaItem item=player.getCurrentMediaItem();JSONObject result=Json.object("id",item==null?"":item.mediaId,"queueRevision",queueRevision,"index",Math.max(0,player.getCurrentMediaItemIndex()),"position",player.getCurrentPosition(),"duration",Math.max(0,player.getDuration()),"playing",player.isPlaying(),"buffering",player.getPlaybackState()==Player.STATE_BUFFERING,"levelPreparing",levelGate.waiting,"levelProgress",ResonanceApp.instance.songAnalysis.progress(),"levelError",levelError,"volume",player.getVolume(),"shuffle",player.getShuffleModeEnabled(),"repeat",player.getRepeatMode(),"error",error,"errorCode",errorCode,"errorDetails",errorDetails);if(knownQueue!=queueRevision){Json.put(result,"queue",queue);Json.put(result,"playbackOrder",queueOrder);}return result;}

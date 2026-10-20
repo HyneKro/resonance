@@ -36,7 +36,7 @@ export function installListeningControls({isDesktop=()=>false,audio,savePlayer,n
   const settingsClose=()=>{document.body.classList.remove('visual-settings-open');$('.visual-tools').inert=true;$('#room-visual-settings').setAttribute('aria-expanded','false');};
   document.addEventListener('click',e=>{
     if(!popup.hidden&&!e.target.closest('.volume-control'))closeVolume();
-    if(document.querySelector('dialog[open]')||e.target.closest('.dance-companion'))return;
+    if(document.querySelector('dialog[open]')||e.target.closest('.dance-companion,.library-activity-panel,.library-activity-button'))return;
     let dismissed=false;
     if(document.body.classList.contains('library-open')&&!e.target.closest('.app-shell')){libraryOpen(false);dismissed=true;}
     if(document.body.classList.contains('visual-settings-open')&&!e.target.closest('.visual-tools,#room-visual-settings')){settingsClose();dismissed=true;}

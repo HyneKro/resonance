@@ -163,3 +163,10 @@
  .cx-track-panel .cx-song small{font-size:calc(10px * var(--ui-text-scale,1))}
  .cx-track-panel .cx-song h3{font-size:calc(17px * var(--ui-text-scale,1))}
 }
+
+/* A single flowing listening dock keeps its hint separate from the controls. */
+.cx-listening-dock{position:absolute;z-index:3;top:var(--cx-listening-top,220px);left:50%;transform:translateX(-50%);max-width:calc(100% - 28px);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.constellation .cx-listening-dock .cx-map-controls{position:static;transform:none;max-width:100%;margin:0;pointer-events:auto;flex-wrap:wrap;justify-content:center}
+.constellation .cx-listening-dock .cx-map-hint{position:static;display:block;max-width:420px;text-align:center;opacity:1;font-size:calc(10px * var(--ui-text-scale,1));color:#c3ccdb;text-shadow:0 2px 5px #000}
+.cx-listening-dock .cx-map-hint p{white-space:normal;line-height:1.5;text-wrap:balance}
+@media(max-width:750px){.cx-listening-dock{gap:5px;width:max-content}.constellation .cx-listening-dock .cx-map-hint{max-width:300px;font-size:10px}.cx-panel-open .cx-listening-dock,.cx-detail-expanded .cx-listening-dock{visibility:hidden}}

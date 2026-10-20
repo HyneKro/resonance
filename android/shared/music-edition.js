@@ -11,6 +11,12 @@ export function editionMetadata(track={}){
   album:track.album||'',year,genre:track.genre||'',
   format:[track.codec?.toUpperCase(),track.sampleRate?`${Number(track.sampleRate)/1000} kHz`:'',track.bits?`${track.bits} bit`:''].filter(Boolean).join(' / ')};
 }
+export function editionListeningStats(track={}){
+ const plays=Math.max(0,Math.floor(Number(track.plays)||0)),seconds=Math.max(0,Number(track.listenedSeconds)||0);
+ const time=seconds>=3600?(seconds/3600).toFixed(1)+' h':seconds>=60?Math.floor(seconds/60)+' min':Math.floor(seconds)+' s';
+ return [{value:String(plays).padStart(2,'0'),label:'PLAYS'},{value:time,label:'TIME TOGETHER'},{
+  value:track.duration>0?Math.floor(track.duration/60)+':'+String(Math.floor(track.duration%60)).padStart(2,'0'):'—',label:'RUNNING TIME'}];
+}
 const element=(tag,className,text)=>{const node=document.createElement(tag);node.className=className;if(text)node.textContent=text;return node;};
 export function editionComposition(track={}){const identity=[track.artist||track.channel,track.title,track.album,track.genre].join('|');let seed=2166136261;for(const c of identity)seed=Math.imul(seed^c.charCodeAt(0),16777619);return {variant:Math.abs(seed)%3,tilt:(Math.abs(seed>>>4)%9)-4,number:String((seed>>>0)%999+1).padStart(3,'0')};}
 export function installMusicEdition({related=()=>[],motion=()=>true,mobile=false,artwork=track=>track?.artwork?'/artwork/'+encodeURIComponent(track.artwork):'',details=()=>{},queue=()=>{},assets=null}={}){
@@ -30,7 +36,8 @@ export function installMusicEdition({related=()=>[],motion=()=>true,mobile=false
  byline.append(artist);album.append(element('span','edition-album-name'),year);
  const rule=element('div','edition-rule');rule.setAttribute('aria-hidden','true');
  const detail=element('button','edition-details','Behind the sound ↗');detail.type='button';detail.onclick=()=>{if(track)details(track);};
- copy.append(kicker,title,byline,rule,album,genre,detail);
+ const ledger=element('dl','edition-ledger');ledger.setAttribute('aria-label','Your listening history');
+ copy.append(kicker,title,byline,rule,album,genre,ledger,detail);
  const footer=element('div','edition-footer'),format=element('span','edition-format'),next=element('button','edition-next');next.type='button';next.onclick=queue;
  next.append(element('span','edition-next-label','UP NEXT'),element('span','edition-next-name'),element('span','edition-next-arrow','↗'));footer.append(format,next);
  stage.replaceChildren(art,copy,footer,...(note?[note]:[]));
@@ -53,7 +60,16 @@ export function installMusicEdition({related=()=>[],motion=()=>true,mobile=false
  document.addEventListener('resonance-text-size',boundaries);
  let pointerFrame=0,px=0,py=0;
  const paintPointer=()=>{pointerFrame=0;art.style.setProperty('--edition-x',px+'px');art.style.setProperty('--edition-y',py+'px');};
- if(!mobile){stage.addEventListener('pointermove',e=>{if(document.body.dataset.listeningMode!=='music'||!motion()||matchMedia('(prefers-reduced-motion: reduce)').matches)return;const r=stage.getBoundingClientRect();px=(e.clientX-r.left-r.width/2)/r.width*10;py=(e.clientY-r.top-r.height/2)/r.height*8;if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);});stage.addEventListener('pointerleave',()=>{px=py=0;if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);});}
+ if(!mobile){
+  const reset=()=>{px=py=0;if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);};
+  document.addEventListener('pointermove',e=>{
+   if(document.body.dataset.listeningMode!=='music'||e.pointerType==='touch')return;
+   if(!motion()||matchMedia('(prefers-reduced-motion: reduce)').matches){reset();return;}
+   px=(e.clientX/innerWidth-.5)*10;py=(e.clientY/innerHeight-.5)*8;
+   if(!pointerFrame)pointerFrame=requestAnimationFrame(paintPointer);
+  },{capture:true,passive:true});
+  document.documentElement.addEventListener('pointerleave',reset);window.addEventListener('blur',reset);
+ }
  new MutationObserver(()=>{const mode=document.body.dataset.listeningMode;if(mode===lastMode)return;lastMode=mode;boundaries();if(mode==='music'){enter();void loadAssets();}else{px=py=0;paintPointer();}}).observe(document.body,{attributes:true,attributeFilter:['data-listening-mode']});
  async function loadAssets(){
   if(!assets||!track||document.body.dataset.listeningMode!=='music'||assetKey===key)return;
@@ -72,6 +88,9 @@ export function installMusicEdition({related=()=>[],motion=()=>true,mobile=false
  }
  function select(value,upNext=null){
   track=value;const meta=editionMetadata(value||{}),source=artwork(value);
+  const stats=editionListeningStats(value||{}),statsKey=JSON.stringify(stats);
+  ledger.hidden=!value;
+  if(ledger.dataset.stats!==statsKey){ledger.dataset.stats=statsKey;ledger.replaceChildren(...stats.map(s=>{const cell=element('div','');cell.append(element('dt','',s.label),element('dd','',s.value));return cell;}));}
   next.hidden=!upNext;next.querySelector('.edition-next-name').textContent=upNext?[upNext.title,upNext.artist||upNext.channel].filter(Boolean).join(' · '):'';
   next.setAttribute('aria-label',upNext?'Open queue. Next: '+upNext.title:'Open queue');
   const signature=JSON.stringify([value?.id,value?.title,source,meta]);if(signature===key){boundaries();return}

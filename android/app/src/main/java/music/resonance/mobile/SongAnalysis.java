@@ -12,6 +12,8 @@ public final class SongAnalysis {
     private final ResonanceApp app;private final ExecutorService worker=Executors.newSingleThreadExecutor();private final Set<String> queued=new HashSet<>();private final LinkedList<String> urgent=new LinkedList<>(),background=new LinkedList<>();private volatile JSONObject job=Json.object("running",false);private volatile Process process;private boolean working,enabled,foreground;private String interrupted="";
     SongAnalysis(ResonanceApp app){this.app=app;}
     static String stamp(JSONObject t){return t.optString("path")+"|"+t.optLong("size")+"|"+t.optLong("modified")+"|"+t.optDouble("duration");}
+    /** Cheap immutable snapshot for the status poll; never query the library here. */
+    public JSONObject activity(){return job;}
     public JSONObject profile(String id){JSONObject t=app.library.track(id),p=app.library.setting("audioProfile:"+id);return p.optInt("version")==1&&stamp(t).equals(p.optString("stamp"))?p:new JSONObject();}
     public synchronized JSONObject status(String id){JSONObject p=profile(id);return Json.object("profile",p.length()==0?JSONObject.NULL:p,"edit",app.library.setting("playbackEdit:"+id),"job",jobStatus(job,queued.contains(id)),"error",AnalysisRuntime.savedError(app.library.setting("audioError:"+id),stamp(app.library.track(id))));}
     // Idle and completed jobs have no progress field. NaN cannot be sent as JSON,

@@ -39,6 +39,12 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
 .edition-swatches i{display:block;width:25px;height:4px;background:var(--ui-accent)}
 .edition-swatches i:nth-child(2){background:var(--ui-accent-two)}.edition-swatches i:nth-child(3){background:color-mix(in srgb,var(--ui-accent) 45%,var(--ui-accent-two))}
 .edition-copy{position:relative;min-width:0;max-height:100%;overflow:auto;scrollbar-width:thin;scrollbar-color:#ffffff30 transparent;padding:18px 0}
+.edition-ledger{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-width:440px;gap:20px;margin:28px 0 0;padding:15px 0 0;border-top:1px solid #ffffff24}
+.edition-ledger dt{font:calc(9px * var(--ui-text-scale,1))/1.5 monospace;letter-spacing:.13em;color:#b1b4bb}
+.edition-ledger dd{font:300 clamp(18px,2.4vw,31px)/1.35 monospace;letter-spacing:-.05em;color:var(--accent-light);margin:5px 0 0}
+#music-only-stage #music-cover-action{display:none!important}
+#music-only-stage :is(#music-cover-play,#cover-play){cursor:default}
+@media(max-width:750px){.edition-ledger{margin:18px auto 0;max-width:340px;gap:10px}.edition-ledger dt{font-size:8px}.edition-ledger dd{font-size:19px}}
 .edition-kicker{font:calc(10px * var(--ui-text-scale,1))/1.5 monospace;letter-spacing:.24em;color:var(--accent-light);margin:0 0 25px;opacity:.85}
 #music-only-stage.music-edition #music-only-title{font-size:clamp(30px,4.8vw,78px);font-weight:550;line-height:1.02;letter-spacing:-.055em;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;max-width:100%;margin:0;text-shadow:none;text-wrap:balance}
 #music-only-stage.music-edition.edition-long-title #music-only-title{font-size:clamp(27px,3.4vw,54px)}

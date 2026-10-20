@@ -1,6 +1,9 @@
+let trackActivity=()=>()=>{};
+export function trackNativeActivity(tracker){trackActivity=tracker;}
 let serial=0;
 const pending=new Map();
 export function rpc(action,data={}){
+ const done=trackActivity(action);
  return new Promise((resolve,reject)=>{
   const bridge=window.ResonanceNative;if(!bridge)return reject(Error('Open the Android app to connect your music.'));
   const id=String(++serial),timer=setTimeout(()=>{pending.delete(id);reject(Error('This is taking longer than expected. Please try again.'));},['pickFolder','pickDestination','captureStart','lyricsFile','settingsFile'].includes(action)?600000:action==='syncMatch'||action==='updateDownloader'?120000:45000);

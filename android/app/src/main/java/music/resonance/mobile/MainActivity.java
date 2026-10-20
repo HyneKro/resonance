@@ -76,7 +76,7 @@ public final class MainActivity extends Activity {
                 return app.updates.snapshot();
             }
             case "library":app.research.seedLocal();return Json.put(Json.put(lib.snapshot(),"openDownloads",getIntent().getBooleanExtra("openDownloads",false)),"displayHz",app.onMain(()->getWindowManager().getDefaultDisplay().getRefreshRate()));
-            case "preferences":{JSONObject p=lib.updatePreferences(data);app.songAnalysis.setLeveling(p.optBoolean("leveling"));return p;}
+            case "preferences":{JSONObject p=lib.updatePreferences(data);app.songAnalysis.setLeveling(p.optBoolean("leveling",true));return p;}
             case "transferSnapshot":return TransferSettings.snapshot(lib);
             case "transferStore":return TransferSettings.store(lib,data);
             case "transferApply":return TransferSettings.apply(lib,data);
@@ -93,7 +93,7 @@ public final class MainActivity extends Activity {
             case "retryArtwork":app.artworkRecovery.retry();return Json.object("ok",true);
             case "clearArtwork":lib.clearArtwork();app.artworkRecovery.retry();return Json.object("ok",true);
             case "scan":app.io.execute(lib::scan);return Json.object("ok",true);
-            case "status":return Json.object("libraryRevision",lib.revision.get(),"artworkRevision",app.artworkRecovery.revision.get(),"scan",lib.scanResult,"downloads",app.downloads.progress,"previewRevision",app.downloads.previewRevision,"tools",lib.setting("downloadTools"));
+            case "status":return Json.object("libraryRevision",lib.revision.get(),"artworkRevision",app.artworkRecovery.revision.get(),"scan",lib.scanResult,"analysis",app.songAnalysis.activity(),"downloads",app.downloads.progress,"previewRevision",app.downloads.previewRevision,"tools",lib.setting("downloadTools"));
             case "pickFolder":case "pickDestination":{
                 CompletableFuture<JSONObject> task=new CompletableFuture<>();app.onMain(()->{if(picker!=null)throw new IOException("A folder picker is already open");picker=task;pickingDestination=action.equals("pickDestination");Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION|Intent.FLAG_GRANT_PREFIX_URI_PERMISSION|(pickingDestination?Intent.FLAG_GRANT_WRITE_URI_PERMISSION:0));startActivityForResult(i,42);return null;});return task.get(10,TimeUnit.MINUTES);
             }

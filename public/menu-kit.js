@@ -68,7 +68,8 @@ export function rememberPanel(root){
 export function createNotifier(container,{host=()=>document.body,duration=5000,limit=3}={}){
   const entries=new Map();
   return message=>{
-    const text=String(message||'Something went wrong. Please try again.');
+    const text=String(message??'Something went wrong. Please try again.').trim();
+    if(!text)return;
     host().append(container);
     const previous=entries.get(text);if(previous){clearTimeout(previous.timer);previous.timer=setTimeout(()=>remove(text),duration);return;}
     while(entries.size>=limit)remove(entries.keys().next().value);

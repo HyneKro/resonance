@@ -6,6 +6,13 @@ export const COLLECTION_TEMPLATES=[
  {id:'fresh',name:'Fresh arrivals',rules:{addedDays:30},sort:'added'},
  {id:'short',name:'A little interlude',rules:{maxMinutes:4},sort:'title'},
 ];
+// Built-ins are live views, not saved copies or repeatedly seeded user preferences.
+export function builtInCollections(){
+ return COLLECTION_TEMPLATES.map(c=>({...c,id:'builtin-'+c.id,rules:{...c.rules},builtIn:true}));
+}
+export function libraryCollections(custom){
+ return [...builtInCollections(),...normalizeCollections(custom).filter(c=>!c.id.startsWith('builtin-'))];
+}
 export function normalizeCollections(value){
  if(!Array.isArray(value))return [];
  const seen=new Set();

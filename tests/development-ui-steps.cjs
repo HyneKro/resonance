@@ -2,7 +2,19 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  const assert=require('node:assert/strict');
  const openSettings=()=>click(mobile?'#settings':'#room-sound');
  const close=()=>click(mobile?'#sheet-close':'#dialog [data-action=close-dialog]');
+ await click('.library-activity-button');
+ assert.ok(await run(`document.querySelector('#library-activity-panel').matches(':popover-open')`));
+ await shot((mobile?'phone':'pc')+'-activity');
+ await click('[data-activity-close]');
  await openSettings();await click('[data-settings-page=accessibility]');
+ await click('.library-activity-button');
+ assert.ok(await run(`document.querySelector('#library-activity-panel').matches(':popover-open')`),'Activity stays accessible inside a modal');
+ await click('[data-activity-close]');
+ if(!mobile){
+  await run(`(async()=>{const {createNotifier}=await import('/menu-kit.js');const notice=createNotifier(document.querySelector('#toasts'),{host:()=>document.querySelector('#dialog'),duration:1500});notice('A readable notification');notice('   ');})()`);
+  await shot('pc-dialog-notification');
+  assert.ok(await run(`(()=>{const t=[...document.querySelectorAll('.toast')].find(n=>n.textContent==='A readable notification'),r=t.getBoundingClientRect(),d=document.querySelector('#dialog').getBoundingClientRect();return t.textContent==='A readable notification'&&r.left>=d.left&&r.right<=d.right;})()`),'Notification text remains inside the dialog');
+ }
  const attr=mobile?'data-pref':'data-preference';
  await run(`(()=>{const s=document.querySelector('[${attr}=textSize]');s.value='large';s.dispatchEvent(new Event('${mobile?'input':'change'}',{bubbles:true}));})()`);
  await until(`document.documentElement.dataset.textSize==='large'`);
@@ -11,13 +23,13 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  assert.ok(await run(`!!document.activeElement.closest('dialog[open]')`),'Keyboard focus remains inside the settings dialog');
  await close();
  if(mobile)await click('#library');else await click('#close-room');
- await click('[data-smart-open]');await click('[data-smart-template=unheard]');
+ await click(mobile?'[data-smart-open]':'[data-view=smart]');assert.equal(await run("document.querySelectorAll('[data-smart-view]').length"),8);await click('.collection-create summary');await click('[data-smart-template=unheard]');
  await shot((mobile?'phone':'pc')+'-smart-editor');
  await run(`document.querySelector('[data-smart-form] [name=name]').value='Development collection';document.querySelector('[data-smart-form]').requestSubmit()`);
  await until(`!!document.querySelector('[data-smart-edit]')`);await shot((mobile?'phone':'pc')+'-smart-collections');
  await click('[data-smart-edit]');await run(`(()=>{const e=document.querySelector('[data-smart-form] [name=artist]');e.value='Artist who does not exist';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
  assert.ok(await run(`document.querySelector('[data-smart-preview-play]').disabled`),'No-match preview cannot play an unrelated queue');
- await close();if(!mobile)await click('#close-library');
+ if(mobile)await close();else await click('#close-library');
  await openSettings();await click('[data-settings-page=transfer]');await until(`!!document.querySelector('[data-transfer-import]')`);await shot((mobile?'phone':'pc')+'-transfer');
  if(!mobile){
   await run(`(async()=>{const snap=await(await fetch('/api/transfer')).json(),mod=await import('/portable-settings.js'),t=snap.tracks[0];window.transferFixture=mod.exportPortable({preferences:{textSize:'large'},sources:[],tracks:[{...t,album:'Imported fixture album',metadataLocks:{album:true}}]});const original=HTMLInputElement.prototype.click;HTMLInputElement.prototype.click=function(){if(this.type==='file'){HTMLInputElement.prototype.click=original;Object.defineProperty(this,'files',{value:[new File([JSON.stringify(window.transferFixture)],'settings.json',{type:'application/json'})]});this.onchange();}else original.call(this);};})()`);
@@ -28,4 +40,13 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  await close();await openSettings();await click('[data-settings-page=accessibility]');
  await run(`(()=>{const s=document.querySelector('[${attr}=textSize]');s.value='standard';s.dispatchEvent(new Event('${mobile?'input':'change'}',{bubbles:true}));})()`);
  await close();
+ if(!mobile){
+  await click('[data-listening-mode=music]');
+  await run(`document.querySelector('#room-sound').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:innerWidth-15,clientY:40,pointerType:'mouse'}))`);
+  await until(`parseFloat(document.querySelector('.edition-art').style.getPropertyValue('--edition-x'))>0`);
+  assert.equal(await run(`document.querySelector('#music-cover-play').tagName`),'DIV');
+  assert.equal(await run(`document.querySelectorAll('.edition-ledger dd').length`),3);
+  await shot('pc-music-history');
+  await click('[data-listening-mode=visualizer]');
+ }
 };

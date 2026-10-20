@@ -20,7 +20,7 @@ export function installImmersiveUI({audio,state,icon,safe,togglePlay,nextTrack,q
   function updatePlay(){
     const playing=!audio.paused;
     for(const id of ['dock-play']){$('#'+id).innerHTML=icon(playing?'pause':'play');$('#'+id).setAttribute('aria-label',playing?'Pause music':'Play music');}
-    $('#music-cover-action').innerHTML=icon(playing?'pause':'play');$('#music-cover-play').setAttribute('aria-label',playing?'Pause music':'Play music');
+
 
     room.classList.toggle('music-playing',playing);
   }
