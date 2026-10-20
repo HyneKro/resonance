@@ -3,7 +3,7 @@ const pending=new Map();
 export function rpc(action,data={}){
  return new Promise((resolve,reject)=>{
   const bridge=window.ResonanceNative;if(!bridge)return reject(Error('Open the Android app to connect your music.'));
-  const id=String(++serial),timer=setTimeout(()=>{pending.delete(id);reject(Error('This is taking longer than expected. Please try again.'));},['pickFolder','pickDestination','captureStart'].includes(action)?600000:action==='syncMatch'||action==='updateDownloader'?120000:45000);
+  const id=String(++serial),timer=setTimeout(()=>{pending.delete(id);reject(Error('This is taking longer than expected. Please try again.'));},['pickFolder','pickDestination','captureStart','lyricsFile'].includes(action)?600000:action==='syncMatch'||action==='updateDownloader'?120000:45000);
   pending.set(id,{resolve,reject,timer});bridge.postMessage(JSON.stringify({id,action,data}));
  });
 }

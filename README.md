@@ -2,7 +2,7 @@
 
 A local music library with three ways to listen: an audio-reactive Visualizer, a 3D Constellation of your collection, and a quiet Music only view.
 
-**[Download for Windows or Android](https://hynekro.github.io/resonance/)** — the page always offers the latest published builds. No account is needed.
+**[Download for Windows or Android](https://hynekro.github.io/resonance/)** â€” the page always offers the latest published builds. No account is needed.
 
 ## Start listening
 
@@ -49,3 +49,5 @@ Use Node 24: `npm ci`, then `npm start` for the desktop app or `npm run dev` for
 The approved 15 October 2026 checkpoint remains separate in `CHECKPOINT.json` and the local `checkpoints/2026-10-15-major-baseline/` folder. Do not prune it. Personal music, library databases, caches, keys, local tools and used portable folders must never be committed or distributed.
 
 Artwork and dependency notices are available in the app's Credits. Original particle studies took inspiration from the visual references supplied during development; tutorial projects and videos are not bundled. The licensed skybox is embedded only in authorized app builds, with a procedural fallback for public source builds.
+
+Lyric offsets, word highlighting and optional local Windows timing checks are described in [Lyric timing](docs/LYRICS.md).

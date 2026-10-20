@@ -16,7 +16,7 @@ test('timed lyrics preserve repeated lines, offsets, blank breaks and seeks in e
  const lines=parseLyrics('[ar:Example]\n[offset:200]\n[00:01.20][00:11.20]A paper sky\n[00:05.50]A silver line\n[00:08.00]\n[99:00]Too late\nbad line',180);
  assert.deepEqual(lines,[{time:1,text:'A paper sky'},{time:5.3,text:'A silver line'},{time:7.8,text:''},{time:11,text:'A paper sky'}]);
  assert.deepEqual([0,1,8,11,2].map(t=>lyricLineAt(lines,t)),[-1,0,2,3,0]);
- assert.deepEqual(parseLyrics('[00:02]<00:02.01>One <00:02.50>line'),[{time:2,text:'One line'}]);
+ assert.deepEqual(parseLyrics('[00:02]<00:02.01>One <00:02.50>line'),[{time:2,text:'One line',words:[{text:'One ',start:2.01,end:2.5},{text:'line',start:2.5}]}]);
  assert.equal(parseLyrics('[00:90]Bad').length,0);
 });
 test('matching cleans upload decoration, accepts featured credits and keeps recording versions separate',()=>{

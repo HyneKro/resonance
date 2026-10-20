@@ -6,7 +6,7 @@ export const lyricKey=lyricsStamp;
 export const exactLyrics=(t,r)=>lyricsMatch(t,r).timed;
 export async function findExactLyrics(t,json=lyricsJSON,options={}){
  let error,fallback;
- try{const r=await json('https://lrclib.net/api/get?'+new URLSearchParams({track_name:searchTitle(t.title,t.artist),artist_name:searchArtist(t.artist),album_name:t.album||'',duration:String(Math.round(t.duration))}),options);if(exactLyrics(t,r)&&(r.plainLyrics||r.syncedLyrics||r.instrumental)){if(r.syncedLyrics||r.instrumental)return r;fallback=r;}}
+ try{const r=await json('https://lrclib.net/api/get?'+new URLSearchParams({track_name:searchTitle(t.title,t.artist),artist_name:searchArtist(t.artist),album_name:t.album||'',duration:String(Math.round(t.duration))}),options);if(exactLyrics(t,r)&&(r.plainLyrics||r.syncedLyrics||r.lyricsfile||r.instrumental)){if(r.syncedLyrics||r.hasWordSync||r.instrumental)return r;fallback=r;}}
  catch(e){if(e.status===429||options.signal?.aborted)throw e;error=e;}
  try{return chooseLyrics(t,await searchLyrics(t,json,options),{textOnly:!!options.textOnly})||fallback||null;}catch(e){if(fallback)return fallback;throw error||e;}
 }

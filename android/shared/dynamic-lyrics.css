@@ -1,5 +1,5 @@
 #dynamic-lyrics{white-space:nowrap;gap:7px;transition:background .25s,color .25s,box-shadow .25s}
-#dynamic-lyrics::before{content:'♪';font-size:15px;opacity:.55}
+#dynamic-lyrics::before{content:'â™ª';font-size:15px;opacity:.55}
 #dynamic-lyrics:disabled{opacity:.48;cursor:default}
 #dynamic-lyrics.lyrics-ready{color:var(--accent-light,#eee6ff);border-color:color-mix(in srgb,var(--ui-accent,#cbb3ff) 65%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--ui-accent,#cbb3ff) 12%,transparent)}
 #dynamic-lyrics.lyrics-ready::before{opacity:1;text-shadow:0 0 8px var(--ui-accent,#cbb3ff)}
@@ -16,6 +16,17 @@
 .dynamic-lyrics[data-style=electronic] .lyric-current{font-family:'Trebuchet MS',system-ui,sans-serif;font-weight:650}
 .dynamic-lyrics[data-style=soft] .lyric-current{font-family:'Segoe UI',system-ui,sans-serif;font-weight:500}
 .dynamic-lyrics.lyric-break .lyric-previous{visibility:hidden}
+.lyric-word{color:transparent;background:linear-gradient(90deg,var(--accent-light,#f2d8ff) var(--word-fill,0%),#d7d1df70 var(--word-fill,0%));background-clip:text;-webkit-background-clip:text;text-shadow:none}
+.lyrics-tools{margin:12px 0 24px;border-top:1px solid #ffffff18;padding-top:16px;text-align:left}
+.lyrics-tools summary{cursor:pointer;font-weight:600}
+.lyrics-tools .lyrics-help{font-size:12px;line-height:1.6;opacity:.7;margin:12px 0}
+.lyrics-offset,.lyrics-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.lyrics-tools button{border:1px solid #ffffff25;background:#ffffff08;color:inherit;border-radius:12px;padding:10px 13px;font-size:12px;min-height:40px}
+.lyrics-tools button:disabled{opacity:.45}
+.lyrics-offset output{min-width:50px;text-align:center;font-variant-numeric:tabular-nums}
+.lyrics-tools [data-timing-status],.lyrics-tools [data-proposal-info]{font-size:12px;line-height:1.6}
+.lyrics-tools [data-proposal]{padding:14px;border-radius:14px;background:#ffffff07;border:1px solid #ffffff15}
+.lyrics-preview-line{font-size:22px;line-height:1.6;white-space:pre-wrap;min-height:2em;padding:14px 0}
 @media(max-width:700px){.dynamic-lyrics{inset:25% 6% 38%;gap:14px}.lyric-current{font-size:clamp(18px,calc(6vw * var(--lyric-scale,1)),30px);line-height:1.32}.lyric-context{font-size:13px}.lyric-previous{display:none}#dynamic-lyrics{font-size:12px}}
 @media(max-height:500px){.dynamic-lyrics{inset:27% 16% 33%;gap:7px}.lyric-current{font-size:22px}.lyric-context{display:none}}
 @media(prefers-reduced-motion:reduce){#dynamic-lyrics{transition:none}}

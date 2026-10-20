@@ -16,7 +16,7 @@ export function createTrackSearch(lib,{json=lyricsJSON}={}){
    searchLyrics({...track,title,artist,artists:undefined,artistIds:undefined},json)
   ]);
   const recordings=results[0].status==='fulfilled'?results[0].value:[],raw=results[1].status==='fulfilled'&&Array.isArray(results[1].value)?results[1].value:[];
-  const lyrics=raw.filter(r=>Number.isSafeInteger(r.id)&&r.id>0&&(r.plainLyrics||r.syncedLyrics||r.instrumental)).slice(0,50).map(r=>({id:String(r.id),title:r.trackName,artist:r.artistName,album:r.albumName||'',duration:r.duration||0,confidence:Math.round(matchScore(track,{title:r.trackName,artist:r.artistName,duration:r.duration})*100),...lyricRecord(track,r)})).sort((a,b)=>b.confidence-a.confidence).slice(0,12);
+  const lyrics=raw.filter(r=>Number.isSafeInteger(r.id)&&r.id>0&&(r.plainLyrics||r.syncedLyrics||r.lyricsfile||r.instrumental)).slice(0,50).map(r=>({id:String(r.id),title:r.trackName,artist:r.artistName,album:r.albumName||'',duration:r.duration||0,confidence:Math.round(matchScore(track,{title:r.trackName,artist:r.artistName,duration:r.duration})*100),...lyricRecord(track,r)})).sort((a,b)=>b.confidence-a.confidence).slice(0,12);
   const errors=results.flatMap((r,i)=>r.status==='rejected'?[`${i?'LRCLIB':'MusicBrainz'}: ${r.reason.message}`]:[]);
   const value={request,stamp,metadataStamp,recordings,lyrics,errors,searchedAt:Date.now()};
   if(lib.closed||lyricKey(lib.tracks.get(id)||{})!==stamp)throw Error('The song changed during the search. Search again.');
@@ -28,7 +28,7 @@ export function createTrackSearch(lib,{json=lyricsJSON}={}){
   if(!saved||saved.request!==request||saved.stamp!==lyricKey(t))throw Error('These results are out of date. Search again.');
   if(kind==='lyrics'){
    const c=saved.lyrics.find(c=>c.id===String(candidateId));if(!c)throw Error('Choose a result from this search.');
-   const value={stamp:lyricKey(t),savedAt:Date.now(),source:c.source,url:c.url,text:c.text,instrumental:c.instrumental,syncedLyrics:c.syncedLyrics,lines:c.lines,status:c.status,version:c.version,timingNotice:c.timingNotice,confirmed:true};
+   const value={stamp:lyricKey(t),savedAt:Date.now(),source:c.source,url:c.url,text:c.text,instrumental:c.instrumental,syncedLyrics:c.syncedLyrics,lyricsfile:c.lyricsfile,language:c.language,lines:c.lines,status:c.status,version:c.version,timingNotice:c.timingNotice,confirmed:true};
    lib.setSetting('trackLyrics:'+id,value);
    // A chosen lyric also refreshes the stored visual cues without inventing themes.
    const prior=lib.getSetting('characterResearch:'+id)||{};lib.setSetting('characterResearch:'+id,{...prior,trackKey:lyricKey(t),cues:themeCues(c.text),sources:[...(prior.sources||[]).filter(s=>s.name!=='LRCLIB'),{name:'LRCLIB',url:c.url}]});

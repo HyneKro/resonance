@@ -12,7 +12,16 @@ final class LyricsAccess {
     private long nextAt;
     LyricsAccess(LibraryStore library){this.library=library;}
     static String stamp(JSONObject t){return t.optString("title")+"|"+t.optString("artist")+"|"+t.optString("album")+"|"+Math.round(t.optDouble("duration",0));}
-    JSONObject cached(String id){JSONObject t=library.track(id);return Json.object("track",t,"record",library.setting("trackLyrics:"+id));}
+    JSONObject cached(String id){JSONObject t=library.track(id);return Json.object("track",t,"record",library.setting("trackLyrics:"+id),"timing",library.setting("lyricTiming:"+id),"offset",library.setting("lyricOffset:"+id));}
+    JSONObject saveTiming(JSONObject data){
+        synchronized(library){
+            String id=data.optString("id");JSONObject t=library.track(id);
+            if(t.length()==0||!stamp(t).equals(data.optString("stamp")))throw new IllegalArgumentException("Song details changed. Open lyrics again.");
+            JSONObject timing=data.optJSONObject("timing"),offset=data.optJSONObject("offset");
+            if(timing==null||offset==null||timing.toString().length()>650000)throw new IllegalArgumentException("Invalid lyrics timing");
+            library.setting("lyricTiming:"+id,timing);library.setting("lyricOffset:"+id,offset);return Json.object("ok",true);
+        }
+    }
     JSONObject save(String id,JSONObject record){
         synchronized(library){
             JSONObject t=library.track(id);if(t.length()==0||!stamp(t).equals(record.optString("stamp")))throw new IllegalArgumentException("Song details changed. Find lyrics again.");
@@ -28,7 +37,7 @@ final class LyricsAccess {
         URI uri=URI.create(address);
         if(!"https".equals(uri.getScheme())||!"lrclib.net".equals(uri.getHost())||uri.getPort()!=-1||uri.getUserInfo()!=null||uri.getFragment()!=null||address.length()>3000||!List.of("/api/get","/api/search").contains(uri.getPath()))throw new IOException("Unsupported lyrics request");
         long delay=nextAt-System.currentTimeMillis();if(delay>30000)throw new IOException("Lyrics service is resting. Try again later.");if(delay>0)Thread.sleep(delay);
-        HttpURLConnection c=(HttpURLConnection)uri.toURL().openConnection();c.setConnectTimeout(12000);c.setReadTimeout(15000);c.setInstanceFollowRedirects(false);c.setRequestProperty("User-Agent","ResonanceAndroid/0.22.0 (https://github.com/HyneKro/resonance)");
+        HttpURLConnection c=(HttpURLConnection)uri.toURL().openConnection();c.setConnectTimeout(12000);c.setReadTimeout(15000);c.setInstanceFollowRedirects(false);c.setRequestProperty("User-Agent","ResonanceAndroid/0.23.0 (https://github.com/HyneKro/resonance)");
         try{
             int status=c.getResponseCode();nextAt=System.currentTimeMillis()+(status>=400&&status!=404?1500:400);
             String retry=c.getHeaderField("Retry-After");if(retry!=null)try{nextAt=Math.max(nextAt,System.currentTimeMillis()+Math.max(0,Long.parseLong(retry))*1000);}catch(NumberFormatException ignored){try{nextAt=Math.max(nextAt,java.time.ZonedDateTime.parse(retry,java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli());}catch(Exception ignoredDate){}}
