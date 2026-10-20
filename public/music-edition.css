@@ -1,13 +1,16 @@
-/* Album and artist artwork remains recognisable inside a quiet editorial composition. */
-.music-edition,.edition-wall{--edition-x:0px;--edition-y:0px}
-/* Each plane responds independently, without an idle animation loop. Rotation stays intact. */
-.edition-frame{translate:calc(var(--edition-x) * .8) calc(-50% + var(--edition-y) * .8);transition:translate .45s ease-out}
-.edition-disc{translate:calc(var(--edition-x) * .22) calc(var(--edition-y) * .22);transition:translate .75s ease-out}
-.edition-fragment{translate:calc(var(--edition-x) * 1.25) calc(var(--edition-y) * 1.25);transition:translate .35s ease-out}
-.edition-memory{translate:calc(var(--edition-x) * -.45) calc(var(--edition-y) * -.45);transition:translate .65s ease-out}
-.edition-art-caption,.edition-swatches{translate:calc(var(--edition-x) * 1.5) calc(var(--edition-y) * 1.5);transition:translate .4s ease-out}
-.edition-backprint{translate:calc(var(--edition-x) * -.25) calc(var(--edition-y) * -.25);transition:translate .8s ease-out}
-.edition-aura,.edition-lines{translate:calc(var(--edition-x) * -.6) calc(var(--edition-y) * -.6);transition:translate .9s ease-out}
+/* Only the current cover is used. Independent compositor drift adds depth without pointer tracking. */
+.edition-frame{--drift-y:-50%;--drift-dx:7px;--drift-dy:4px;--drift-time:34s;translate:0 -50%}
+.edition-disc{--drift-dx:-4px;--drift-dy:3px;--drift-time:43s}
+.edition-fragment{--drift-dx:-11px;--drift-dy:-7px;--drift-time:29s}
+.edition-memory{--drift-dx:9px;--drift-dy:-5px;--drift-time:37s}
+.edition-art-caption,.edition-swatches{--drift-dx:5px;--drift-dy:6px;--drift-time:31s}
+.edition-backprint{--drift-dx:-5px;--drift-dy:2px;--drift-time:49s}
+.edition-aura,.edition-lines{--drift-dx:12px;--drift-dy:-8px;--drift-time:46s}
+:is(.music-edition,.edition-wall) :is(.edition-frame,.edition-disc,.edition-fragment,.edition-memory,.edition-art-caption,.edition-swatches,.edition-backprint,.edition-aura,.edition-lines){animation:edition-drift var(--drift-time) ease-in-out infinite paused!important}
+:is(.music-edition,.edition-wall).edition-drifting:not(.edition-still) :is(.edition-frame,.edition-disc,.edition-fragment,.edition-memory,.edition-art-caption,.edition-swatches,.edition-backprint,.edition-aura,.edition-lines){animation-play-state:running!important}
+@keyframes edition-drift{0%,100%{translate:0 var(--drift-y,0px)}25%{translate:var(--drift-dx) calc(var(--drift-y,0px) + var(--drift-dy))}50%{translate:0 calc(var(--drift-y,0px) + var(--drift-dy) * .3)}75%{translate:calc(var(--drift-dx) * -1) calc(var(--drift-y,0px) - var(--drift-dy))}}
+:is(.music-edition,.edition-wall).edition-still [class^=edition-]{animation:none!important}
+@media(prefers-reduced-motion:reduce){:is(.music-edition,.edition-wall) [class^=edition-]{animation:none!important}}
 .edition-memory{position:absolute;inset:48% 55% -8% -13%;transform:rotate(-12deg);overflow:hidden;border:5px solid #b4b1a2;background:#151b20;box-shadow:0 14px 30px #0006;opacity:.68;pointer-events:none}
 .edition-memory:empty{display:none}
 .edition-memory img{width:100%;height:100%;object-fit:cover;filter:saturate(.7)}
@@ -17,8 +20,6 @@
 .music-edition[data-composition="2"] .edition-frame{transform:rotate(2deg)}
 .music-edition[data-composition="2"] .edition-disc{inset:6% 20% 4% -12%}
 .music-edition[data-composition="2"] .edition-memory{inset:65% -8% -14% 38%;transform:rotate(-5deg)}
-.music-edition.edition-has-portrait .edition-fragment{opacity:.95}
-.music-edition.edition-has-portrait .edition-fragment img{opacity:1}
 
 #music-wallpaper.edition-wall{background:#0c1116}
 #music-wallpaper.edition-wall:after{background:linear-gradient(180deg,#080d1130,transparent 45%,#080d1160)}
@@ -70,9 +71,6 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
 .edition-next-label{font:calc(9px * var(--ui-text-scale,1)) monospace;letter-spacing:.16em;color:var(--accent-light);flex-shrink:0}
 .edition-next-name{font-size:calc(12px * var(--ui-text-scale,1));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.edition-next-arrow{color:var(--accent-light)}
 .edition-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px}
-.edition-credits{background:transparent;border:0;border-radius:0;padding:8px 0;margin-top:20px;min-height:38px;cursor:pointer;font-size:calc(10px * var(--ui-text-scale,1));color:#b3b6bd}
-.edition-credits-panel{position:fixed;inset:auto 24px 150px auto;box-sizing:border-box;margin:0;padding:24px;width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 180px);overflow:auto;background:#10151bfa;border:1px solid #ffffff30;border-radius:20px;color:#d3d6dd;box-shadow:0 18px 60px #0008;font-size:13px;line-height:1.6}
-.edition-credits-panel header{display:flex;align-items:center;justify-content:space-between;gap:20px}.edition-credits-panel h2{margin:0;font-size:18px}.edition-credits-panel header button{width:36px;height:36px;border:1px solid #ffffff25;border-radius:50%;background:transparent;color:inherit;font-size:20px;cursor:pointer}.edition-credits-panel a{color:var(--accent-light,#d8def3)}
 #music-only-stage.music-edition .music-stage-note{position:absolute;bottom:0;left:0;right:0;transform:translateY(100%);font-size:calc(11px * var(--ui-text-scale,1))}
 .music-edition .music-stage-idle{display:none}
 .music-edition [hidden]{display:none!important}
@@ -91,8 +89,6 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
 .music-edition[data-edition=nocturne] #music-only-title{font-family:Georgia,'Times New Roman',serif!important;font-weight:400!important}
 .music-edition[data-edition=nocturne] .edition-disc{background:radial-gradient(circle at 28% 30%,color-mix(in srgb,var(--ui-accent) 30%,#182028),#131b25 66%);border:1px solid #ffffff30;box-shadow:0 0 0 18px #ffffff04,0 0 0 19px #ffffff0a,0 0 0 40px #ffffff02}
 .music-edition[data-edition=nocturne] .edition-fragment{border-radius:50%;inset:-9% 38% 52% -8%;transform:rotate(-9deg)}
-.music-only .music-edition.edition-arrive .edition-copy{animation:edition-enter .6s ease-out both!important}
-@keyframes edition-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* Free height comes from the actual header and player, including enlarged text. */
 .music-edition.edition-compact{grid-template-rows:minmax(0,1fr)!important;gap:12px 5%!important}
 .edition-compact .edition-art{width:min(82%,calc(var(--edition-height) * .63))}
@@ -101,12 +97,12 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
 .edition-compact .edition-ledger dd{font-size:clamp(23px,4vw,48px)}
 #music-only-stage.music-edition.edition-compact #music-only-title{font-size:clamp(24px,calc(var(--edition-height) * .11),48px)}
 .edition-compact .edition-byline{margin-top:12px}.edition-compact .edition-album{margin:12px 0 0}
-.edition-compact .edition-details,.edition-compact .edition-credits{margin-top:8px}
+.edition-compact .edition-details{margin-top:8px}
 .edition-tight .edition-album,.edition-tight .edition-art-caption,.edition-tight .edition-swatches{display:none}
 #music-only-stage.music-edition.edition-tight #music-only-title{font-size:calc(22px * var(--ui-text-scale,1));-webkit-line-clamp:2}
 #music-only-stage.music-edition.edition-tight #music-only-artist{font-size:calc(12px * var(--ui-text-scale,1))}
-.edition-tight .edition-byline{margin-top:6px}.edition-tight .edition-actions{gap:0 12px}.edition-tight .edition-details,.edition-tight .edition-credits{margin-top:2px;min-height:36px;font-size:calc(10px * var(--ui-text-scale,1))}
-@media(max-width:1100px){.edition-kicker{margin-bottom:14px;font-size:calc(9px * var(--ui-text-scale,1))}.edition-rule{margin:16px 0}.edition-details,.edition-credits{margin-top:12px}}
+.edition-tight .edition-byline{margin-top:6px}.edition-tight .edition-actions{gap:0 12px}.edition-tight .edition-details{margin-top:2px;min-height:36px;font-size:calc(10px * var(--ui-text-scale,1))}
+@media(max-width:1100px){.edition-kicker{margin-bottom:14px;font-size:calc(9px * var(--ui-text-scale,1))}.edition-rule{margin:16px 0}.edition-details{margin-top:12px}}
 @media(max-width:750px){
  :is(.music-only,.visualizer-return) #music-only-stage.music-edition{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:24px;left:20px;max-width:500px;padding:14px 8px}
  .edition-art{height:100%;max-height:min(50vw,calc(var(--edition-height) * .38),240px);width:auto;min-height:0;margin:auto}
@@ -115,7 +111,7 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
  #music-only-stage.music-edition #music-only-title,#music-only-stage.music-edition.edition-long-title #music-only-title{font-size:clamp(24px,6.8vw,36px);line-height:1.08;letter-spacing:-.045em}
  #music-only-stage.music-edition #music-only-artist{font-size:calc(14px * var(--ui-text-scale,1))}.edition-byline{margin-top:10px}
  .edition-rule,.edition-genre,.edition-footer{display:none}.edition-album{justify-content:center;font-size:calc(10px * var(--ui-text-scale,1));margin:12px 0 0}
- .edition-actions{justify-content:center;gap:0 16px}.edition-details,.edition-credits{font-size:calc(11px * var(--ui-text-scale,1));margin:6px 0 0;min-height:40px}
+ .edition-actions{justify-content:center;gap:0 16px}.edition-details{font-size:calc(11px * var(--ui-text-scale,1));margin:6px 0 0;min-height:40px}
  .edition-backprint{font-size:25vw;bottom:30vh;opacity:.45}
  .edition-ledger{left:0;right:0;top:32%;bottom:auto;width:100%;max-width:none;opacity:.2;border:0;transform:rotate(-9deg);gap:10px;pointer-events:none}.edition-ledger dd{font-size:26px}.edition-ledger dt{font-size:8px}
  #music-only-stage.music-edition.edition-compact{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);grid-template-rows:minmax(0,1fr);gap:16px!important;padding:14px 0}
@@ -124,7 +120,6 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
  #music-only-stage.music-edition.edition-compact #music-only-title{font-size:calc(22px * var(--ui-text-scale,1))}
  #music-only-stage.music-edition.edition-compact #music-only-artist{font-size:calc(12px * var(--ui-text-scale,1))}
  .edition-compact .edition-ledger{top:auto;bottom:0;width:100%;max-width:none}
- .edition-credits-panel{inset:auto 16px 130px;max-height:calc(100dvh - 160px);padding:18px}
 }
 @media(orientation:landscape) and (max-height:520px){
  #music-only-stage.music-edition[data-platform=mobile]{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr);gap:24px;left:24px;max-width:none;padding:10px}
@@ -133,6 +128,3 @@ body.music-only .room-dock{background:#101319f0;border-color:#ffffff20;box-shado
  .music-edition[data-platform=mobile] .edition-actions{justify-content:flex-start}
 }
 .empty-library #music-only-stage.music-edition{display:none!important}
-.music-edition.edition-still,.edition-wall.edition-still{--edition-x:0px!important;--edition-y:0px!important}
-.reduce-motion.music-only .music-edition.edition-arrive .edition-copy{animation:none!important}
-@media(prefers-reduced-motion:reduce){.music-edition,.edition-wall{--edition-x:0px!important;--edition-y:0px!important}.music-only .music-edition.edition-arrive .edition-copy{animation:none!important}}

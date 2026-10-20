@@ -66,7 +66,7 @@ Find missing details runs a fresh search; choose recording details or preview an
 Genre discovery shows progress and results in the panel; Retry missing genres bypasses the lookup cache.
 Track character is researched automatically and cached locally. Metadata searches send
 title, artist, album and duration to MusicBrainz / LRCLIB, with Apple catalogue and linked Wikidata genre fallbacks; audio is never uploaded.
-Cover and verified artist images are cached for the static Music only collage.
+Music only uses the current cover throughout its collage, with slow automatic drift on Windows and a still composition on Android.
 Settings → Storage includes a refreshable storage estimate for music, artwork, library data, browser cache and the app.
 
 Visual delay adjusts without emptying the buffered signal. Sona preserves her pose sequence through rendering stalls.

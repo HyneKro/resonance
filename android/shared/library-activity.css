@@ -24,13 +24,3 @@
 .library-activity-button:focus-visible,.library-activity-panel button:focus-visible{outline:2px solid var(--ui-accent,#c8d9ee);outline-offset:3px}
 
 @media(max-width:750px){.library-activity-panel{inset:70px 14px auto;width:calc(100vw - 28px);padding:18px;max-height:calc(100dvh - 90px)}.library-activity-button{width:40px;height:40px;flex-basis:40px}}
-
-/* Dialog heading participates in layout so titles never sit beneath the indicator. */
-.library-activity-button.activity-in-dialog{position:static;order:1;margin-left:auto;align-self:center;min-width:36px;padding:6px 8px}
-
-.dialog-heading>[data-action=close-dialog],#sheet-close{order:2}
-.dialog-heading>div,#sheet-title{min-width:0;overflow-wrap:anywhere}
-
-.library-open .topbar{padding-right:calc(175px * var(--ui-text-scale,1))}
-.topbar .search{min-width:0;flex:1}.topbar .library-activity-button{flex-shrink:0}
-@media(max-width:800px){.library-open .topbar{padding-right:calc(154px * var(--ui-text-scale,1))}}

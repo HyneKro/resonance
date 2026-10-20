@@ -15,10 +15,9 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  await click('[data-activity-close]');
  await openSettings();await click('[data-settings-page=accessibility]');
  await run("(async()=>{const {beginActivity}=await import('/library-activity.js');window.finishProbeActivity=beginActivity('lyricsRequest');})()");
- await click('.library-activity-button');
- assert.ok(await run(`document.querySelector('#library-activity-panel').matches(':popover-open')`),'Activity stays accessible inside a modal');
+ assert.ok(await run("document.querySelector('.library-activity-button').parentElement.classList.contains('library-activity-home')"),'Activity keeps its main-screen home');
+ assert.equal(await run("document.querySelectorAll('dialog .library-activity-button').length"),0,'No activity icon in submenus');
  await run('finishProbeActivity()');
- await click('[data-activity-close]');
  if(!mobile){
   await run(`(async()=>{const {createNotifier}=await import('/menu-kit.js');const notice=createNotifier(document.querySelector('#toasts'),{host:()=>document.querySelector('#dialog'),duration:1500});notice('A readable notification');notice('   ');})()`);
   await shot('pc-dialog-notification');
@@ -52,7 +51,7 @@ module.exports=async({run,click,shot,until,win,mobile=false})=>{
  if(!mobile){
   await click('[data-listening-mode=music]');
   await run(`document.querySelector('#room-sound').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:innerWidth-15,clientY:40,pointerType:'mouse'}))`);
-  await until(`parseFloat(document.querySelector('#music-only-stage').style.getPropertyValue('--edition-x'))>0`);
+  await until(`getComputedStyle(document.querySelector('.edition-frame')).animationPlayState==='running'`);
   assert.equal(await run(`document.querySelector('#music-cover-play').tagName`),'DIV');
   assert.equal(await run(`document.querySelectorAll('.edition-ledger dd').length`),3);
   await shot('pc-music-history');

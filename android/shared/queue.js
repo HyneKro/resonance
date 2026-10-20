@@ -40,8 +40,8 @@ export class ContinuousQueue {
       this.items.push(next.id);
     }
   }
-  next(direction=1){
-    this.ensure();let at=this.cursor+direction;const available=this.available();
+  next(direction=1,from=this.cursor){
+    this.ensure();let at=from+direction;const available=this.available();
     while(at>=0&&at<this.items.length&&!available.has(this.items[at]))at+=direction;
     return at>=0&&at<this.items.length?at:null;
   }
@@ -61,4 +61,11 @@ export function youtubeOrder(a,b,sources=[]){
   const rank=id=>{const i=sources.findIndex(s=>s.id===id);return i<0?sources.length:i;};
   const position=t=>Number.isInteger(t.playlistIndex)&&t.playlistIndex>0?t.playlistIndex:Infinity;
   return rank(a.sourceId)-rank(b.sourceId)||position(a)-position(b)||a.title.localeCompare(b.title)||a.id.localeCompare(b.id);
+}
+
+// One timeline of actual listening starts, the playing row, and editable future.
+export function queueTimeline(queue,session){
+ const past=queue.history.filter(e=>e.session!==session).slice(-200).map(e=>({...e,kind:'history',key:'history:'+e.session}));
+ const next=queue.items.slice(queue.cursor,queue.cursor+81).map((id,offset)=>({id,kind:offset?'next':'current',index:queue.cursor+offset,key:offset?'next:'+(queue.cursor+offset)+':'+id:'current:'+id}));
+ return [...past,...next];
 }

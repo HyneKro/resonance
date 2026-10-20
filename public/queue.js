@@ -40,8 +40,8 @@ export class ContinuousQueue {
       this.items.push(next.id);
     }
   }
-  next(direction=1){
-    this.ensure();let at=this.cursor+direction;const available=this.available();
+  next(direction=1,from=this.cursor){
+    this.ensure();let at=from+direction;const available=this.available();
     while(at>=0&&at<this.items.length&&!available.has(this.items[at]))at+=direction;
     return at>=0&&at<this.items.length?at:null;
   }

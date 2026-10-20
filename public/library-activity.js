@@ -51,17 +51,7 @@ export function installLibraryActivity(){
  const initial=document.querySelector('.room-global')||document.querySelector('.room-top');initial?.append(home);home.append(button);document.body.append(panel);
  let status={},overrides={},signature='';
  const returnFocus=()=>{const fallback=document.querySelector('dialog[open] [data-action=close-dialog],dialog[open] #sheet-close,.room-global #room-sound,.room-top #settings,.topbar button');(button.hidden?fallback:button)?.focus({preventScroll:true});};
- function host(){
-  const modal=[...document.querySelectorAll('dialog[open]')].find(n=>n.matches(':modal'));
-  return modal?.querySelector('.dialog-heading,.dialog-header,.sheet-head,header')||modal||null;
- }
- function place(){
-  const modal=host(),library=document.querySelector('.topbar'),parent=modal||((document.body.classList.contains('library-open')||!document.body.classList.contains('in-room'))&&library?library:home);if(button.parentElement!==parent)parent.append(button);
-  if(button.classList.contains('activity-in-dialog')!==!!modal)button.classList.toggle('activity-in-dialog',!!modal);
-  if(!panel.matches(':popover-open')&&panel.parentElement!==(modal||document.body))(modal||document.body).append(panel);
- }
- new MutationObserver(place).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['open']});
- new MutationObserver(place).observe(document.body,{attributes:true,attributeFilter:['class']});
+ // One fixed home in the main controls. Dialogs retain their own focus and layout.
  function render(){
   const rows=activityRows({...status,...overrides},Object.fromEntries(requests)),busy=rows.filter(r=>r.running).length;
   const focused=document.activeElement===button;button.hidden=!busy;home.hidden=!busy;button.classList.toggle('is-working',busy>0);if(focused&&!busy)returnFocus();
@@ -79,10 +69,10 @@ export function installLibraryActivity(){
    root.append(section);
   }
  }
- button.onclick=()=>{place();if(panel.matches(':popover-open'))panel.hidePopover();else{panel.showPopover();}};
+ button.onclick=()=>{if(panel.matches(':popover-open'))panel.hidePopover();else{panel.showPopover();}};
  panel.querySelector('[data-activity-close]').onclick=()=>{panel.hidePopover();returnFocus();};
  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();panel.hidePopover();returnFocus();}});
  panel.addEventListener('toggle',()=>button.setAttribute('aria-expanded',String(panel.matches(':popover-open'))));
- listeners.add(render);place();render();
+ listeners.add(render);render();
  return {update(value){status=value||{};render();},set(key,value){overrides={...overrides,[key]:value};render();}};
 }

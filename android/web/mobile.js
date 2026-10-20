@@ -53,7 +53,7 @@ function updateTimeline(){paintTimeline({duration:current()?.duration||audio.dur
 const state={tracks:[],sources:[],playlists:[],prefs:{...defaults},view:'',filter:'all',search:'',sort:'playlist',active:true,limit:60,detail:null,destination:{},revision:0,previewRevision:0,jobs:{scan:{},downloads:{}}};
 let saveTimer,analysisTimer,statusTimer,selectedDownloads=[],discoveryId='',artKey='',pollGeneration=0,discovering=false;
 const current=()=>state.tracks.find(t=>t.id===audio.snapshot.id),toast=createNotifier($('#toasts'),{host:()=>$('#sheet').open?$('#sheet'):document.body}),safe=fn=>(...args)=>{try{return Promise.resolve(fn(...args)).catch(e=>toast(e.message));}catch(e){toast(e.message);}};
-const musicEdition=installMusicEdition({mobile:true,related:track=>state.tracks.filter(t=>t.id!==track?.id&&t.artist&&t.artist===track?.artist),artwork:t=>artworkKey(t)?artworkURL(artworkKey(t)):'',details:t=>details(t.id),queue:safe(queue)});
+const musicEdition=installMusicEdition({mobile:true,artwork:t=>artworkKey(t)?artworkURL(artworkKey(t)):'',details:t=>details(t.id),queue:safe(queue)});
 installDynamicLyrics({audio,current,read:readMobileLyrics,palette:()=>reactor.visualColors||reactor.coverColors,delay:()=>reactor.visualSync?.delayMs,capturing:()=>audio.snapshot.capturing});
 installAppUpdateUI({request:(action,preferences)=>rpc('appUpdate',{action,preferences}),host:()=>$('#app-update-slot'),active:()=>state.view==='settings-updates',toast,platform:'android',openUpdates:()=>settings('updates')});
 const sona=installDanceCompanion({reactor,audio,savePosition:position=>preferences({dancePosition:position}),onError:()=>toast('Sona could not load. Try reopening the app.')});

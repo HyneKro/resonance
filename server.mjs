@@ -135,7 +135,7 @@ export async function startServer({port=38721,dataDir=process.env.RESONANCE_DATA
     if(route.startsWith('/audio/')){const t=lib.tracks.get(route.slice(7));if(!t)return json(res,{error:'Track not found'},404);return serveFile(req,res,t.path);}
     if(route==='/sona-motions.webp')return serveFile(req,res,path.join(root,'public','sona-motions.webp'));
     if(route==='/companion-appearances.js'||route==='/companion-picker.js'||COMPANION_APPEARANCES.some(a=>a.src===route))return serveFile(req,res,path.join(root,'public',route));
-    if(['/genre-identity.js','/metadata-locks.js','/library-insights.js','/library-review.js','/library-review.css','/song-analysis.js','/listening-enhancements.js','/listening-timeline.js','/listening-edit-ui.js','/song-analysis.css','/metadata-review.js'].includes(route))return serveFile(req,res,path.join(root,'public',route));
+    if(['/genre-identity.js','/metadata-locks.js','/library-insights.js','/library-review.js','/library-review.css','/song-analysis.js','/listening-enhancements.js','/playback-requests.js','/listening-timeline.js','/listening-edit-ui.js','/song-analysis.css','/metadata-review.js'].includes(route))return serveFile(req,res,path.join(root,'public',route));
     if(route==='/app-update-ui.js')return serveFile(req,res,path.join(root,'public','app-update-ui.js'));
     if(/^\/artwork\/[a-f0-9]{24}\.(jpg|png|webp)$/.test(route))return serveFile(req,res,path.join(dataDir,route));
     if(/^\/wallpapers\/[a-f0-9]{24}\.(jpg|png|webp)$/.test(route))return serveFile(req,res,path.join(dataDir,route));

@@ -7,7 +7,7 @@ const output=path.join(root,'test-output/release-work/polish');fs.mkdirSync(outp
 // Give GUI children persistent file handles. A discarded terminal pipe must
 // never turn console output into repeating Electron error dialogs.
 const env={...process.env,POLISH_PHASE:process.env.POLISH_PHASE||'final'};delete env.ELECTRON_RUN_AS_NODE;
-for(const name of ['polish-ui-check','constellation-performance-check','startup-polish-check']){
+for(const name of ['polish-ui-check','constellation-performance-check','startup-polish-check','rapid-skip-check']){
  const log=fs.openSync(path.join(output,name+'.log'),'w');
  try{
   const code=await new Promise((resolve,reject)=>{
