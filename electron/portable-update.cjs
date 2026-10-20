@@ -35,7 +35,8 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
    for(const name of runs){if(!/^[a-f0-9-]{36}$/.test(name))continue;const file=path.join(portableRoot,'.updates',name,'result.json');try{const stat=await fs.stat(file);reports.push({file,time:stat.mtimeMs});}catch{}}
    const latest=reports.sort((a,b)=>b.time-a.time)[0];if(!latest)return;
    const report=JSON.parse((await fs.readFile(latest.file,'utf8')).replace(/^\uFEFF/,''));if(report.ok||report.notified)return;
-   await dialog.showMessageBox(win,{type:'warning',title:'Update was not completed',message:report.rollbackErrors?.length?'The update needs attention.':'Your previous version has been restored.',detail:String(report.error||'A file could not be replaced.')+'\nClose any other copies of Resonance and try installing the ZIP again.',buttons:['OK']});report.notified=true;await fs.writeFile(latest.file,JSON.stringify(report));
+   const blocked=report.reason==='files-in-use'&&!report.rollbackErrors?.length;
+   await dialog.showMessageBox(win,{type:'warning',title:'Update was not completed',message:report.rollbackErrors?.length?'The update needs attention.':blocked?'The update is waiting for Windows to release an app file.':report.changedFiles===0?'Your current version is unchanged.':'Your previous version has been restored.',detail:blocked?'Your music and settings are safe. Wait a moment, then open App updates and use Restart & update again. If this keeps happening, quit Resonance from its notification-area icon before reopening it.':String(report.error||'A file could not be replaced.')+'\nOpen App updates to check for the latest version and try again.',buttons:['OK']});report.notified=true;await fs.writeFile(latest.file,JSON.stringify(report));
   }catch{}
  });
  ipcMain.handle('resonance:update',async(event)=>{

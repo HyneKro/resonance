@@ -3,11 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {execFile} from 'node:child_process';
+import {execFile,spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {verifyPortableUpdate} from '../scripts/verify-portable-update.mjs';
 const run=promisify(execFile),quote=s=>"'"+s.replaceAll("'","''")+"'",root=process.cwd();
 const ps=(file,args=[])=>run('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron',file),...args],{windowsHide:true,timeout:60000});
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function exists(file){return fs.stat(file).then(()=>true,()=>false);}
+async function until(file){for(let i=0;i<120;i++){if(await exists(file))return;await sleep(50);}throw Error('Fixture did not become ready: '+file);}
+async function report(f){return JSON.parse((await fs.readFile(path.join(f.dest,'.updates/test/result.json'),'utf8')).replace(/^\uFEFF/,''));}
+async function holdFile(f,target){
+ const ready=path.join(f.dir,'lock-ready'),release=path.join(f.dir,'release-lock');
+ const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$stream=[IO.File]::Open(${quote(target)},[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);try{[IO.File]::WriteAllText(${quote(ready)},'ready');$deadline=[DateTime]::UtcNow.AddSeconds(20);while(-not(Test-Path -LiteralPath ${quote(release)}) -and [DateTime]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 30}}finally{$stream.Dispose()}`],{windowsHide:true,stdio:'ignore'});
+ const done=new Promise(resolve=>child.once('exit',resolve));await until(ready);
+ return async()=>{await fs.writeFile(release,'release');await done;};
+}
 async function fixture(){
  const dir=await fs.mkdtemp(path.join(root,'test-output','portable-update-')),source=path.join(dir,'release'),dest=path.join(dir,'installed'),stage=path.join(dest,'.updates','test','payload');
  const contents={'Resonance.exe':'new app','portable.flag':'portable','resources/app/package.json':'{"version":"1.1.0"}','resources/app/config.json':'{"sources":[]}','resources/app/public/app.js':'new js','resources/app/electron/main.cjs':'main','version':'44','LICENSE':'license','resources.pak':'pak','START HERE.txt':'help','resources/app/tools/empty.txt':''};
@@ -46,10 +56,92 @@ test('helper startup failure is reported before the caller closes',async()=>{
  await assert.rejects(ps('launch-update.ps1',['-Helper',path.join(root,'electron','apply-update.ps1'),'-Destination',f.dest,'-Stage',f.stage,'-WaitFor',String(process.pid),'-NoLaunch']),/stopped before it was ready/);
  assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');
 });
-test('a changed staged file rolls back earlier replacements',async()=>{
+test('a tampered staged file is rejected before replacements',async()=>{
  const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);await fs.writeFile(path.join(f.stage,'resources/app/public/app.js'),'corrupt');
  await ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);
  const report=JSON.parse((await fs.readFile(path.join(f.dest,'.updates/test/result.json'),'utf8')).replace(/^\uFEFF/,''));assert.equal(report.ok,false);assert.deepEqual(report.rollbackErrors,[]);assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
+});
+
+test('temporary Windows file locks are retried before replacing anything',async()=>{
+ const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const release=await holdFile(f,path.join(f.dest,'Resonance.exe'));
+ try{
+  const applying=ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);
+  await until(path.join(f.dest,'.updates/test/ready.json'));await sleep(800);
+  assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');
+  await release();await applying;
+  const result=await report(f);assert.equal(result.ok,true,result.error);assert.ok(result.lockRetries>0);
+  assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'new app');
+ }finally{await release();}
+});
+
+test('persistent locks leave the entire old installation intact without false rollback errors',async()=>{
+ const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ // Put the locked file last: preflight must still prevent earlier replacements.
+ const manifest=JSON.parse(await fs.readFile(path.join(f.stage,'resonance-update.json'),'utf8').then(s=>s.replace(/^\uFEFF/,'')));
+ manifest.files.push(manifest.files.shift());await fs.writeFile(path.join(f.stage,'resonance-update.json'),JSON.stringify(manifest));
+ const release=await holdFile(f,path.join(f.dest,'Resonance.exe'));
+ try{await ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch','-LockTimeoutSeconds','1']);}
+ finally{await release();}
+ const result=await report(f);assert.equal(result.ok,false);assert.equal(result.reason,'files-in-use');assert.equal(result.changedFiles,0);assert.deepEqual(result.rollbackErrors,[]);
+ assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');
+ assert.equal(await fs.readFile(path.join(f.dest,'data/personal.txt'),'utf8'),'music, settings, playlists');
+ assert.equal(await exists(path.join(f.dest,'resources/app/public/app.js')),false);
+});
+
+test('unchanged binaries are not overwritten or backed up even when held read-only',async()=>{
+ const f=await fixture();await fs.copyFile(path.join(f.source,'Resonance.exe'),path.join(f.dest,'Resonance.exe'));
+ await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const release=await holdFile(f,path.join(f.dest,'Resonance.exe'));
+ try{await ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch','-LockTimeoutSeconds','1']);}
+ finally{await release();}
+ const result=await report(f);assert.equal(result.ok,true,result.error);assert.ok(result.unchangedFiles>=1);
+ assert.equal(await exists(path.join(f.dest,'.updates/test/backup/Resonance.exe')),false);
+});
+
+test('only one helper can apply an update to an installation at a time',async()=>{
+ const f=await fixture();await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const release=await holdFile(f,path.join(f.dest,'Resonance.exe'));
+ const applying=ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);
+ try{
+  await until(path.join(f.dest,'.updates/test/ready.json'));
+  await assert.rejects(ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']),/Another update is already finishing/);
+  assert.equal(await exists(path.join(f.dest,'.updates/test/result.json')),false,'Rejected helper cannot write a result for the active run');
+ }finally{await release();await applying;}
+ assert.equal((await report(f)).ok,true);
+});
+
+test('post-install validation failure atomically restores actual replacements and the previous manifest',async()=>{
+ const f=await fixture();await fs.writeFile(path.join(f.dest,'resonance-update.json'),'previous manifest');
+ await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const changed='{"version":"9.0.0"}',entry=f.manifest.files.find(x=>x.path==='resources/app/package.json');
+ entry.bytes=Buffer.byteLength(changed);entry.sha256=createHash('sha256').update(changed).digest('hex');
+ await fs.writeFile(path.join(f.stage,entry.path),changed);await fs.writeFile(path.join(f.stage,'resonance-update.json'),JSON.stringify(f.manifest));
+ await ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);
+ const result=await report(f);assert.equal(result.ok,false);assert.ok(result.changedFiles>0);assert.deepEqual(result.rollbackErrors,[]);
+ assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');
+ assert.equal(await fs.readFile(path.join(f.dest,'resonance-update.json'),'utf8'),'previous manifest');
+ assert.equal(await fs.readFile(path.join(f.dest,'resources/app/config.json'),'utf8'),'personal config');
+ assert.equal(await exists(path.join(f.dest,'resources/app/package.json')),false);
+});
+
+test('the helper waits for remaining app processes and excludes another installation',async()=>{
+ const f=await fixture(),exe=path.join(f.dest,'Resonance.exe'),other=path.join(f.dir,'other-install');
+ await fs.unlink(exe);await fs.mkdir(other);
+ const code='public class Hold {public static void Main(string[] args){string root=System.AppDomain.CurrentDomain.BaseDirectory;System.IO.File.WriteAllText(System.IO.Path.Combine(root,"holding"),"ready");while(!System.IO.File.Exists(System.IO.Path.Combine(root,"release")))System.Threading.Thread.Sleep(30);}}';
+ await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Add-Type -TypeDefinition ${quote(code)} -OutputAssembly ${quote(exe)} -OutputType WindowsApplication`],{windowsHide:true});
+ await fs.copyFile(exe,path.join(other,'Resonance.exe'));await ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]);
+ const own=spawn(exe,[],{windowsHide:true,stdio:'ignore'}),foreign=spawn(path.join(other,'Resonance.exe'),[],{windowsHide:true,stdio:'ignore'});
+ const ownExit=new Promise(resolve=>own.once('exit',resolve)),foreignExit=new Promise(resolve=>foreign.once('exit',resolve));
+ try{
+  await until(path.join(f.dest,'holding'));await until(path.join(other,'holding'));
+  const applying=ps('apply-update.ps1',['-Destination',f.dest,'-Stage',f.stage,'-NoLaunch']);
+  await until(path.join(f.dest,'.updates/test/ready.json'));await sleep(600);
+  assert.equal(await exists(path.join(f.dest,'.updates/test/result.json')),false);
+  await fs.writeFile(path.join(f.dest,'release'),'release');await ownExit;await applying;
+  const result=await report(f);assert.equal(result.ok,true,result.error);assert.ok(result.processWaits>0);
+  assert.equal(foreign.exitCode,null,'Another portable installation is left running');
+ }finally{await fs.writeFile(path.join(f.dest,'release'),'release');await fs.writeFile(path.join(other,'release'),'release');await Promise.all([ownExit,foreignExit]);}
 });
 test('bad hashes, traversal and personal-data entries are rejected before installation',async()=>{
  for(const bad of ['hash','../outside.txt','data/library.sqlite']){const f=await fixture();if(bad==='hash')f.manifest.files[0].sha256='0'.repeat(64);else f.manifest.files[0].path=bad;await assert.rejects(ps('prepare-update.ps1',['-Archive',await f.archive(),'-Stage',f.stage]));assert.equal(await fs.readFile(path.join(f.dest,'Resonance.exe'),'utf8'),'old app');}
