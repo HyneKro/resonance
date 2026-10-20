@@ -1,5 +1,5 @@
 const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-work/lyric-highlight/ui');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-work/lyric-phrase/ui');
 fs.mkdirSync(out,{recursive:true});app.setPath('userData',path.join(out,'profile'));
 const log=s=>fs.appendFileSync(path.join(out,'runner.log'),s+'\n');
 for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.code!=='EPIPE'){log(e.stack);app.exit(1);}});
@@ -16,15 +16,16 @@ window.record={status:'synced',source:'Test fixture',text:'A paper sky',offset:0
  {time:6,text:''},{time:9,text:'A silver line without word timestamps'}
 ]};
 window.audio=Object.assign(new EventTarget(),{paused:true,ended:false});
-let base=2.8,started=performance.now();window.speed=1;window.delay=0;
+let base=2.8,started=performance.now();window.speed=1;window.delay=0;window.colors=[[.65,.12,.85],[.12,.4,.6],[.15,.2,.3]];audio.duration=15;
 Object.defineProperty(audio,'currentTime',{get(){return base+(audio.paused?0:(performance.now()-started)/1000*speed)},set(value){base=value;started=performance.now()}});
 window.setTime=value=>{audio.currentTime=value;audio.dispatchEvent(new Event('seeked'))};
 window.frames=0;const raf=requestAnimationFrame;window.requestAnimationFrame=callback=>raf(time=>{frames++;callback(time)});
 localStorage.setItem('resonance:dynamic-lyrics','true');
-window.control=installDynamicLyrics({audio,current:()=>({id:'test',title:'Paper sky',artist:'Fixture',genre:'Electronic'}),delay:()=>delay,read:async()=>record});
+window.control=installDynamicLyrics({audio,current:()=>({id:'test',title:'Paper sky',artist:'Fixture',genre:'Electronic'}),palette:()=>colors,delay:()=>delay,read:async()=>record});
 mountLyricsControls({container:document.querySelector('.controls'),track:{id:'test'},request:async()=>({record,improved:false})});
 document.querySelector('.lyrics-tools').open=true;
 window.fill=()=>Array.from(document.querySelectorAll('.lyric-word'),w=>parseFloat(w.style.getPropertyValue('--word-fill')));
+window.phraseFill=()=>{const spans=[...document.querySelectorAll('.lyric-word')];const widths=spans.map(s=>s.getBoundingClientRect().width);return spans.reduce((sum,s,i)=>sum+parseFloat(s.style.getPropertyValue('--word-fill'))*widths[i],0)/widths.reduce((a,b)=>a+b,0)};
 window.ready=true;
 </script>`;
 app.whenReady().then(async()=>{
@@ -63,14 +64,29 @@ app.whenReady().then(async()=>{
   assert.equal(await run('document.querySelector(".dynamic-lyrics").hidden'),true);
   await run('audio.paused=true;document.body.dataset.listeningMode="visualizer";setTime(6.5)');
   assert.equal(await run('document.querySelector(".lyric-current").textContent'),'');assert.deepEqual(await run('fill()'),[]);
-  await run('setTime(9.5)');assert.deepEqual(await run('fill()'),[]);
+  await run('setTime(12)');await pause(250);assert.equal(await run('document.querySelector(".lyric-current").dataset.timing'),'phrase');assert.ok(Math.abs(await run('phraseFill()')-50)<.01);
   assert.equal(await run('document.querySelector(".lyric-current").textContent'),'A silver line without word timestamps');
   assert.equal(await run('document.documentElement.scrollWidth>innerWidth'),false);
-  await pause(350);fs.writeFileSync(path.join(out,platform+'-line-only.png'),(await win.webContents.capturePage()).toPNG());
+  const phrase=await run('fill()');assert.ok(phrase.every((x,i)=>!i||phrase[i-1]>=x),'Wrapped phrases fill in reading order');
+  await pause(350);fs.writeFileSync(path.join(out,platform+'-phrase.png'),(await win.webContents.capturePage()).toPNG());
+  await run('setTime(10.5)');assert.ok(Math.abs(await run('phraseFill()')-25)<.01);
+  await run('record.offset=.25;delay=250;setTime(12.5)');
+  assert.ok(Math.abs(await run('phraseFill()')-(3/5.75*100))<.02,'Phrase respects visual delay and manual offset');
+  const originalInk=await run('document.querySelector(".dynamic-lyrics").style.getPropertyValue("--lyric-ink")');
+  await run('colors=[[.05,.7,.22],[.1,.2,.1],[.2,.3,.2]];document.body.style.background="repeating-conic-gradient(#d5be8c 0% 25%,#463857 0% 50%) 0/100px 100px"');
+  await pause(950);
+  assert.notEqual(await run('document.querySelector(".dynamic-lyrics").style.getPropertyValue("--lyric-ink")'),originalInk);
+  assert.match(await run('getComputedStyle(document.querySelector(".lyric-ink")).textShadow'),/rgb/);
+  assert.match(await run('getComputedStyle(document.querySelector(".lyric-word")).textShadow'),/rgb\(0, 0, 0\)/);
+  fs.writeFileSync(path.join(out,platform+'-bright-background.png'),(await win.webContents.capturePage()).toPNG());
+  await run('record.offset=0;delay=0;audio.duration=0;setTime(12)');
+  assert.deepEqual(await run('fill()'),[],'No known final phrase end: do not invent a duration');
+  await run('audio.duration=15;setTime(15)');
+  assert.ok((await run('fill()')).every(x=>x===100),'Known song end completes final phrase');
   await run('control.dispose();audio.paused=false;audio.dispatchEvent(new Event("play"))');
   const disposed=await run('frames');await pause(250);assert.equal(await run('frames'),disposed);
   assert.equal(await run('document.querySelector(".dynamic-lyrics")'),null);
-  results.push({platform,passed:true,halfWord:50,backwardsSeek:25,lineOnlyUnfilled:true,hiddenAndPausedFrames:0});
+  results.push({platform,passed:true,halfWord:50,backwardsSeek:25,phraseHalfway:50,hiddenAndPausedFrames:0});
  }
  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(results,null,2));log('PASS');
 }).catch(e=>{log(e.stack);process.exitCode=1;}).finally(()=>{win?.destroy();server?.close();app.exit(process.exitCode||0)});

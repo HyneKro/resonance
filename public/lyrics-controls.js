@@ -16,8 +16,8 @@ export function mountLyricsControls({container,track,request,exportFile,importFi
   state=value;offset=timingOffset(state.record?.offset);q('output').textContent=(offset>0?'+':'')+offset.toFixed(1)+'s';
   const coverage=wordTimingCoverage(state.record);
   q('[data-word-timing]').textContent=coverage.wordLines
-   ?coverage.sweepLines?`Smooth word highlighting available on ${coverage.sweepLines} of ${coverage.lines} lines. Lines without word timestamps stay unfilled.`:'Word starts are available, but word lengths are missing. Words light up at their timestamps; a smooth sweep needs start and end times.'
-   :coverage.lines?'Line timing only. Lyrics appear in time, but stay unfilled because word timestamps are unavailable.':'No word timestamps available. Text lyrics remain readable in song details.';
+   ?coverage.sweepLines?`Word timing on ${coverage.sweepLines} of ${coverage.lines} lines. Other timed phrases use an approximate left-to-right sweep.`:'Words light up at their timestamps. Phrases without word timing use an approximate sweep.'
+   :coverage.lines?'Phrase highlight follows each line’s duration. The sweep is approximate; it does not identify individual sung words.':'No timestamps available. Text lyrics remain readable in song details.';
   q('[data-export]').disabled=!state.record?.lines?.length;
   q('[data-restore]').disabled=!state.improved&&!offset;
  };

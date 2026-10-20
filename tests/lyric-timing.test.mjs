@@ -5,7 +5,7 @@ import {audioStamp} from '../audio-research.mjs';
 import {parseLyricsfile,exportLyricsfile,wordProgress,timingOffset} from '../public/lyric-timing.js';
 import {lyricDocument,parseLyrics} from '../public/lyrics.js';
 import {LyricsSettings} from '../lyrics-settings.mjs';
-import {hasWordTimings,wordTimingCoverage} from '../public/lyric-highlight.js';
+import {hasWordTimings,wordTimingCoverage,phraseWindow,lyricPalette} from '../public/lyric-highlight.js';
 
 const rich={version:'1.0',lines:[{text:'A paper sky',start_ms:1000,end_ms:3000,words:[{text:'A ',start_ms:1000,end_ms:1200},{text:'paper ',start_ms:1300,end_ms:2000},{text:'sky',start_ms:2200,end_ms:3000}]}]};
 const t={id:'one',title:'Paper Sky',artist:'Test Singer',duration:60,path:'song.wav',size:30,mtime:1,available:true};
@@ -60,7 +60,7 @@ test('import, offset and restore leave provider lyrics intact; analysis actions 
  await assert.rejects(settings.change('one','import',{text:'x'.repeat(256001)}),/too large/);
  await assert.rejects(settings.change('one','offset',{value:'oops'}),/Invalid timing/);
 });
-test('word highlights require matching words and real timestamps, never line duration guesses',()=>{
+test('actual word timing remains distinguishable from approximate phrase timing',()=>{
  const cue=parseLyricsfile(JSON.stringify(rich)).lines[0];
  assert.equal(hasWordTimings(cue),true);
  assert.equal(hasWordTimings({time:1,end:3,text:'A paper sky'}),false);
@@ -68,4 +68,22 @@ test('word highlights require matching words and real timestamps, never line dur
  assert.equal(hasWordTimings({...cue,words:cue.words.map(w=>({...w,start:NaN}))}),false);
  assert.deepEqual(wordTimingCoverage({lines:[cue,{time:4,text:''},{time:9,text:'A silver line'}]}),{lines:2,wordLines:1,sweepLines:1});
  assert.deepEqual(wordTimingCoverage({lines:[{...cue,words:cue.words.map(({end,...w})=>w)}]}),{lines:1,wordLines:1,sweepLines:0});
+});
+
+test('phrase sweep uses the earliest available boundary and never spans a following instrumental cue',()=>{
+ const cue={time:10,text:'A silver line'};
+ assert.deepEqual(phraseWindow(cue,{time:14,text:''},60),{start:10,end:14});
+ assert.deepEqual(phraseWindow({...cue,end:12},{time:14,text:'Next'},60),{start:10,end:12});
+ assert.deepEqual(phraseWindow(cue,undefined,18),{start:10,end:18});
+ assert.equal(phraseWindow(cue,undefined,0),null);
+ assert.equal(phraseWindow({time:10,text:''},{time:12},60),null);
+ assert.equal(phraseWindow({time:NaN,text:'Missing timestamp'},{time:12},60),null);
+ assert.deepEqual([9,10,12,14,16].map(t=>wordProgress(phraseWindow(cue,{time:14},60),t)),[0,0,.5,1,1]);
+});
+test('lyric ink follows a sampled hue and remains bright above its dark backing',()=>{
+ const purple=lyricPalette([[.3,.05,.5],[.1,.1,.1],[.1,.05,.15]]);
+ const green=lyricPalette([[.05,.6,.15],[.1,.1,.1],[.05,.2,.1]]);
+ assert.notEqual(purple.ink,green.ink);assert.notEqual(purple.glow,green.glow);
+ const rgb=purple.ink.match(/\d+/g).map(Number);assert.ok(rgb[2]>rgb[0]&&rgb[0]>rgb[1]);
+ assert.ok(rgb.every(x=>x>=0&&x<=255));assert.deepEqual(lyricPalette(null),lyricPalette([]));
 });

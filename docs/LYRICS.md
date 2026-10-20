@@ -2,7 +2,9 @@
 
 Resonance keeps its existing lyrics lookup, embedded/sidecar lyrics, saved results, and the Lyrics button in Visualizer. Timed lyrics animate with playback; text-only lyrics remain readable in Behind the sound. Availability and timing accuracy depend on the recording and source.
 
-When actual word timestamps include start and end times, each word fills smoothly from left to right as it is sung. The fill follows the playback position, including pause, seek, playback speed, per-song offset and Bluetooth visual delay. It stops rendering when Dynamic Lyrics is hidden. Line-only lyrics stay unfilled: line durations are never used to invent word timestamps. Word-start-only timestamps light words at their onset without inventing their duration.
+When actual word timestamps include start and end times, each word fills smoothly from left to right as it is sung. The fill follows the playback position, including pause, seek, playback speed, per-song offset and Bluetooth visual delay. It stops rendering when Dynamic Lyrics is hidden. When only line timestamps exist, an approximate phrase sweep moves through the text in reading order, including wrapped lines. It runs from the current timestamp to the earliest known line end, next cue (including an instrumental break), or song end. This is a display effect, not generated or saved word timing. A final phrase with no known end remains static. Word-start-only timestamps light words at their onset without inventing their duration.
+
+The filled text uses a bright tone from the visualizer’s sampled palette, with a colored glow over muted unsung text. A stronger dark backing and black text shadow protect readability. Colors update gently without sampling pixels or analyzing audio again.
 
 Behind the sound → Lyrics timing shows which timing is available. Earlier/Later adjusts the saved offset for this song; Reset offset and Restore original remain available. Timed lyrics can be imported or exported as local files. Existing supported LRC, enhanced LRC, JSON and YAML formats are preserved.
 

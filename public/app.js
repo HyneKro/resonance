@@ -46,7 +46,7 @@ reactor.deferStart=true;
 const state={tracks:[],playlists:[],token:'',view:'home',query:'',genre:'',sort:'youtube',limit:80,current:null,queue:[],shuffle:false,repeat:0,session:'',listened:0,pendingSeconds:0,lastTick:0,status:{},syncPreview:null,dialog:'',eq:[0,0,0],artist:'',refreshBusy:false,prefs:{},playGeneration:0,loadHandler:null};
 const playQueue=new ContinuousQueue(()=>state.tracks);
 const getTrack=id=>state.tracks.find(t=>t.id===id);
-installDynamicLyrics({audio,current:()=>state.current,read:t=>api('/api/track-lyrics?id='+encodeURIComponent(t.id)),delay:()=>reactor.visualSync?.delayMs,capturing:()=>!!reactor.desktopSource});
+installDynamicLyrics({audio,current:()=>state.current,read:t=>api('/api/track-lyrics?id='+encodeURIComponent(t.id)),palette:()=>reactor.visualColors||reactor.coverColors,delay:()=>reactor.visualSync?.delayMs,capturing:()=>!!reactor.desktopSource});
 async function api(url,body,method){const r=await fetch(url,{method:method||(body?'POST':'GET'),headers:body?{'Content-Type':'application/json','X-Resonance-Token':state.token}:{},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d;}
 installSettingResets({state,setPreferences,onEQ:(index)=>{resetEqualizer(index);}});
 const artworkPalette=new ArtworkPalette({read:artwork=>api('/api/artwork-palette?artwork='+encodeURIComponent(artwork)),write:(artwork,colors)=>api('/api/artwork-palette',{artwork,colors}),decode:decodeArtwork,onChange:(colors,status)=>{reactor.coverColors=colors;reactor.coverStatus=status;applyInterfaceAccent(document.body.classList.contains('desktop-listening')?null:colors,state.prefs.coverInterface!==false);reactor.needsFrame=true;}});

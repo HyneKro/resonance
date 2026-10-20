@@ -1,6 +1,6 @@
 import {lyricsStamp,lyricLineAt} from './lyrics.js';
 import {timingOffset} from './lyric-timing.js';
-import {createWordHighlight,createLyricTicker,wordTimingCoverage} from './lyric-highlight.js';
+import {createWordHighlight,createLyricTicker,wordTimingCoverage,lyricPalette} from './lyric-highlight.js';
 
 export function lyricStyle(track){
  const genre=String(track?.genre||'').toLowerCase();
@@ -10,31 +10,36 @@ export function lyricStyle(track){
  return 'soft';
 }
 /** Only the visible line has word spans. Audio analysis never runs in this renderer. */
-export function installDynamicLyrics({audio,current,read,delay=()=>0,capturing=()=>false,button=document.querySelector('#dynamic-lyrics'),host=document.querySelector('#listening-room')}){
+export function installDynamicLyrics({audio,current,read,palette=()=>null,delay=()=>0,capturing=()=>false,button=document.querySelector('#dynamic-lyrics'),host=document.querySelector('#listening-room')}){
  if(!button||!host)return;
  const overlay=document.createElement('section');overlay.className='dynamic-lyrics';overlay.hidden=true;overlay.setAttribute('aria-label','Synchronized lyrics');
  const previous=document.createElement('p'),line=document.createElement('p'),next=document.createElement('p');
  previous.className='lyric-context lyric-previous';line.className='lyric-current';next.className='lyric-context lyric-next';overlay.append(previous,line,next);host.append(overlay);
  let enabled=false;try{enabled=localStorage.getItem('resonance:dynamic-lyrics')==='true';}catch{}
  const highlight=createWordHighlight(line);
- let key='',record=null,generation=0,index=-2,loading=false,disposed=false,buttonState='',retryAt=0,retries=0,coverage={wordLines:0};
+ let key='',record=null,generation=0,index=-2,loading=false,disposed=false,buttonState='',retryAt=0,retries=0,coverage={wordLines:0},colorAt=0;
  function paint(){
   const available=!!record?.lines?.some(l=>l.text)&&!capturing();
   const state=[available,enabled,loading,record?.status,coverage.wordLines].join('|');if(state!==buttonState){buttonState=state;
   button.disabled=!available;button.classList.toggle('lyrics-ready',available);button.setAttribute('aria-pressed',String(enabled&&available));button.setAttribute('aria-busy',String(loading));
-  button.title=loading?'Finding timed lyrics…':available?(enabled?'Hide dynamic lyrics':coverage.wordLines?'Word-timed lyrics ready · show dynamic lyrics':'Line-timed lyrics ready · word highlighting needs word timestamps'):record?.status==='text'?'Lyrics found without matching timecodes · see song details':record?.status==='instrumental'?'This recording is marked instrumental':record?.status==='unavailable'?'Lyrics service unavailable · retry in song details':'No timed lyrics for this song yet';
+  button.title=loading?'Finding timed lyrics…':available?(enabled?'Hide dynamic lyrics':coverage.wordLines?'Word-timed lyrics ready · show dynamic lyrics':'Timed lyrics ready · show phrase highlight'):record?.status==='text'?'Lyrics found without matching timecodes · see song details':record?.status==='instrumental'?'This recording is marked instrumental':record?.status==='unavailable'?'Lyrics service unavailable · retry in song details':'No timed lyrics for this song yet';
   }
   overlay.hidden=document.hidden||!enabled||!available||document.body.dataset.listeningMode!=='visualizer'||document.body.classList.contains('visualizer-preparing');
   if(overlay.hidden)return;
+  if(performance.now()>=colorAt){
+   colorAt=performance.now()+200;const colors=lyricPalette(palette());
+   for(const name of ['ink','glow']){const property='--lyric-'+name;if(overlay.style.getPropertyValue(property)!==colors[name])overlay.style.setProperty(property,colors[name]);}
+  }
   const time=(Number(audio.currentTime)||0)-Math.max(0,Number(delay())||0)/1000-timingOffset(record.offset),selected=lyricLineAt(record.lines,time);
   const cue=record.lines[selected];
+  highlight.show(cue,{next:record.lines[selected+1],duration:(Number(audio.duration)||current()?.duration||0)-timingOffset(record.offset)});
   if(selected===index){
    line.style.opacity=Number.isFinite(cue?.end)&&time>cue.end+.3?'0':'';
    highlight.paint(time);
    return;
   }index=selected;
   previous.textContent=record.lines[index-1]?.text||'';next.textContent=record.lines[index+1]?.text||'';
-  line.style.opacity=Number.isFinite(cue?.end)&&time>cue.end+.3?'0':'';highlight.show(cue);highlight.paint(time);
+  line.style.opacity=Number.isFinite(cue?.end)&&time>cue.end+.3?'0':'';highlight.paint(time);
   overlay.style.setProperty('--lyric-scale',String(Math.max(.68,Math.min(1,Math.sqrt(64/Math.max(1,line.textContent.length))))));
   // An explicit blank LRC cue clears the verse during instrumental passages.
   overlay.classList.toggle('lyric-break',!line.textContent);
@@ -58,5 +63,5 @@ export function installDynamicLyrics({audio,current,read,delay=()=>0,capturing=(
  playbackEvents.forEach(name=>audio.addEventListener(name,changed));document.addEventListener('visibilitychange',changed);document.addEventListener('resonance-track-change',changed);document.addEventListener('resonance-lyrics-change',refresh);
  const timer=setInterval(()=>{if(!document.hidden){void select(!!retryAt&&Date.now()>=retryAt);ticker.wake();}},200);
  void select();
- return {refresh:()=>select(true),dispose(){disposed=true;++generation;clearInterval(timer);ticker.dispose();playbackEvents.forEach(name=>audio.removeEventListener(name,changed));document.removeEventListener('visibilitychange',changed);document.removeEventListener('resonance-track-change',changed);document.removeEventListener('resonance-lyrics-change',refresh);overlay.remove();}};
+ return {refresh:()=>select(true),dispose(){disposed=true;++generation;clearInterval(timer);ticker.dispose();highlight.dispose();playbackEvents.forEach(name=>audio.removeEventListener(name,changed));document.removeEventListener('visibilitychange',changed);document.removeEventListener('resonance-track-change',changed);document.removeEventListener('resonance-lyrics-change',refresh);overlay.remove();}};
 }
