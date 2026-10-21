@@ -97,7 +97,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail'||name==='u_prominences')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -297,7 +297,7 @@ export class GPUScene {
         const history=stellar.history;
         gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.astraHistoryTexture);
         if(this.astraHistoryVersion!==history.version){gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.astraHistoryVersion=history.version;}
-        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_prominences:stellar.prominences,u_ringEcho:stellar.echoes,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
+        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_ringEcho:stellar.echoes,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
         for(const p of [this.astraBodies,this.astraPaths,this.astraDust,this.astraDebris]){gl.useProgram(p.program);this.texture(p,'u_astraHistory',this.astraHistoryTexture,5);}
         this.bind(nebula);this.use(this.astraBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.astraBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -308,7 +308,7 @@ export class GPUScene {
         this.use(this.astraDebris,sky);gl.drawArrays(gl.POINTS,0,this.mobile?180:520);yield;
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         const segments=this.mobile?192:320;
-        for(const part of [4,0,1,3,2]){this.use(this.astraPaths,{...sky,u_segments:segments,u_pathPart:part});gl.drawArrays(gl.TRIANGLES,0,(part===2||part===3?70:72)*segments*6);}yield;
+        for(const part of [4,0,1]){this.use(this.astraPaths,{...sky,u_segments:segments,u_pathPart:part});gl.drawArrays(gl.TRIANGLES,0,72*segments*6);}yield;
         this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?14000:34000);yield;
       }else if(style.index===4){
         if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}

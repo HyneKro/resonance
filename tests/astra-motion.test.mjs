@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AstraMotion,keplerPoint} from '../public/astra-motion.js';
 const silent=new Float32Array(48),tone=band=>Float32Array.from(silent,(_,i)=>i===band?.9:0);
-const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights,...m.prominences,...m.echoes,...m.history.data,m.history.head,m.history.accumulator];
+const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights,...m.echoes,...m.history.data,m.history.head,m.history.accumulator];
 test('Astra displaces the played frequency and accelerates only its orbit',()=>{
  const m=new AstraMotion();m.update(0,silent);
  for(let n=1;n<=60;n++)m.update(n/60,tone(12),{energy:.8});
@@ -104,13 +104,11 @@ test('comet slot rollover preserves every other live trajectory and particle ass
  assert.equal(m.comets.length,6);assert.ok(m.comets.some(c=>c.birth>25));
 });
 
-test('solar launch pressure varies with loudness and live prominences finish before relocating',()=>{
+test('solar launch pressure varies with loudness',()=>{
  const run=energy=>{const m=new AstraMotion();m.update(0,silent);m.update(.02,tone(3),{onset:1,bass:.7,energy});return m;};
  const quiet=run(.15),loud=run(.95);
  assert.ok(loud.events[1]>quiet.events[1]*1.8);assert.ok(loud.events[3]>quiet.events[3]*1.8);
- const origins=Array.from({length:14},(_,i)=>loud.prominences.slice(i*4,i*4+4));
- for(let i=2;i<70;i++)loud.update(i*.02,tone(3),{bass:.95,energy:.95});
- for(const [i,event]of origins.entries())if(event[3]&&1.4-event[0]<event[3])assert.deepEqual(loud.prominences.slice(i*4,i*4+4),event);
+
 });
 
 test('radial spectrum history carries old notes outward through silence and new music',()=>{

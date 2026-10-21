@@ -1,9 +1,8 @@
 // Astra: 48 frequency orbits plus 24 remote rings around a living photosphere. Everything
-// in world space shares the camera, including prominences and comet trails.
+// in world space shares the camera, including surface eruptions and comet trails.
 const SKY=`
 uniform vec2 u_resolution;
 uniform vec4 u_world,u_camera,u_roles,u_particle,u_light,u_orbitBands[48],u_orbitMotion[48],u_astraEvents[12],u_stellarState;
-uniform vec4 u_prominences[14];
 uniform highp sampler2D u_astraHistory;
 uniform float u_historyHead,u_historyPhase,u_ringEcho[72];
 uniform vec3 u_palette[6],u_stellarWarm,u_stellarCool;
@@ -49,14 +48,18 @@ vec2 surfaceShock(vec3 n){
  }
  return response;
 }
+float spectrumBin(int bin,int row){
+ return texelFetch(u_astraHistory,ivec2(clamp(bin,0,47),row),0).r*.80
+  +(texelFetch(u_astraHistory,ivec2(max(bin-1,0),row),0).r+texelFetch(u_astraHistory,ivec2(min(bin+1,47),row),0).r)*.10;
+}
 float spectrumEcho(float ring,float angle){
  // The complete frequency pass wraps seamlessly around each ring. A one-row
  // latency permits continuous interpolation at every history-buffer rollover.
- float lane=abs(fract(angle/TAU-ring*.013)*2.-1.),x=lane*47.;
+ float lane=abs(fract(angle/TAU-ring*.0055)*2.-1.),x=lane*47.;
  float row=1.+ring*1.65-u_historyPhase;int r=int(row),head=int(u_historyHead),bin=int(x);
  int a=(head-r+128)%128,b=(a+127)%128;
- float young=mix(texelFetch(u_astraHistory,ivec2(bin,a),0).r,texelFetch(u_astraHistory,ivec2(min(bin+1,47),a),0).r,smoothstep(0.,1.,fract(x)));
- float old=mix(texelFetch(u_astraHistory,ivec2(bin,b),0).r,texelFetch(u_astraHistory,ivec2(min(bin+1,47),b),0).r,smoothstep(0.,1.,fract(x)));
+ float young=mix(spectrumBin(bin,a),spectrumBin(min(bin+1,47),a),smoothstep(0.,1.,fract(x)));
+ float old=mix(spectrumBin(bin,b),spectrumBin(min(bin+1,47),b),smoothstep(0.,1.,fract(x)));
  return mix(young,old,fract(row))*smoothstep(0.,.035,lane)*(1.-smoothstep(.965,1.,lane));
 }
 vec3 orbit(float i,float a,float r){
@@ -67,7 +70,7 @@ vec3 orbit(float i,float a,float r){
  float tilt=i<42.?1.02+sin(i*.16)*.10:i<48.?.42+(i-42.)*.32:.90+sin(floor((i-48.)/6.)*2.)*.18;
  p.yz=rot(tilt)*p.yz;p.xz=rot(i<42.?.12:i<48.?.5+(i-42.)*.48:.15+floor((i-48.)/6.)*.16)*p.xz;p.xy=rot(-.22)*p.xy;
  float echo=spectrumEcho(i,a);
- p.y+=pow(echo,1.1)*(.86/(1.+i*.047))*u_movement;
+ p.y+=pow(echo,.98)*(.76/(1.+i*.047))*u_movement;
  return p+CENTER;
 }
 float bodyLane(float i){return mod(i*5.37,46.);}
@@ -98,34 +101,15 @@ ${SKY}
 uniform float u_segments,u_pathPart;
 out vec3 v_color;out float v_alpha,v_edge;
 vec3 path(float i,float t){
- if(u_pathPart<1.5||u_pathPart>3.5){
-  float echo=u_pathPart>.5&&u_pathPart<1.5?.04+u_ringEcho[int(i)]*.10:0.;
-  return orbit(i,t*TAU,radius(i)+echo);
- }
- // Five braided strands per prominence, anchored at both footpoints.
- float loop=floor(i/5.),strand=mod(i,5.)-2.,clock=u_stellarState.y;
- vec4 eruption=u_prominences[int(loop)];float age=max(0.,u_astraTime-eruption.x);
- float life=smoothstep(0.,.32,age)*(1.-smoothstep(max(.4,eruption.w-.75),max(.5,eruption.w),age));
- vec3 base=eruptionAxis(eruption.z),axis=base;
- axis.xz=rot(sin(age*.9+loop)*life*.22)*axis.xz;
- axis.xy=rot(sin(age*.65+loop*3.)*life*.18)*axis.xy;
- vec3 a=normalize(cross(axis,vec3(.13,1.,.07))),b=cross(axis,a);
- float voice=band(mod(loop*3.7,48.)).x,arch=sin(t*PI);
- float growth=(.025+eruption.y*.16+voice*.075*u_movement)*life;
- float ripple=sin(t*23.-clock*3.+strand*.6+loop)*(.007+voice*.008)+sin(t*47.+clock*2.+loop)*.003;
- float twist=t*11.-clock*2.2+strand*1.25;
- float angle=(t-.5)*(.55+voice*.20)+sin(t*PI*2.+clock+loop)*arch*u_roles.z*.12;
- vec3 dir=normalize(axis+a*(sin(angle)+arch*cos(twist)*strand*.009)+b*(cos(t*PI)*.06+arch*sin(twist)*(.014+u_roles.w*.04)));
- // Keep both feet near the launch site as the arch twists out into three dimensions.
- dir=normalize(mix(base,dir,life));
- return CENTER+dir*(starRadius()+surfaceShock(dir).x+arch*(growth+(ripple+strand*.004)*life));
+ float echo=u_pathPart>.5&&u_pathPart<1.5?.04+u_ringEcho[int(i)]*.10:0.;
+ return orbit(i,t*TAU,radius(i)+echo);
 }
 void main(){
  int corner=gl_VertexID%6,cell=gl_VertexID/6,segments=int(u_segments);
  float i=float(cell/segments),t=(float(cell%segments)+float(corner==1||corner==4||corner==5))/u_segments;
  float side=corner==0||corner==1||corner==4?-1.:1.;
  vec3 p=path(i,t);vec4 clip=projectSky(p),next=projectSky(path(i,t+.001));
- vec2 tangent=(next.xy/next.w-clip.xy/clip.w)*u_resolution;
+ vec2 tangent=(next.xy*clip.w-clip.xy*next.w)*u_resolution;
  vec2 normal=normalize(vec2(-tangent.y,tangent.x)+vec2(.000001));
  float major=1.-step(.5,mod(i,8.)),arc=pow(.5+.5*cos(t*TAU-phase(i)),36.);
  float sweep=polar(i,t*TAU);
@@ -140,15 +124,6 @@ void main(){
   v_alpha=pulse*.48*u_movement*min(1.5,u_light.z);
   width*=1.4;v_color=mix(warm(),cool(),i/71.);
  }
- if(u_pathPart>1.5&&u_pathPart<3.5){
-  float loop=floor(i/5.),voice=band(mod(loop*3.7,48.)).x;
-  vec4 eruption=u_prominences[int(loop)];float age=max(0.,u_astraTime-eruption.x);
-  float life=smoothstep(0.,.18,age)*(1.-smoothstep(max(.4,eruption.w-.75),max(.5,eruption.w),age))*step(.1,eruption.w);
-  float knots=pow(.5+.5*sin(t*35.-u_stellarState.y*5.+loop),5.);
-  v_alpha=life*sin(t*PI)*(.24+eruption.y*.8+voice*.65)*(.40+knots*.85);
-  v_color=mix(warm(),vec3(1.),knots*.35)*3.2;
-  width=(u_pathPart>2.5?4.2:.72)*max(.75,u_pixel);if(u_pathPart>2.5)v_alpha*=.12;
- }
  if(u_pathPart>3.5){width*=5.;v_alpha*=.13;}
  v_alpha*=smoothstep(.25,1.,clip.w);
  clip.xy+=normal*side*width*2./u_resolution*clip.w;gl_Position=clip;v_edge=side;
@@ -158,9 +133,26 @@ precision highp float;
 in vec3 v_color;in float v_alpha,v_edge;out vec4 fragColor;
 void main(){float a=(1.-smoothstep(.12,1.,abs(v_edge)))*v_alpha;fragColor=vec4(v_color*a,a*.08);}`;
 
+const PHOTOSPHERE=`
+float lattice(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+float grain(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(lattice(i),lattice(i+vec3(1,0,0)),f.x),mix(lattice(i+vec3(0,1,0)),lattice(i+vec3(1,1,0)),f.x),f.y),mix(mix(lattice(i+vec3(0,0,1)),lattice(i+vec3(1,0,1)),f.x),mix(lattice(i+vec3(0,1,1)),lattice(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float plasma(vec3 p){return grain(p)*.57+grain(p*2.03+13.)*.28+grain(p*4.13+31.)*.15;}
+// Broad convection domes, smaller cellular ridges and moving intergranular lanes.
+// The same sphere-space field drives geometry and surface shading.
+vec2 solarTerrain(vec3 n){
+ float clock=u_stellarState.y;
+ vec3 q=n*7.+vec3(clock*.31,-clock*.24,clock*.19);
+ vec3 warp=vec3(grain(q+7.),grain(q+29.),grain(q+61.))-.5;
+ float domes=plasma(q+warp*1.7),cells=grain(q*3.1+warp*2.3-clock*.25);
+ float ridges=pow(1.-abs(cells*2.-1.),3.);
+ return vec2((domes-.5)*.021+(ridges-.5)*.006,ridges);
+}
+`;
+
 export const ASTRA_BODY_VERTEX=`#version 300 es
 precision highp float;
 ${SKY}
+${PHOTOSPHERE}
 uniform vec2 u_bodyDetail;uniform float u_bodyOffset;
 out vec3 v_normal,v_world;out float v_body;
 void main(){
@@ -173,17 +165,16 @@ void main(){
  float relief=0.;
  if(v_body<.5){
   float clock=u_stellarState.y;
-  relief=surfaceShock(n).x+sin(n.x*19.+clock*2.8)*sin(n.y*17.-clock*2.1)*sin(n.z*21.+clock)*(.0015+u_roles.x*.003)*u_movement;
+  relief=surfaceShock(n).x+solarTerrain(n).x*(.65+u_roles.x*.55)+sin(n.x*27.+clock*2.8)*sin(n.y*25.-clock*2.1)*sin(n.z*23.+clock)*(.001+u_roles.x*.002);
  }
  v_world=n*(bodyRadius(v_body)+relief)+center;gl_Position=projectSky(v_world);
 }`;
 export const ASTRA_BODY_FRAGMENT=`#version 300 es
 precision highp float;
 ${SKY}
+${PHOTOSPHERE}
 in vec3 v_normal,v_world;in float v_body;out vec4 fragColor;
-float lattice(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
-float grain(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(lattice(i),lattice(i+vec3(1,0,0)),f.x),mix(lattice(i+vec3(0,1,0)),lattice(i+vec3(1,1,0)),f.x),f.y),mix(mix(lattice(i+vec3(0,0,1)),lattice(i+vec3(1,0,1)),f.x),mix(lattice(i+vec3(0,1,1)),lattice(i+vec3(1,1,1)),f.x),f.y),f.z);}
-float plasma(vec3 p){return grain(p)*.57+grain(p*2.03+13.)*.28+grain(p*4.13+31.)*.15;}
+
 void main(){
  vec3 n=normalize(v_normal),eye=normalize(vec3(0.,0.,5.4+u_camera.z)-camera(v_world)),viewNormal=camera(n);
  float facing=max(0.,dot(viewNormal,eye)),rim=pow(1.-facing,3.);
@@ -200,6 +191,7 @@ void main(){
   vec3 currents=vec3(plasma(q+17.),plasma(q+43.),plasma(q+71.))-.5;
   vec3 flow=p+currents*(.25+u_roles.z*.18)+sin(p.yzx*9.+clock*2.4)*(.012+u_roles.x*.03);
   float convection=plasma(flow*16.+currents*4.+vec3(clock*.35,-clock*.22,0.));
+  vec2 terrain=solarTerrain(n);
   float cells=grain(flow*85.+currents*9.+clock*.9),fine=grain(flow*210.+clock*1.7);
   float detail=1.-smoothstep(.006,.025,length(fwidth(p)));
   float granules=mix(.5,cells,detail),micro=mix(.5,fine,detail*detail);
@@ -207,10 +199,11 @@ void main(){
   float penumbra=smoothstep(.57,.70,magnetic),umbra=smoothstep(.67,.77,magnetic);
   float striae=.5+.5*sin(convection*52.+magnetic*13.);
   float bright=smoothstep(.50,.78,convection)*(.35+granules*.65);
-  float heat=(.33+convection*.65+granules*.28+micro*.12+bright*.40)*(1.-penumbra*.36-umbra*.46);
+  float lanes=smoothstep(.32,.50,cells)*(1.-smoothstep(.53,.70,cells));
+  float heat=(.23+convection*.68+granules*.30+micro*.18+bright*.40+terrain.y*.12)*(1.-lanes*detail*.16)*(1.-penumbra*.36-umbra*.46);
   heat*=.38+.62*pow(facing,.4);
   color=mix(warm(),vec3(1.,.94,.84),bright*.24)*heat*(2.25+u_roles.x*1.20);
-  color+=warm()*(rim*.42+penumbra*(1.-umbra)*striae*.075);
+  color+=warm()*(rim*.42+penumbra*(1.-umbra)*striae*.12+max(0.,terrain.x)*4.);
   vec2 shock=surfaceShock(n);
   color+=mix(warm(),vec3(1.),.45)*shock.y*3.5;
  }else{
@@ -253,6 +246,19 @@ export const ASTRA_DUST_VERTEX=`#version 300 es
 precision highp float;
 ${SKY}
 uniform vec4 u_cometTrail[96];
+// A single inverse-square gravity law for every launch speed, on both sides
+// of escape velocity. Fixed-step velocity Verlet remains continuous at the
+// escape threshold; no bound/escaping branch or separate trajectory formula.
+vec2 ejectaFlight(float speed,float age){
+ float r=.285,v=speed,h=min(age,2.4)/48.;
+ for(int i=0;i<48;i++){
+  float halfVelocity=v-.5*h*.18/(r*r);
+  float nextRadius=r+h*halfVelocity;
+  if(nextRadius<=.285&&halfVelocity<0.)return vec2(0.,halfVelocity);
+  r=max(.285,nextRadius);v=halfVelocity-.5*h*.18/(r*r);
+ }
+ return vec2(r-.285,v);
+}
 in vec4 a_seed;out vec3 v_color;out float v_alpha,v_flare;
 void main(){
  float x=a_seed.x,y=a_seed.y,z=a_seed.z,w=a_seed.w;
@@ -266,18 +272,21 @@ void main(){
   p=CENTER+dir*r;shine=sin(age*PI)*pow(1.-age,2.)*(.10+pow(z,8.)*.9)*(1.+u_roles.x*.9);
   size=.85+pow(z,9.)*2.3;v_color=mix(warm(),vec3(1.,.90,.75),pow(1.-age,3.)*.35)*1.3;
  }else if(w<.48){
-  // Short-range ballistic gravity: most debris turns and falls to the surface.
-  // A faster minority exceeds escape velocity and disperses into the system.
   vec4 event=u_astraEvents[int(floor(y*12.))];float age=max(0.,u_astraTime-event.x);
-  vec3 axis=eruptionAxis(event.z),dir=normalize(axis+direction(x*1023.)*(.06+z*.25));
-  float velocity=(.45+z*.5)*(.55+event.w*.65),gravity=1.05+x*.35;
-  float height=velocity*age-.5*gravity*age*age,falling=step(velocity/gravity,age);
-  float bound=step(.30,z),travel=mix(age*(.85+x*.7)*(.65+event.w*.65)/(1.+age*.18),max(0.,height),bound)*u_movement;
+  // Broad overlapping launch speeds, all sharing the same gravity. Pressure is
+  // captured at birth so later notes cannot move particles already in flight.
+  float speed=(.35+pow(z,1.25)*1.30)*(.80+event.w*.40);
+  vec2 flight=ejectaFlight(speed,age);
+  float travel=flight.x,returning=1.-smoothstep(-.12,.12,flight.y);
+  vec3 axis=eruptionAxis(event.z),fan=direction(x*1023.+y*317.);
+  vec3 dir=normalize(axis+fan*(.10+hash(x*173.+z*31.)*.25));
   float population=1.-smoothstep(.28+event.y*.65,.34+event.y*.65,x);
-  float live=population*event.y*smoothstep(0.,.065,age)*(1.-smoothstep(1.5,2.1,age))*mix(1.,smoothstep(0.,.025,height),bound);
-  p=CENTER+dir*(starRadius()+travel);p+=cross(axis,dir)*sin(age*2.)*travel*.22;
-  shine=live*(.60+pow(z,5.)*1.8+falling*bound*.3)*min(1.5,u_light.z);size=1.+z*1.7;
-  v_color=mix(warm(),vec3(1.),(.35+falling*.15)*pow(1.-clamp(travel,0.,1.),2.))*2.;
+  float live=population*event.y*smoothstep(0.,.065,age)*(1.-smoothstep(1.65,2.1,age))*smoothstep(0.,.015,travel);
+  // Fine transverse eddies vary with each seed and fade at the photosphere.
+  vec3 eddy=cross(axis,fan)*sin(age*(2.+x*3.)+z*TAU)*travel*.075;
+  p=CENTER+dir*(starRadius()+travel)+eddy;
+  shine=live*(.75+pow(hash(z*73.+x*31.),4.)*1.4+returning*.18)*min(1.5,u_light.z);size=.8+hash(x*217.+z*91.)*1.5;
+  v_color=mix(warm(),vec3(1.),(.35+returning*.15)*pow(1.-clamp(travel,0.,1.),2.))*2.;
  }else if(w<.76){
   float ring=y<.66?10.+y/.66*29.:48.+(y-.66)/.34*23.,a=x*TAU+u_stellarState.x*(.32+y*.3)+u_orbitMotion[int(mod(floor(ring),48.))].x*.4;
   p=orbit(ring,a,radius(ring)+(z-.5)*.14);p+=direction(x*871.)*.025;

@@ -9,7 +9,7 @@ async function until(js){for(let i=0;i<400;i++){if(await run(js))return;await wa
 app.whenReady().then(async()=>{
  const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);
  service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});
- Object.assign(service.lib.config.preferences,{artDirection:'astra',musicOnly:false,motion:true,quality:'high',targetFPS:'60',sfx:false,hdrMode:'off',autoDirection:true,leveling:false,danceCompanion:false,rollercoaster:false,cameraZoom:false});
+ Object.assign(service.lib.config.preferences,{artDirection:'astra',musicOnly:false,motion:true,quality:'high',targetFPS:'60',sfx:false,hdrMode:'off',autoDirection:true,leveling:false,danceCompanion:false,rollercoaster:false,cameraZoom:true});
  Object.assign(service.lib.config,{autoEnrich:false,autoGenres:false});service.lib.setSetting('config',service.lib.config);
  const ids=['astra-tone-0','astra-tone-1','astra-tone-2'];
  for(const [index,id]of ids.entries()){
@@ -24,9 +24,9 @@ app.whenReady().then(async()=>{
  await win.loadURL(service.url);await until("document.body.classList.contains('startup-ready')&&!document.querySelector('#startup')");
  if(await run("document.body.classList.contains('library-open')"))await run("document.querySelector('#close-library').click()");
  await run(`(async()=>{
-  const {GPUScene}=await import('/gpu-scene.js');window.frames=[];window.skips=[];window.longTasks=[];new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({entryTypes:['longtask']});
+  const {GPUScene}=await import('/gpu-scene.js');window.frames=[];window.skips=[performance.now()];window.longTasks=[];new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({entryTypes:['longtask']});
   const draw=GPUScene.prototype.draw;GPUScene.prototype.draw=function(input){
-   const ok=draw.call(this,input);if(ok&&input.dynamics.artStyle.index===3){const a=this.astra;frames.push({now:performance.now(),time:a.time,phase:a.state[0],orbit:Array.from(a.orbits).filter((_,i)=>i%4===0),echo:Array.from(a.echoes),spread:input.dynamics.appearance.particleSpread,movement:input.dynamics.appearance.motionAmount,comets:a.comets.map(c=>c.birth),track:input.dynamics.trackId});}return ok;
+   const ok=draw.call(this,input);if(ok&&input.dynamics.artStyle.index===3){const a=this.astra;frames.push({now:performance.now(),time:a.time,phase:a.state[0],orbit:Array.from(a.orbits).filter((_,i)=>i%4===0),echo:Array.from(a.echoes),spread:input.dynamics.appearance.particleSpread,movement:input.dynamics.appearance.motionAmount,comets:a.comets.map(c=>c.birth),track:input.dynamics.trackId,camera:input.dynamics.camera.slice(),focal:input.dynamics.cameraFocalLength});}return ok;
   };
   if(document.querySelector('audio').paused)document.querySelector('#dock-play').click();
  })()`);
@@ -36,11 +36,12 @@ app.whenReady().then(async()=>{
   await run("skips.push(performance.now());document.querySelector('#room-next').click()");
   await until(`document.querySelector('#now-title').textContent==='${ids[i]}'&&!document.querySelector('audio').paused`);await wait(5200);
  }
+ await run("skips.push(performance.now());document.querySelector('#dock-play').click()");await wait(900);await run("skips.push(performance.now());document.querySelector('#dock-play').click()");await wait(5200);
  if(process.env.ASTRA_PROFILE){const {profile}=await win.webContents.debugger.sendCommand('Profiler.stop');fs.writeFileSync(path.join(out,'skip.cpuprofile'),JSON.stringify(profile));win.webContents.debugger.detach();}
  const result=await run(`(()=>{
-  const r={frames:frames.length,tracks:[...new Set(frames.map(f=>f.track))],maxGap:0,maxPhase:0,maxOrbit:0,maxEcho:0,maxSpread:0,maxMovement:0,maxCometChanges:0,stalls:[],longTasks};
+  const r={frames:frames.length,tracks:[...new Set(frames.map(f=>f.track))],maxGap:0,maxPhase:0,maxOrbit:0,maxEcho:0,maxSpread:0,maxMovement:0,maxCometChanges:0,maxCameraStep:0,maxFramingStep:0,minDepth:0,stalls:[],longTasks};
   for(let i=1;i<frames.length;i++){const a=frames[i-1],b=frames[i];if(!skips.some(s=>b.now>s&&b.now<s+5200))continue;
-   r.maxGap=Math.max(r.maxGap,b.now-a.now);if(b.now-a.now>100)r.stalls.push({start:a.now,duration:b.now-a.now,afterSkip:b.now-skips.filter(s=>s<b.now).at(-1),track:b.track});r.maxPhase=Math.max(r.maxPhase,Math.abs(b.phase-a.phase));r.maxOrbit=Math.max(r.maxOrbit,...b.orbit.map((v,k)=>Math.abs(v-a.orbit[k])));r.maxEcho=Math.max(r.maxEcho,...b.echo.map((v,k)=>Math.abs(v-a.echo[k])));r.maxSpread=Math.max(r.maxSpread,Math.abs(b.spread-a.spread));r.maxMovement=Math.max(r.maxMovement,Math.abs(b.movement-a.movement));
+   r.maxCameraStep=Math.max(r.maxCameraStep,Math.abs(b.camera[2]-a.camera[2]));r.minDepth=Math.min(r.minDepth,b.camera[2]);r.maxFramingStep=Math.max(r.maxFramingStep,Math.abs(Math.log((b.focal/(5.4+b.camera[2]))/(a.focal/(5.4+a.camera[2])))));r.maxGap=Math.max(r.maxGap,b.now-a.now);if(b.now-a.now>100)r.stalls.push({start:a.now,duration:b.now-a.now,afterSkip:b.now-skips.filter(s=>s<b.now).at(-1),track:b.track});r.maxPhase=Math.max(r.maxPhase,Math.abs(b.phase-a.phase));r.maxOrbit=Math.max(r.maxOrbit,...b.orbit.map((v,k)=>Math.abs(v-a.orbit[k])));r.maxEcho=Math.max(r.maxEcho,...b.echo.map((v,k)=>Math.abs(v-a.echo[k])));r.maxSpread=Math.max(r.maxSpread,Math.abs(b.spread-a.spread));r.maxMovement=Math.max(r.maxMovement,Math.abs(b.movement-a.movement));
    if(b.time<a.time)throw Error('Scene clock reset after skip');
    if(a.comets.length===6)r.maxCometChanges=Math.max(r.maxCometChanges,b.comets.filter((v,k)=>v!==a.comets[k]).length);
   }return r;
@@ -50,6 +51,7 @@ app.whenReady().then(async()=>{
  assert.ok(result.maxGap<400,'Post-skip rendering must not stall');
  assert.ok(result.maxPhase<.025&&result.maxOrbit<.09,'Orbital phase stays continuous');
  assert.ok(result.maxEcho<.35&&result.maxSpread<.035&&result.maxMovement<.04,'No single-frame geometry/pulse replacement after source or late profile changes');
+ assert.ok(result.minDepth<-.5,'Zoom must actually run in this regression');assert.ok(result.maxFramingStep<.02,'Zoom framing stays continuous at playback, skip and resume');
  assert.ok(result.maxCometChanges<=1,'Live trails retain their particle slots');
  log('PASS: live generated audio, two source changes, first five seconds after each skip.');
 }).catch(e=>{code=1;log(e.stack);}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close();}app.exit(code);});

@@ -58,16 +58,44 @@ app.whenReady().then(async()=>{
   const probe=await compileSceneProgram(gl,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,['gl_Position','v_alpha']);
   const buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,20,gl.DYNAMIC_READ);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);
   const events=new Float32Array(48);events.set([.1,1,.4,.8]);gpu.use(probe,{u_resolution:[1,1],u_focalLength:1,u_particle:[1,1,1,1],u_light:[1,1,1,1],u_movement:1,u_astraEvents:events,u_palette:new Float32Array(18).fill(.5)});
-  const seed=gl.getAttribLocation(probe.program,'a_seed');gl.disableVertexAttribArray(seed);gl.vertexAttrib4f(seed,.5,.01,.8,.35);gl.enable(gl.RASTERIZER_DISCARD);
+  const seed=gl.getAttribLocation(probe.program,'a_seed');gl.disableVertexAttribArray(seed);gl.vertexAttrib4f(seed,.5,.01,.30,.35);gl.enable(gl.RASTERIZER_DISCARD);
   const samples=[];for(const age of [.1,.5,1.0,1.7]){gpu.uniform(probe,'u_astraTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,1,1);gl.endTransformFeedback();const p=new Float32Array(5);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,p);samples.push({age,radius:Math.hypot(p[0],p[1]-.22,5.4-p[3]),alpha:p[4]});}
-  gl.vertexAttrib4f(seed,.5,.01,.1,.35);const escape=[];
+  gl.vertexAttrib4f(seed,.5,.01,.97,.35);const escape=[];
   for(const age of [.1,.5,1,1.7]){gpu.uniform(probe,'u_astraTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,1,1);gl.endTransformFeedback();const p=new Float32Array(5);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,p);escape.push({age,radius:Math.hypot(p[0],p[1]-.22,5.4-p[3]),alpha:p[4]});}
   gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(probe.program);gpu.draw(input);
   if(gl.getError())throw Error('Gravity readback failed');return {bound:samples,escape};
  })()`);
  const bound=report.gravity.bound,escape=report.gravity.escape;
- if(!(bound[1].radius>bound[0].radius&&bound[2].radius<bound[1].radius&&bound[3].alpha===0))throw Error('Burst debris does not fall back into the sun');
+ if(!(bound[1].radius>bound[0].radius&&bound[2].radius<bound[1].radius&&bound[3].alpha===0))throw Error('Burst debris does not fall back into the sun: '+JSON.stringify(bound));
  if(!(escape.every((p,i)=>i===0||p.radius>escape[i-1].radius)&&escape[3].radius>1.5&&escape[3].alpha>0))throw Error('Escaping ejecta turns back or vanishes too early');
+ report.cameraPlane=await run(`(async()=>{
+  const {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT}=await import('/astra-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
+  const vertex=ASTRA_PATH_VERTEX.replace('out vec3 v_color;','out vec4 v_probe;out vec3 v_color;').replace('gl_Position=clip;','v_probe=vec4(normal,clip.w,p.z);gl_Position=clip;');
+  const p=await compileSceneProgram(gl,vertex,ASTRA_PATH_FRAGMENT,['v_probe']),buffer=gl.createBuffer(),f=gl.createTransformFeedback();
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,f);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,16,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);
+  gpu.use(p,{u_resolution:[1280,800],u_focalLength:1.9,u_particle:[1,1,1,1],u_segments:320,u_pathPart:0,u_movement:0});gpu.texture(p,'u_astraHistory',gpu.astraHistoryTexture,5);gl.enable(gl.RASTERIZER_DISCARD);
+  const sample=z=>{gpu.uniform(p,'u_camera',[0,0,z,0]);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,1);gl.endTransformFeedback();const value=new Float32Array(4);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,value);return Array.from(value);};
+  const origin=sample(0),a=sample(origin[3]-5.4-.0001),b=sample(origin[3]-5.4+.0001),dot=a[0]*b[0]+a[1]*b[1];
+  gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(f);gl.deleteProgram(p.program);gpu.draw(input);
+  return {a,b,dot};
+ })()`);
+ if(!report.cameraPlane.a.every(Number.isFinite)||!report.cameraPlane.b.every(Number.isFinite)||report.cameraPlane.dot<.99)throw Error('Ring strip flips as zoom passes the camera plane: '+JSON.stringify(report.cameraPlane));
+ report.escapeContinuum=await run(`(async()=>{
+  const {ASTRA_DUST_VERTEX}=await import('/astra-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
+  const flight=ASTRA_DUST_VERTEX.slice(ASTRA_DUST_VERTEX.indexOf('vec2 ejectaFlight('),ASTRA_DUST_VERTEX.indexOf('in vec4 a_seed;'));
+  const vertex='#version 300 es\\nprecision highp float;\\n'+flight+'uniform float u_speed,u_age;out vec2 result;void main(){result=ejectaFlight(u_speed,u_age);gl_Position=vec4(0.,0.,0.,1.);}';
+  const fragment='#version 300 es\\nprecision highp float;out vec4 color;void main(){color=vec4(0.);}';
+  const p=await compileSceneProgram(gl,vertex,fragment,['result']);const b=gl.createBuffer(),f=gl.createTransformFeedback();
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,f);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,b);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,8,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,b);gl.enable(gl.RASTERIZER_DISCARD);
+  const sample=(speed,age)=>{gpu.use(p,{u_speed:speed,u_age:age});gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,1);gl.endTransformFeedback();const result=new Float32Array(2);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,result);return Array.from(result);};
+  const escape=Math.sqrt(2*.18/.285),rows=[];for(let i=0;i<=100;i++)rows.push(sample(escape*.8+i*escape*.4/100,2));
+  let largestStep=0;for(let i=1;i<rows.length;i++)largestStep=Math.max(largestStep,Math.hypot(...rows[i].map((v,k)=>v-rows[i-1][k])));
+  const bound=sample(.75,2),slow=sample(escape*1.005,2),fast=sample(escape*1.5,2),border=[sample(escape*.999,2),sample(escape*1.001,2)];
+  gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(b);gl.deleteTransformFeedback(f);gl.deleteProgram(p.program);gpu.draw(input);
+  return {largestStep,bound,slow,fast,border};
+ })()`);
+ const flight=report.escapeContinuum;
+ if(flight.largestStep>.05||flight.bound[0]!==0||flight.slow[1]<=0||flight.fast[0]<flight.slow[0]*1.5||Math.abs(flight.border[0][0]-flight.border[1][0])>.02)throw Error('Particle velocities split at the escape threshold: '+JSON.stringify(flight));
  report.surfaceAndRings=await run(`(async()=>{
   const {ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT}=await import('/astra-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
   const body=await compileSceneProgram(gl,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,['v_world','v_normal']);
@@ -96,7 +124,7 @@ app.whenReady().then(async()=>{
  await run(`gpu.draw(input);const held=pixels(),time=gpu.astra.time;input.time+=300;gpu.draw(input);if(distance(held,pixels())>.001||gpu.astra.time!==time)throw Error('Frozen Astra advances');input.time-=300;
  input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.astra.time!==time)throw Error('Reduced Astra advances');input.reduced=false;gpu.astra.suspend();renderStyle(3);void 0;`);
  report.pausedStable=true;report.reducedEventsHeld=true;
- for(const [name,camera]of [['side',[1.57,.25,0,0]],['above',[0,-1.02,0,0]],['rear',[3.14,.3,0,0]],['below',[0,1.1,0,0]],['outer-system',[0,.15,4,0]],['flare-detail',[.4,.2,-2.7,0]]]){
+ for(const [name,camera]of [['side',[1.57,.25,0,0]],['above',[0,-1.02,0,0]],['rear',[3.14,.3,0,0]],['below',[0,1.1,0,0]],['outer-system',[0,.15,4,0]],['surface-detail',[.4,.2,-2.7,0]]]){
   await run(`d.camera=${JSON.stringify(camera)};gpu.draw(input);`);await shot(name);
  }
  await run(`d.camera=[0,0,0,0];d.colors=[[.05,.65,.8],[.3,.16,.75],[.1,.4,.8]];d.roles={bass:.5,lead:.9,drums:.3,texture:.5};for(let i=0;i<55;i++){d.spectrumClock+=.1;gpu.draw(input);}`);await shot('blue-star');

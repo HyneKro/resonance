@@ -45,6 +45,18 @@ test('camera zoom follows music with a hard cap of 3 and a compensating field of
  const reduced=new SceneCamera(),still=reduced.update(.016,{zoom:true,reduced:true});assert.ok(still[2]<-1&&still[2]>-2.2);assert.deepEqual(reduced.update(.016,{zoom:true,reduced:true,features:{loudness:1,bands:[0,1]}}),still,'reduced motion keeps a gentle static zoom');
 });
 
+test('playback zoom does not jump forward to catch up after a delayed frame',()=>{
+ const camera=new SceneCamera();let previousGain=1,maximumStep=0;
+ for(let i=0;i<400;i++){
+  const loud=i<100||i>=200?1:0;
+  const pose=camera.update(i%7===0?.1:1/60,{zoom:true,features:{loudness:loud,bands:[0,loud]}});
+  const gain=camera.focalLength/1.9*5.4/(5.4+pose[2]);
+  maximumStep=Math.max(maximumStep,Math.abs(Math.log(gain/previousGain)));previousGain=gain;
+ }
+ assert.ok(maximumStep<.021,'100 ms stalls during start, silence and resume cannot cause a large framing step');
+ assert.ok(previousGain>1.5,'the smoother entry still reaches the musical zoom');
+});
+
 test('camera preferences migrate the previous default once and discard obsolete zoom intensity',()=>{
  assert.equal(DEFAULT_PREFERENCES.cameraZoom,false);assert.equal(DEFAULT_PREFERENCES.cameraSpeed,2.22);
  const migrated=preferencesWithDefaults({cameraSpeed:6.67,cameraZoom:true,cameraZoomIntensity:12});assert.equal(migrated.cameraSpeed,2.22);assert.equal(migrated.cameraZoom,true);assert.ok(!Object.hasOwn(migrated,'cameraZoomIntensity'));
