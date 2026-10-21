@@ -1,5 +1,6 @@
 // Continuous scene time, bounded musical events and eased signals. Playback can
 // rest without resetting orbital phase; explicit freeze still holds everything.
+import {SpectrumHistory} from './spectrum-history.js';
 const unit=x=>Number.isFinite(x)?Math.max(0,Math.min(1,x)):0;
 const TAU=Math.PI*2,hash=n=>{const x=Math.sin(n*127.1)*43758.5453;return x-Math.floor(x);};
 const smooth=(a,b,x)=>{const t=unit((x-a)/(b-a));return t*t*(3-2*t);};
@@ -20,13 +21,17 @@ export class AstraMotion {
   this.bands=new Float32Array(48*4);this.orbits=new Float32Array(48*4);
   this.events=new Float32Array(12*4);this.envelopes=new Float32Array(48);
   this.cometTrail=new Float32Array(6*16*4);this.state=new Float32Array(4);
+  this.prominences=new Float32Array(14*4);this.echoes=new Float32Array(72);
+  this.history=new SpectrumHistory();this.historyRow=new Float32Array(48);
   this.roles=new Float32Array(4);this.lights=new Float32Array(48);this.warm=new Float32Array(3);this.cool=new Float32Array(3);this.reset();
  }
  reset(){
-  for(const array of [this.bands,this.orbits,this.events,this.envelopes,this.cometTrail,this.state,this.roles,this.lights])array.fill(0);
+  for(const array of [this.bands,this.orbits,this.events,this.envelopes,this.cometTrail,this.state,this.roles,this.lights,this.prominences,this.echoes])array.fill(0);
+  this.history.reset();this.historyRow.fill(0);
+  for(let i=0;i<5;i++)this.prominences.set([-i*.63,.13,hash(i+42),4.5+i*.4],i*4);
   this.warm.set([1,.24,.035]);this.cool.set([.08,.4,1]);this.colored=false;
-  this.comets=[];this.clock=null;this.time=0;this.next=0;this.emitted=0;
-  this.lastHit=-10;this.lastComet=-10;this.envelope=0;return this;
+  this.comets=[];this.fronts=[];this.clock=null;this.time=0;this.next=0;this.emitted=0;
+  this.lastHit=-10;this.lastComet=-10;this.lastAmbient=0;this.cometNext=0;this.envelope=0;return this;
  }
  suspend(){this.clock=null;}
  update(clock,spectrum,{onset=0,drums=0,bass=0,lead=0,texture=0,energy=0,reduced=false,movement=1,active=true,palette,lights}={}){
@@ -61,20 +66,45 @@ export class AstraMotion {
     this.bands[at+1]=this.time;this.bands[at+2]=a;this.bands[at+3]=a-previous;
    }
    this.envelopes[i]=Math.max(a,previous*Math.exp(-dt/.16));
+   this.historyRow[i]=this.bands[at];
   }
+  this.history.update(this.time,this.historyRow);
   const elapsed=this.time-this.lastHit,attack=level>.24&&level-this.envelope>.10;
   // Sustained heavy bass feeds small eruptions too; high held notes do not.
   const rollingBass=this.state[2]>.42&&elapsed>.70-.44*this.state[2];
   if(energy>.015&&((attack&&elapsed>.18)||rollingBass)){
-   const strength=unit(Math.max(level,this.state[2]*.85)),seed=(this.emitted*.61803398875)%1;
-   this.events.set([this.time,strength,seed,0],this.next*4);
+   const strength=unit(Math.max(level,this.state[2]*.85)*(.35+energy*.65)),seed=(this.emitted*.61803398875)%1;
+   // Snapshot the launch pressure. Later notes cannot teleport already flying material.
+   this.events.set([this.time,strength,seed,unit(energy*.6+bass*.4)],this.next*4);
+   this.fronts.push([this.time,strength]);
+   this.birthProminence(strength,seed);
    this.next=(this.next+1)%12;this.emitted++;this.lastHit=this.time;
    if(this.time-this.lastComet>2.3){
-    this.comets.push({birth:this.time,strength,seed});if(this.comets.length>6)this.comets.shift();this.lastComet=this.time;
+    // Fixed slots: shifting an array remaps every live trail to different particles.
+    this.comets[this.cometNext]={birth:this.time,strength,seed};this.cometNext=(this.cometNext+1)%6;this.lastComet=this.time;
    }
   }
   this.envelope=Math.max(level,this.envelope*Math.exp(-dt/.14));
+  if(this.time-this.lastAmbient>1.7){this.birthProminence(.12+this.state[3]*.12,hash(this.time+31));this.lastAmbient=this.time;}
+  this.fronts=this.fronts.filter(([birth])=>this.time-birth<4.1);
+  // Superpose bounded fronts instead of replacing a still-visible per-band echo.
+  for(let i=0;i<72;i++){
+   let sum=0;
+   for(const [birth,strength]of this.fronts){
+    const age=this.time-birth-i*.046;
+    if(age>0&&age<.8)sum+=strength*Math.sin(age/.8*Math.PI)**2;
+   }
+   this.echoes[i]=Math.min(1.5,sum)*Math.exp(-i*.018);
+  }
   this.updateComets();return this;
+ }
+ birthProminence(strength,seed){
+  for(let i=0;i<14;i++){
+   const at=i*4;
+   if(!this.prominences[at+3]||this.time-this.prominences[at]>=this.prominences[at+3]){
+    this.prominences.set([this.time,strength,seed,2.4+strength*1.5],at);return;
+   }
+  }
  }
  updateColors(palette,dt,initial=false){
   if(!palette||palette.length!==18||!Array.from(palette).every(Number.isFinite))return;

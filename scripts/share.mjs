@@ -85,7 +85,7 @@ Camera zoom is optional and off by default. Turn it on in Visual settings to tra
 Enable Sona, then Keep Sona above other windows for compact translucent floating controls while using other apps. Resonance must stay open. Her headset carries Resonance’s clef in your music’s colors.
 Scroll the background or Sona: volume. Shift: fine adjustment.
 Right-drag right/left: next/previous. Right-drag up/down: seek; Shift: fine seeking. Left-click while right-dragging, or press Escape, to cancel.
-Click outside Library or visual settings to close them.
+Click outside Library to close it. Visuals stays open while you rotate the scene; close it with its button, the Visuals toggle or Escape.
 
 Space: play/pause. L: library. Q: queue. H: immerse. Ctrl K: search.
 F11: fullscreen. Escape: exit fullscreen or close an overlay.

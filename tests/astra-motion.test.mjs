@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AstraMotion,keplerPoint} from '../public/astra-motion.js';
 const silent=new Float32Array(48),tone=band=>Float32Array.from(silent,(_,i)=>i===band?.9:0);
-const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights];
+const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights,...m.prominences,...m.echoes,...m.history.data,m.history.head,m.history.accumulator];
 test('Astra displaces the played frequency and accelerates only its orbit',()=>{
  const m=new AstraMotion();m.update(0,silent);
  for(let n=1;n<=60;n++)m.update(n/60,tone(12),{energy:.8});
@@ -76,4 +76,50 @@ test('comets are closed ellipses with a solar focus and equal swept area per tim
  }
  const speed=m=>{const p=keplerPoint(m,a,e),q=keplerPoint(m+h,a,e);return Math.hypot(q[0]-p[0],q[1]-p[1])/h;};
  assert.ok(speed(0)>speed(Math.PI)*6);assert.ok(Math.abs(keplerPoint(0,a,e)[0]-a*(1-e))<1e-10);
+});
+
+test('a new attack overlaps the visible front instead of replacing it after a skip',()=>{
+ const m=new AstraMotion();m.update(0,silent);
+ for(let i=1;i<=24;i++)m.update(i/60,silent,{energy:.8,onset:i===1?1:0});
+ const before=m.echoes.slice(),first=m.fronts[0];
+ m.update(25/60,tone(5),{energy:.8,onset:1});
+ assert.equal(m.fronts.length,2);assert.deepEqual(m.fronts[0],first);
+ assert.ok(m.echoes[0]>.7,'the first inner shockwave must not blink out on the new onset');
+ assert.ok(m.echoes.every((v,i)=>Math.abs(v-before[i])<.07));
+ // The inner burst must survive long enough to reach the remote ring groups.
+ for(let i=26;i<=240;i++)m.update(i/60,silent,{energy:.8,onset:i%12===0?1:0});
+ assert.ok(m.echoes[71]>.1);assert.ok(m.fronts.length<=24);
+});
+
+test('comet slot rollover preserves every other live trajectory and particle assignment',()=>{
+ const m=new AstraMotion();m.update(0,silent);
+ let previous=[];
+ for(let i=1;i<=1800;i++){
+  previous=m.comets.map(c=>({...c}));m.update(i/60,tone(2),{bass:.9,energy:.9});
+  if(previous.length===6){
+   const changed=m.comets.reduce((n,c,k)=>n+Number(c.birth!==previous[k].birth),0);
+   assert.ok(changed<=1,'inserting a comet must never shift the remaining slots');
+  }
+ }
+ assert.equal(m.comets.length,6);assert.ok(m.comets.some(c=>c.birth>25));
+});
+
+test('solar launch pressure varies with loudness and live prominences finish before relocating',()=>{
+ const run=energy=>{const m=new AstraMotion();m.update(0,silent);m.update(.02,tone(3),{onset:1,bass:.7,energy});return m;};
+ const quiet=run(.15),loud=run(.95);
+ assert.ok(loud.events[1]>quiet.events[1]*1.8);assert.ok(loud.events[3]>quiet.events[3]*1.8);
+ const origins=Array.from({length:14},(_,i)=>loud.prominences.slice(i*4,i*4+4));
+ for(let i=2;i<70;i++)loud.update(i*.02,tone(3),{bass:.95,energy:.95});
+ for(const [i,event]of origins.entries())if(event[3]&&1.4-event[0]<event[3])assert.deepEqual(loud.prominences.slice(i*4,i*4+4),event);
+});
+
+test('radial spectrum history carries old notes outward through silence and new music',()=>{
+ const m=new AstraMotion();m.update(0,silent);
+ for(let i=1;i<=60;i++)m.update(i/60,tone(3),{energy:.8});
+ for(let i=61;i<=90;i++)m.update(i/60,silent,{active:false});
+ for(let i=91;i<=120;i++)m.update(i/60,tone(35),{energy:.8});
+ const row=age=>((m.history.head-age+128)%128)*48;
+ assert.ok(m.history.data[row(0)+35]>200);
+ assert.ok(m.history.data[row(35)+3]>200,'the previous note is still in the travelling echo');
+ assert.equal(m.history.data[row(35)+35],0);
 });

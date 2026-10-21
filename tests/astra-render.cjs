@@ -57,7 +57,7 @@ app.whenReady().then(async()=>{
   const {ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT}=await import('/astra-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
   const probe=await compileSceneProgram(gl,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,['gl_Position','v_alpha']);
   const buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,20,gl.DYNAMIC_READ);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);
-  const events=new Float32Array(48);events.set([.1,1,.4,0]);gpu.use(probe,{u_resolution:[1,1],u_focalLength:1,u_particle:[1,1,1,1],u_light:[1,1,1,1],u_movement:1,u_astraEvents:events,u_palette:new Float32Array(18).fill(.5)});
+  const events=new Float32Array(48);events.set([.1,1,.4,.8]);gpu.use(probe,{u_resolution:[1,1],u_focalLength:1,u_particle:[1,1,1,1],u_light:[1,1,1,1],u_movement:1,u_astraEvents:events,u_palette:new Float32Array(18).fill(.5)});
   const seed=gl.getAttribLocation(probe.program,'a_seed');gl.disableVertexAttribArray(seed);gl.vertexAttrib4f(seed,.5,.01,.8,.35);gl.enable(gl.RASTERIZER_DISCARD);
   const samples=[];for(const age of [.1,.5,1.0,1.7]){gpu.uniform(probe,'u_astraTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,1,1);gl.endTransformFeedback();const p=new Float32Array(5);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,p);samples.push({age,radius:Math.hypot(p[0],p[1]-.22,5.4-p[3]),alpha:p[4]});}
   gl.vertexAttrib4f(seed,.5,.01,.1,.35);const escape=[];
@@ -68,6 +68,31 @@ app.whenReady().then(async()=>{
  const bound=report.gravity.bound,escape=report.gravity.escape;
  if(!(bound[1].radius>bound[0].radius&&bound[2].radius<bound[1].radius&&bound[3].alpha===0))throw Error('Burst debris does not fall back into the sun');
  if(!(escape.every((p,i)=>i===0||p.radius>escape[i-1].radius)&&escape[3].radius>1.5&&escape[3].alpha>0))throw Error('Escaping ejecta turns back or vanishes too early');
+ report.surfaceAndRings=await run(`(async()=>{
+  const {ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT}=await import('/astra-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
+  const body=await compileSceneProgram(gl,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,['v_world','v_normal']);
+  const path=await compileSceneProgram(gl,ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,['gl_Position']);
+  const buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,72*64*6*4*4,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);
+  const common={u_resolution:[1280,800],u_focalLength:1,u_particle:[1,1,1,1],u_light:[1,1,1,1],u_movement:1,u_astraTime:.3};
+  const capture=(program,count,size,values)=>{gpu.use(program,{...common,...values});gl.enable(gl.RASTERIZER_DISCARD);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,count);gl.endTransformFeedback();const result=new Float32Array(count*size);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,result);gl.disable(gl.RASTERIZER_DISCARD);return result;};
+  const empty=new Float32Array(48),events=empty.slice();events.set([.1,1,.4,.8]);
+  const calm=capture(body,32*16*6,6,{u_bodyOffset:0,u_bodyDetail:[32,16],u_astraEvents:empty});
+  const erupt=capture(body,32*16*6,6,{u_bodyOffset:0,u_bodyDetail:[32,16],u_astraEvents:events});
+  let surfaceLift=0,affected=0;for(let i=0;i<calm.length;i+=6){const delta=Math.hypot(...[0,1,2].map(k=>erupt[i+k]-calm[i+k]));surfaceLift=Math.max(surfaceLift,delta);if(delta>.001)affected++;}
+  // A single musical frequency produces a local vertical crest, delayed on
+  // distant rings; the spectrum wrap must remain continuous at 0/2pi.
+  const history=new Uint8Array(48*128);for(let i=0;i<4;i++)history[i*48+16]=255;
+  gl.useProgram(path.program);gpu.texture(path,'u_astraHistory',gpu.astraHistoryTexture,5);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,new Uint8Array(history.length));
+  const values={u_segments:64,u_pathPart:0,u_historyHead:3,u_historyPhase:0};
+  const flat=capture(path,72*64*6,4,values);
+  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history);
+  const crest=capture(path,72*64*6,4,values);
+  const delta=(ring)=>{let max=0;for(let v=ring*64*6;v<(ring+1)*64*6;v++)max=Math.max(max,Math.abs(crest[v*4+1]-flat[v*4+1]));return max;};
+  const innerLift=delta(0),outerLift=delta(60);
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(body.program);gl.deleteProgram(path.program);gpu.astraHistoryVersion=-1;gpu.draw(input);
+  if(gl.getError())throw Error('Surface/ring readback failed');return {surfaceLift,affected,innerLift,outerLift};
+ })()`);
+ if(report.surfaceAndRings.surfaceLift<.005||report.surfaceAndRings.affected<10||report.surfaceAndRings.innerLift<.35||report.surfaceAndRings.outerLift>.001)throw Error('Solar relief or delayed vertical spectrum is missing: '+JSON.stringify(report.surfaceAndRings));
  await run(`gpu.draw(input);const held=pixels(),time=gpu.astra.time;input.time+=300;gpu.draw(input);if(distance(held,pixels())>.001||gpu.astra.time!==time)throw Error('Frozen Astra advances');input.time-=300;
  input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.astra.time!==time)throw Error('Reduced Astra advances');input.reduced=false;gpu.astra.suspend();renderStyle(3);void 0;`);
  report.pausedStable=true;report.reducedEventsHeld=true;

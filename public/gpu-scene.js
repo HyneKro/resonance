@@ -1,6 +1,6 @@
 import {AstraMotion} from './astra-motion.js';
 import {NOCTILUCA_BACKGROUND,NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT,NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT} from './noctiluca-shaders.js';
-import {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,ASTRA_BACKGROUND} from './astra-shaders.js';
+import {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,ASTRA_BACKGROUND} from './astra-shaders.js';
 import {ContourMotion,contourLettering} from './contour-motion.js';
 import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
 import {AerialPhysics} from './aerial-physics.js';
@@ -47,6 +47,11 @@ export class GPUScene {
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.astra??=new AstraMotion();this.astra.suspend();
+    this.astraDebris=await compileSceneProgram(gl,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
+    this.astraHistoryVersion=-1;this.astraHistoryTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.astraHistoryTexture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,48,128,0,gl.RED,gl.UNSIGNED_BYTE,this.astra.history.data);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.synapse??=new SynapseSignals();this.synapse.suspend();
     this.synapseNetworks??={};this.synapseTextures={};
     // Prepare both sizes once; phone quality never uploads the desktop mesh.
@@ -92,7 +97,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail'||name==='u_prominences')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -289,12 +294,18 @@ export class GPUScene {
         // Track changes only change the targets. The solar system retains phase,
         // existing ejecta and velocity while its sound and colours ease across.
         const stellar=this.astra.update(d.astraClock??d.spectrumClock??time,features.spectrum,{...roles,onset:features.onset,energy:features.loudness,active:d.astraActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,reduced,movement:a.motionAmount});
-        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
+        const history=stellar.history;
+        gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.astraHistoryTexture);
+        if(this.astraHistoryVersion!==history.version){gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.astraHistoryVersion=history.version;}
+        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_prominences:stellar.prominences,u_ringEcho:stellar.echoes,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
+        for(const p of [this.astraBodies,this.astraPaths,this.astraDust,this.astraDebris]){gl.useProgram(p.program);this.texture(p,'u_astraHistory',this.astraHistoryTexture,5);}
         this.bind(nebula);this.use(this.astraBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.astraBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);this.use(this.astraBodies,{...sky,u_bodyOffset:0,u_bodyDetail:this.mobile?[32,16]:[64,32]});gl.drawArrays(gl.TRIANGLES,0,17*(this.mobile?512:2048)*6);
-        // Hundreds of low-poly rocks add depth without multiplying hero geometry.
-        this.use(this.astraBodies,{...sky,u_bodyOffset:17,u_bodyDetail:[8,6]});gl.drawArrays(gl.TRIANGLES,0,(this.mobile?180:520)*48*6);yield;
+        gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+        this.use(this.astraBodies,{...sky,u_bodyOffset:0,u_bodyDetail:this.mobile?[64,32]:[128,64]});gl.drawArrays(gl.TRIANGLES,0,(this.mobile?2048:8192)*6);
+        this.use(this.astraBodies,{...sky,u_bodyOffset:1,u_bodyDetail:this.mobile?[24,12]:[48,24]});gl.drawArrays(gl.TRIANGLES,0,16*(this.mobile?288:1152)*6);
+        gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+        this.use(this.astraDebris,sky);gl.drawArrays(gl.POINTS,0,this.mobile?180:520);yield;
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         const segments=this.mobile?192:320;
         for(const part of [4,0,1,3,2]){this.use(this.astraPaths,{...sky,u_segments:segments,u_pathPart:part});gl.drawArrays(gl.TRIANGLES,0,(part===2||part===3?70:72)*segments*6);}yield;
