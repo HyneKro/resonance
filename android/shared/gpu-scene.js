@@ -10,7 +10,7 @@ import {artDirection,ART_DIRECTIONS} from './art-directions.js';
 import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
 import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND} from './synapse-shaders.js';
 import {SpectrumHistory} from './spectrum-history.js';
-import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT} from './flux-shaders.js';
+import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT,FLUX_DUST_VERTEX} from './flux-shaders.js';
 import {FishSchool} from './fish-school.js';
 import {compileSceneProgram} from './shader-loader.js';
 import {cameraUniform} from './scene-camera.js';
@@ -41,7 +41,7 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.synapse??=new SynapseSignals();this.synapse.suspend();
@@ -324,14 +324,19 @@ export class GPUScene {
           gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.historyTexture);
           gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.historyVersion=history.version;
         }
-        this.bind(nebula);this.use(this.fluxBackground,backUniforms);this.quadDraw(this.fluxBackground);yield;
-        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        const rows=this.mobile?28:56;
-        this.use(this.fluxTrace,{...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_fluxClock:reduced?0:(d.artMotion?.[0]??time*.45),u_traceRows:rows});
-        this.texture(this.fluxTrace,'u_history',this.historyTexture,5);gl.drawArrays(gl.TRIANGLES,0,rows*256*6);yield;
+        const flux={...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_fluxClock:reduced?0:(d.artMotion?.[0]??time*.45),u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        this.bind(nebula);this.use(this.fluxBackground,{...backUniforms,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.fluxBackground);
+        gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        this.use(this.fluxDust,{...flux,u_resolution:[nebula.w,nebula.h],u_pixel:density*.7});this.points(this.fluxDust,warmup?32:Math.round((this.mobile?420:1300)*Math.min(1.5,a.orbit)));yield;
+        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+        for(const cross of [0,1]){
+          const rows=cross?(this.mobile?12:24):(this.mobile?28:56);
+          this.use(this.fluxTrace,{...flux,u_traceRows:rows,u_crossTrace:cross});
+          this.texture(this.fluxTrace,'u_history',this.historyTexture,5);gl.drawArrays(gl.TRIANGLES,0,rows*256*6);
+        }yield;
         const count=Math.floor(budget*(this.mobile?.48:.7));
         for(const layer of [0,1,2]){
-          this.use(this.fluxPoints,{...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_fluxClock:reduced?0:(d.artMotion?.[0]??time*.45),u_layer:layer,u_spectrumLight:d.spectrumLight||this.emptySpectrum,u_density:Math.min(2.5,65536/count)*Math.pow(h/900,.75)});
+          this.use(this.fluxPoints,{...flux,u_layer:layer,u_density:Math.min(2.5,65536/count)*Math.pow(h/900,.75)});
           this.texture(this.fluxPoints,'u_history',this.historyTexture,5);this.points(this.fluxPoints,Math.floor(count*(layer===0?1:layer===1?.65:.35)));yield;
         }
       }else{

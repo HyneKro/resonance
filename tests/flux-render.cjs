@@ -1,0 +1,51 @@
+// Hidden, isolated visual QA. Generated music only; no user library or audio output.
+const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-work/flux-orbit');
+fs.mkdirSync(out,{recursive:true});app.setPath('userData',path.join(out,'profile'));
+const log=s=>fs.appendFileSync(path.join(out,'render.log'),String(s)+'\n');
+for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.code!=='EPIPE'){log(e.stack);app.exit(1);}});
+app.on('window-all-closed',()=>{});
+let win,service,exitCode=0;const errors=[];
+app.whenReady().then(async()=>{
+ const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);
+ service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});
+ const original=service.server.listeners('request')[0];service.server.removeAllListeners('request');service.server.on('request',(req,res)=>{if(req.url==='/probe'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><body style="margin:0;background:#080b14"></body>');}else original(req,res);});
+ win=new BrowserWindow({show:false,width:1280,height:800,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});
+ win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message);if(e.level==='error'||e.level==='warning')log(e.message);});
+ const run=code=>win.webContents.executeJavaScript(code);await win.loadURL(service.url+'/probe');
+ await run(fs.readFileSync(path.join(root,'tests/musical-response-audio.js'),'utf8'));
+ await run(`(async()=>{
+  const {GPUScene}=await import('/gpu-scene.js'),{Reactor}=await import('/reactor.js'),{DEFAULT_PREFERENCES}=await import('/default-preferences.js');
+  const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
+  window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
+  window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
+  window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
+  gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
+  // Exercise a populated, changing history rather than a synthetic static backdrop.
+  gpu.historyTrack=d.trackId;for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,Float32Array.from(features.spectrum,(x,k)=>x*(.6+.4*Math.sin(k*.35+i*.055)**2)));
+  d.spectrumClock=127/30;
+  window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
+ })()`);
+ const report=[];
+ await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{
+  let x=0;for(const [band,speed]of [[7,.8],[18,-.4],[30,.6],[41,-.7]])x+=(.30+.30*Math.sin(t*speed+band)**2)*Math.exp(-Math.pow((k-band-Math.sin(t*speed)*2)/2.6,2));
+  return Math.min(.9,x);
+ });gpu.spectrumHistory.reset();gpu.historyTrack=d.trackId;
+ for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));
+ d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};input.time=12;d.roles={bass:.55,lead:.5,drums:.45,texture:.2};
+ window.measure=()=>{const gl=gpu.gl,t=gpu.targets[0];gpu.bind(t);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);let sum=0,edge=0,lit=0;for(let i=0;i<p.length;i+=4){const e=p[i]+p[i+1]+p[i+2],x=(i/4)%t.w,y=Math.floor(i/4/t.w);if(!Number.isFinite(e))throw Error('Nonfinite Flux');sum+=e;if(e>.025)lit++;if(x<2||y<2||x>=t.w-2||y>=t.h-2)edge+=e;}return {sum,lit,edgeFraction:edge/Math.max(sum,.001)};};void 0;`);
+ for(const [name,camera]of [['front',[0,0,0,0]],['quarter',[.6,.38,0,0]],['side',[Math.PI/2,0,0,0]],['rear',[Math.PI,0,0,0]],['top',[0,Math.PI/2,0,0]],['below',[.5,-Math.PI/2,0,0]],['zoom',[.8,.6,-3.7,.1]]]){
+  await run(`d.camera=${JSON.stringify(camera)};d.appearance.particleSpread=${name==='zoom'?1.6:1.15};d.cameraFocalLength=${name==='zoom'?1.23:1.9};renderStyle(5);`);
+  const metrics=await run('measure()');if(metrics.lit<450||metrics.edgeFraction>.035)throw Error('Flux framing '+name+': '+JSON.stringify(metrics));report.push({name,...metrics});
+  await new Promise(r=>setTimeout(r,65));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
+ }
+ await run(`d.camera=[.6,.38,0,0];d.appearance.particleSpread=1.15;d.cameraFocalLength=1.9;renderStyle(5);window.fixed=measure();window.fixedHistory=gpu.spectrumHistory.data.slice();window.fixedHead=gpu.spectrumHistory.head;input.time+=300;gpu.draw(input);if(Math.abs(measure().sum-fixed.sum)>.01||fixedHistory.some((v,i)=>v!==gpu.spectrumHistory.data[i])||fixedHead!==gpu.spectrumHistory.head)throw Error('Flux reads wall time while paused');`);
+ await run(`window.backgroundEnergy=()=>{const t=gpu.targets[3],gl=gpu.gl;gpu.bind(t);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p.reduce((sum,v,i)=>i%4===3?sum:sum+v,0);};window.backLit=backgroundEnergy();d.appearance.orbit=0;renderStyle(5);if(!(backgroundEnergy()<backLit))throw Error('Orbiting dust setting ignored');`);
+ await run(`input.features={...input.features,spectrum:new Float32Array(48)};gpu.spectrumHistory.reset();d.spectrumClock=0;renderStyle(5);if(measure().sum>.001)throw Error('Flux invents sound');`);
+ // Portrait keeps its existing landscape composition; audit the real rotated canvas.
+ win.setSize(412,915);await run(`gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;d.appearance.orbit=2;gpu.spectrumHistory.reset();for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};renderStyle(5);`);
+ await new Promise(r=>setTimeout(r,100));await run('renderStyle(5)');await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,'phone.png'),(await win.webContents.capturePage()).toPNG());
+ if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({angles:report,pausedStable:true,silentSpectrumEmpty:true,dustControl:true},null,2));log('Flux orbit review passed');
+}).catch(e=>{log(e.stack);exitCode=1;}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close();}app.exit(exitCode);});
+setTimeout(()=>{app.exit(2);},180000).unref();
