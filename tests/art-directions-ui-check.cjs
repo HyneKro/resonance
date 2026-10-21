@@ -17,7 +17,7 @@ app.whenReady().then(async()=>{
  const changes=[['noctiluca',1],['afterglow',2],['orrery',3],['contour',4],['flux',5],['aerial',6],['resonance',0]];
  for(const [id,index]of changes){
   await run(`(()=>{const s=document.querySelector('[data-preference=artDirection]');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await until(`styleInput?.dynamics.artStyle.index===${index}&&styleInput.dynamics.artStyle.opacity===1`);
+  await until(`window.styleInput?.dynamics.artStyle.index===${index}&&styleInput.dynamics.artStyle.opacity===1`);
   assert.equal(await run(`!!document.querySelector('[data-ribbon-shape]')`),false);
   await shot('pc-'+id);
  }

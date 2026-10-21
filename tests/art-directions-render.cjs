@@ -36,10 +36,25 @@ app.whenReady().then(async()=>{
    await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
   }
  }await run('d.roles=savedRoles');
+ // Review actual evolving brushwork, not only role changes on a frozen sheet.
+ await run(`window.inkSaved={features:input.features,roles:d.roles,clock:d.spectrumClock};gpu.contour.reset();d.spectrumClock=0;renderStyle(4);`);
+ for(const [name,seconds]of [['contour-painted',3],['contour-reveal',10.5],['contour-scroll',5],['contour-diamond',17]]){
+  await run(`for(let i=0;i<Math.round(${seconds}*60);i++){
+   d.spectrumClock+=1/60;const t=d.spectrumClock,hit=t%(.5)<.055?.85:0;
+   d.roles={bass:.38+.25*Math.sin(t*2),lead:.48+.20*Math.sin(t*1.2),drums:hit,texture:.2};
+   input.features={...inkSaved.features,onset:hit,loudness:.6};
+   gpu.contour.update(t,{onset:hit,energy:.6});if(i%30===0)renderStyle(4);
+  }renderStyle(4);`);
+  await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
+ }
+ await run(`input.features=inkSaved.features;d.roles=inkSaved.roles;d.spectrumClock=inkSaved.clock;`);
  // Advance the physical world with consecutive frames, including a settling phase.
  await run(`renderStyle(6);for(let i=0;i<2400;i++){input.time+=1/60;d.artMotion=[input.time*.45,0,0,0];gpu.aerial.update(d.artMotion[0],{bass:i%180<90?.8:0,drums:i%30<4?.9:0,lead:.5});}renderStyle(6);`);
  await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,'aerial-motion.png'),(await win.webContents.capturePage()).toPNG());
 
+ await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
+ win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
+ win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
   const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl);
@@ -54,6 +69,16 @@ app.whenReady().then(async()=>{
   for(let style=1;style<=6;style++){
    d.spectrumLight.fill(0);renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
+   if(style===4){
+    const fixed=gpu.contour.time,savedCamera=d.camera,savedRotation=d.rotationClock;
+    const rendered=energy();d.camera=[1.2,-.8,.7,2];d.rotationClock=40;renderStyle(4);
+    if(Math.abs(energy()-rendered)>.01)throw Error('Contour is not flat');
+    d.camera=savedCamera;d.rotationClock=savedRotation;
+    if(gpu.contour.time!==fixed)throw Error('Paused ink ages');
+    const savedClock=d.spectrumClock;input.reduced=true;d.spectrumClock+=.1;renderStyle(4);
+    if(gpu.contour.time!==fixed)throw Error('Reduced-motion ink ages');
+    input.reduced=false;d.spectrumClock=savedClock;report[style].flatCameraInvariant=true;report[style].inkFrozen=true;
+   }
    if(style===6){const fixed=gpu.aerial.positions.slice(),steps=gpu.aerial.steps;renderStyle(6);if(gpu.aerial.steps!==steps||fixed.some((x,i)=>x!==gpu.aerial.positions[i]))throw Error('Frozen Aerial physics moved');report[style].physicsFrozen=true;}
    report[style].spectrumAddsLight=true;report[style].pausedStable=true;
    d.spectrumLight.fill(0);const saved=d.roles;d.roles={bass:0,lead:0,drums:0,shimmer:0};renderStyle(style);const silent=energy();d.roles={bass:.8,lead:.8,drums:.8,shimmer:.8};renderStyle(style);const music=energy();d.roles=saved;if(Math.abs(music-silent)<1)throw Error('Missing musical response '+style);report[style].musicChangesScene=true;

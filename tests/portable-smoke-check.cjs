@@ -18,7 +18,14 @@ app.whenReady().then(async()=>{
  const updateApp={isPackaged:false,getVersion:()=>packageVersion,getPath:app.getPath.bind(app),quit:app.quit.bind(app)};
  require(path.join(root,'electron/portable-update.cjs')).installPortableUpdate({app:updateApp,ipcMain,dialog:require('electron').dialog,win,root,url:service.url});
  win.webContents.on('console-message',d=>{if(d.level==='error')errors.push(d.message);});
- await win.loadURL(service.url);await new Promise(r=>setTimeout(r,7000));
+ const bootStarted=Date.now();await win.loadURL(service.url);
+ // A cold shader cache can outlast a fixed sleep. Wait for the actual ready state,
+ // with a bounded deadline, so this checks completion rather than machine timing.
+ for(let i=0;i<240;i++){
+  if(await win.webContents.executeJavaScript("document.body.classList.contains('startup-ready')&&!document.querySelector('#startup')"))break;
+  await new Promise(r=>setTimeout(r,100));
+ }
+ console.log(JSON.stringify({startupMs:Date.now()-bootStarted}));
  const ready=await win.webContents.executeJavaScript(`(async()=>({ready:document.body.classList.contains('startup-ready'),device:await window.resonanceDesktop.audioOutput(),camera:!!document.querySelector('[data-preference=rollercoaster]'),zoom:!!document.querySelector('[data-preference=cameraZoom]'),slider:!!document.querySelector('[data-preference=cameraZoomIntensity]'),zoomMaximum:(await import('/scene-camera.js')).CAMERA_ZOOM.max,emblem:(await import('/companion-emblem.js')).SONA_BADGES.length}))()`);
  if(!ready.ready||!ready.camera||!ready.zoom||ready.slider||ready.zoomMaximum!==3||ready.emblem!==13||!ready.device.id||errors.length)throw Error(JSON.stringify({ready,errors}));
  const updateState=await win.webContents.executeJavaScript("window.resonanceDesktop.appUpdate('status')");

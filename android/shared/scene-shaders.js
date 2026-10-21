@@ -393,10 +393,13 @@ vec2 patternUV(float mode){
 void main(){
  vec3 color=vec3(0.);
  // Sample the same scene once per visible pattern; never rerender particles.
+ if(u_artDirection>3.5&&u_artDirection<4.5)color=composite(v_uv);
+ else {
  if(u_kaleidoWeights[0]>0.)color=composite(v_uv)*u_kaleidoWeights[0];
  for(int i=1;i<${KALEIDOSCOPE_MODES.length+1};i++){
   if(u_kaleidoWeights[i]>0.)color+=composite(patternUV(float(i-1)))*u_kaleidoWeights[i];
  }
+}
 vec2 uv=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float r=length(uv);
  color*=1.-smoothstep(.4,.85,length(v_uv-.5))*((u_artDirection>3.5&&u_artDirection<4.5)||u_artDirection>5.5?.08:.4);
  float contrast=u_artDirection>.5?1.+(u_light.w-1.)*.20:u_light.w;

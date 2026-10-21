@@ -1,3 +1,5 @@
+import {ContourMotion,contourLettering} from './contour-motion.js';
+import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
 import {AerialPhysics} from './aerial-physics.js';
 import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND} from './aerial-shaders.js';
 import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
@@ -35,13 +37,14 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     this.attractors=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.attractors);
     const curves=await attractorCurves(()=>work.checkpoint());
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS,0,gl.RGBA,gl.FLOAT,curves);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    this.contour??=new ContourMotion();this.contour.suspend();this.letteringSize='';this.letteringTexture=gl.createTexture();
     this.aerial??=new AerialPhysics(this.mobile?16:24);this.aerial.suspend();
     this.school??=new FishSchool(this.mobile?160:384);
     this.school.suspend();this.schoolTexture=gl.createTexture();this.schoolWidth=this.school.count;gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
@@ -64,7 +67,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -143,7 +146,7 @@ export class GPUScene {
     this.use(f.draw,uniforms);const attributes=this.flowAttributes(f.draw,f.buffers[f.current]);gl.drawArrays(gl.POINTS,0,count);attributes.forEach(a=>gl.disableVertexAttribArray(a));
   }
   dimensions({width,height,quality,scale=1,dynamics}){
-    if(dynamics?.portraitScene&&height>width)[width,height]=[height,width];
+    if(dynamics?.portraitScene&&(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)!==4&&height>width)[width,height]=[height,width];
     const cap=quality==='high'?1200:quality==='eco'?560:900;
     const density=Math.min(devicePixelRatio||1,quality==='high'?1.5:1,cap/Math.max(1,height),2200/Math.max(1,width))*(quality==='eco'?.85*(this.mobile?scale:1):quality==='auto'?scale:1);
     return {density,w:Math.max(1,Math.round(width*density)),h:Math.max(1,Math.round(height*density))};
@@ -174,7 +177,8 @@ export class GPUScene {
     try{for(const _ of this.renderFrame(input)){}return true;}catch(e){this.fail(e);return false;}
   }
   *renderFrame({width,height,time,features,dynamics,quality,intensity,scale=1,reduced=false,hdrMode='off'},warmup=false){
-    const portrait=dynamics.portraitScene===true&&height>width;
+    const flat=(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)===4;
+    const portrait=!flat&&dynamics.portraitScene===true&&height>width;
     if(portrait)[width,height]=[height,width];
     if(dynamics.portraitScene){this.canvas.style.width=width+'px';this.canvas.style.height=height+'px';this.canvas.style.left='50%';this.canvas.style.top='50%';this.canvas.style.transform='translate(-50%,-50%)'+(portrait?' rotate(90deg)':'');}
     try{
@@ -188,6 +192,7 @@ export class GPUScene {
       this.kaleidoscopeWeights??=new Float32Array(KALEIDOSCOPE_MODES.length+1);
       if(!d.kaleidoscopeWeights){this.kaleidoscopeWeights.fill(0);this.kaleidoscopeWeights[d.kaleidoscope===true?kaleidoscopeIndex(d.kaleidoscopeMode)+1:0]=1;}
       const style=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1};
+      if(style.index!==4)this.contour.suspend();
       if(style.index!==1)this.school.suspend();
       if(style.index!==5)this.spectrumHistory.suspend();
       if(style.index!==6)this.aerial.suspend();
@@ -224,6 +229,26 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
+      }else if(style.index===4){
+        if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}
+        const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
+        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkEvents:ink.events,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        const size=w+'x'+h;
+        if(this.letteringSize!==size){
+          const labels=contourLettering(w,h);gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,this.letteringTexture);
+          gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,labels);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);this.letteringSize=size;
+        }
+        this.bind(nebula);this.use(this.contourPaper,{...inkUniforms,u_paper:1});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
+        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        const segments=this.mobile?112:192,strands=this.mobile?36:64;
+        const editions=ink.time>=17&&ink.time%17<4.5?[1,0]:[0];
+        for(const edition of editions)for(const [layer,count]of [[3,1],[0,strands],[1,2],[2,3]]){
+          this.use(this.contourBrush,{...inkUniforms,u_segments:segments,u_strands:count,u_inkLayer:layer,u_inkEdition:edition});gl.drawArrays(gl.TRIANGLES,0,segments*count*6);
+        }yield;
+        this.use(this.contourDrops,inkUniforms);gl.drawArrays(gl.POINTS,0,8*24);yield;
+        this.use(this.contourPaper,{...inkUniforms,u_paper:0});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
       }else if(style.index===6){
         const count=this.mobile?16:24;
         if(this.aerial.count!==count)this.aerial=new AerialPhysics(count);
