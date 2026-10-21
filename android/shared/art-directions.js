@@ -3,7 +3,7 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'resonance',name:'Resonance',note:'The original living ribbon and flowing atmosphere.',index:0},
  {id:'noctiluca',name:'Noctiluca',note:'A living aquarium. Schools gather, mantas glide and jellyfish glow with the music.',index:1},
  {id:'afterglow',name:'Afterglow',note:'An endless neon drive. Bass sculpts the terrain; the city lights follow the spectrum.',index:2},
- {id:'orrery',name:'Orrery',note:'An astral clockwork. Gears turn behind moving orbits, planets and comet trails.',index:3},
+ {id:'orrery',name:'Orrery',note:'A celestial field. Fine orbits, illuminated planets and comet dust move with the music.',index:3},
  {id:'contour',name:'Contour',note:'A living ink painting. Brushes draw and bend with the music; percussion scatters vermilion on paper.',index:4},
  {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5},
  {id:'aerial',name:'Aerial',note:'A soft sculpture of floating spheres. Porcelain, pearl and frosted glass respond with weight, buoyancy and light.',index:6}

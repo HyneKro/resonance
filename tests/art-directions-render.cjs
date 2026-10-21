@@ -54,6 +54,7 @@ app.whenReady().then(async()=>{
 
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
+ await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'orrery-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
@@ -85,6 +86,18 @@ app.whenReady().then(async()=>{
    const response={};d.roles={bass:0,lead:0,drums:0,texture:0};renderStyle(style);const base=[energy(),energy(3)];
    for(const role of ['bass','lead','drums']){d.roles={bass:0,lead:0,drums:0,texture:0,[role]:.8};renderStyle(style);const delta=[Math.abs(energy()-base[0]),Math.abs(energy(3)-base[1])];if(delta[0]+delta[1]<1)throw Error('Missing '+role+' response in '+style);response[role]=delta.map(x=>Math.round(x));}
    d.roles=saved;report[style].independentRoles=response;
+   if(style===3){
+    const originalTime=input.time,originalMotion=[...d.artMotion],originalCamera=d.camera;
+    const pixels=()=>{const t=gpu.targets[0];gpu.bind(t);const a=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,a);return a;};
+    const distance=(a,b)=>a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0);
+    d.camera=[0,0,0,0];renderStyle(3);const before=pixels();
+    input.time+=2;renderStyle(3);if(distance(before,pixels())<10)throw Error('Orbital paths do not travel');
+    d.artMotion=originalMotion;gpu.draw(input);const held=pixels();input.time+=300;gpu.draw(input);
+    if(distance(held,pixels())>.01)throw Error('Orrery reads wall time while frozen');
+    d.camera=[.7,.3,0,0];gpu.draw(input);if(distance(held,pixels())<10)throw Error('Astral depth does not follow camera');
+    input.time=originalTime;d.camera=originalCamera;renderStyle(3);
+    report[style].orbitalTravel=true;report[style].frozenClockStable=true;report[style].cameraDepth=true;
+   }
    if(style===2){d.roles={};renderStyle(style);const quiet=coverage();d.roles={bass:.9};renderStyle(style);if(Math.abs(coverage()-quiet)<1)throw Error('Terrain only changes brightness, not silhouette');report[style].terrainDeforms=true;d.roles=saved;}
   }
   {

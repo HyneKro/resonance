@@ -1,3 +1,4 @@
+import {ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT,ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT,ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT,ORRERY_BACKGROUND} from './orrery-shaders.js';
 import {ContourMotion,contourLettering} from './contour-motion.js';
 import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
 import {AerialPhysics} from './aerial-physics.js';
@@ -37,7 +38,7 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     this.attractors=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.attractors);
     const curves=await attractorCurves(()=>work.checkpoint());
@@ -229,6 +230,15 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
+      }else if(style.index===3){
+        const sky={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        this.bind(nebula);this.use(this.orreryBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.orreryBackground);yield;
+        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);this.use(this.orreryBodies,{...sky,u_bodyDetail:this.mobile?[32,16]:[64,32]});gl.drawArrays(gl.TRIANGLES,0,9*(this.mobile?512:2048)*6);yield;
+        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        const segments=this.mobile?192:320;
+        for(const part of [0,1]){this.use(this.orreryPaths,{...sky,u_segments:segments,u_pathPart:part});gl.drawArrays(gl.TRIANGLES,0,(part===0?28:36)*segments*6);}yield;
+        this.use(this.orreryDust,sky);this.points(this.orreryDust,warmup?256:this.mobile?11000:26000);yield;
       }else if(style.index===4){
         if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}
         const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
@@ -287,11 +297,11 @@ export class GPUScene {
         this.bind(scene);gl.clearColor(0,0,0,style.index===4?1:0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         if(style.index>0){
           if(style.index!==4){gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);}
-          const parts=style.index===1?[[0,this.school.count*48*6],[1,3*192*6],[2,2*192*6],[3,4*192*6]]:style.index===2?[[0,2*32*128*6]]:style.index===3?[[0,7*768*6],[1,8*512*6]]:[[0,4*256*6]];
+          const parts=style.index===1?[[0,this.school.count*48*6],[1,3*192*6],[2,2*192*6],[3,4*192*6]]:style.index===2?[[0,2*32*128*6]]:[[0,4*256*6]];
           for(const [part,vertices]of parts){this.use(this.artSurface,{...uniforms,u_artPart:part,u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.texture(this.artSurface,'u_school',this.schoolTexture,4);gl.drawArrays(gl.TRIANGLES,0,vertices);yield;}
           gl.depthMask(false);gl.enable(gl.BLEND);
         }
-        const fraction=style.index===1?.12:style.index===2?.06:style.index===3?.18:.20;
+        const fraction=style.index===1?.12:style.index===2?.06:.20;
         const count=Math.floor(budget*fraction),density=Math.min(3,131072*fraction/count)*Math.pow(h/900,1.2);
         for(const layer of [0,1]){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:layer,u_spectrumLight:this.emptySpectrum});this.points(this.artPoints,count);yield;}
         if(d.spectrumLight?.some(x=>x>0)){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:2,u_spectrumLight:d.spectrumLight});this.points(this.artPoints,Math.floor(count*.55));yield;}
