@@ -1,0 +1,19 @@
+# Astra — a living stellar system
+
+Windows **1.26.0-dev.12** and Android **0.26.0-dev.12** (versionCode 78). Development channel only.
+
+Open **Visuals → Style → Art direction → Astra**. Orrery is now Astra; existing saved Orrery choices and imported settings migrate automatically. The centre is an emissive, textured star with a soft corona, curved solar prominences, restrained solar wind and musical particle eruptions. The star, orbital light and surrounding haze take colour from the song palette and musical roles.
+
+The 48 orbits correspond to the existing 48 measured frequency bands. Each band independently displaces its orbit and can release a fading outward echo on an attack. Eight planets and their moons remain in the system alongside irregular asteroids. Their orbital speed accelerates with the music and eases back afterwards; faster planets and moons leave longer particle trails. Comets spawn on selected attacks, travel along curved paths and fade with their tails. A fixed pool of twelve events bounds the work and prevents sustained tones from continuously creating new bursts.
+
+Orbital acceleration is integrated over time, so changes in volume do not teleport planets around their paths. Pausing/freezing holds the simulation, reduced motion suppresses event travel, inactive scenes discard elapsed gaps, and changing tracks clears old events and acceleration. Android uses fewer asteroids, particles and surface segments while retaining every frequency orbit and the existing mobile composition.
+
+Dark-gradient precision is corrected at two stages: Astra stores its background perceptually before any low-precision framebuffer quantization, and the shared HDR presentation now reserves most transport values for normal brightness and shadows. Fine, stationary dithering prevents visible contour steps without animated grain. Bright HDR highlights remain above standard white. This also improves dark HDR output in the other scenes.
+
+Development installations receive these builds through **Settings → App updates**. Ordinary installations need a one-time development ZIP/APK installation to enter the test channel. Use a separate portable Windows folder for testing. Android installs over the existing signed app, preserves data and requires the system installer confirmation; do not uninstall. Main, ordinary releases and the live download buttons remain unchanged.
+
+Verification: 508 shared automated tests and 134 Android JVM tests pass. Both Android ABI builds, instrumentation-test compilation and lint pass, with zero lint errors and nine existing warnings. The ARM64 APK retains its package ID and signing certificate. Complete startup module graphs pass from both extracted distributables; the clean Windows package reaches its empty-library welcome screen in 9.9 seconds. Desktop/mobile controls, saved-setting migration, navigation, startup, rapid skipping and repository audit pass.
+
+Graphics checks cover all eight scenes, independent musical roles, frequency lighting, frozen frames and context recovery. Astra additionally passes rendered speed trails and comets, track reset, held/reduced motion, front/side/rear/above/below views and phone-resolution rendering. The fallback background differs from the float-buffer reference by about 0.07 of a byte per channel on average; its decoded HDR image differs by about 0.25. The actual WebGPU HDR presentation preserves the dark gradient and a 1.35 highlight (measured 1.345). A 24-second orbit preview uses generated signals without personal music or library data.
+
+Physical Android installation, sustained phone performance, heat/battery behaviour and visual comparison on the owner's HDR display remain for device testing. The automated HDR test verifies the output values and presentation pipeline, not a physical panel's calibration.

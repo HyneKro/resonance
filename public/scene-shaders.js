@@ -351,6 +351,7 @@ vec3 composite(vec2 uv){vec3 color=texture(u_image,uv).rgb+texture(u_bloom,uv).r
 vec3 highlights=min(max(color-vec3(.9),vec3(0.))*.22,vec3(.8))*u_hdrOutput;
 color=pow(film(color),vec3(.454545));
 vec3 cloud=texture(u_nebula,uv).rgb;
+if(u_artDirection>2.5&&u_artDirection<3.5)cloud=pow(max(cloud,vec3(0.)),vec3(2.2));
 if(u_artDirection>.5&&u_artDirection<1.5){vec4 s=texture(u_image,uv);return pow(film(s.rgb+cloud*(1.-clamp(s.a,0.,1.))+texture(u_bloom,uv).rgb*u_light.x*.08),vec3(.454545));}
 if((u_artDirection>2.5&&u_artDirection<3.5)||u_artDirection>6.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return pow(film(texture(u_image,uv).rgb+cloud*(1.-coverage)+texture(u_bloom,uv).rgb*u_light.x*.35),vec3(.454545))+highlights;}
 if(u_artDirection>4.5&&u_artDirection<5.5)return pow(film(texture(u_image,uv).rgb+cloud+texture(u_bloom,uv).rgb*u_light.x*.65),vec3(.454545))+highlights;
@@ -430,6 +431,12 @@ vec2 uv=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float r=length(uv);
  float contrast=u_artDirection>.5?1.+(u_light.w-1.)*.20:u_light.w;
  color=clamp((color-.18)*contrast+.18,0.,mix(1.,1.8,u_hdrOutput));
  color=mix(vec3(.015,.019,.028),color,u_styleOpacity);
- if(u_hdrOutput>.5){vec3 linear=mix(color/12.92,pow((color+.055)/1.055,vec3(2.4)),step(vec3(.04045),color));color=log2(1.+linear)/log2(5.);}
+ // Perceptual HDR transport keeps 204 code values below paper white.
+ // The old linear-log transport collapsed dark gradients to a handful of steps.
+ if(u_hdrOutput>.5)color=mix(color*.8,.8+(color-1.)*.25,step(vec3(1.),color));
+ if(u_hdrOutput>.5||(u_artDirection>2.5&&u_artDirection<3.5)){
+  float dither=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;
+  color=clamp(color+dither/255.,0.,1.);
+ }
 fragColor=vec4(color,1.);}`;
 

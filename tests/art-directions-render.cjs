@@ -27,10 +27,10 @@ app.whenReady().then(async()=>{
   d.spectrumClock=127/30;
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
- for(const [index,name]of ['resonance','noctiluca','afterglow','orrery','contour','flux','aerial','synapse'].entries()){
+ for(const [index,name]of ['resonance','noctiluca','afterglow','astra','contour','flux','aerial','synapse'].entries()){
   await run(`renderStyle(${index})`);await new Promise(r=>setTimeout(r,120));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
- for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'orrery'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
+ for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'astra'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
   for(const [phase,time,level]of [['quiet',4,0],['attack',4,.9],['later',16,.5]]){
    await run(`window.savedRoles??=d.roles;input.time=${time};d.roles={bass:${level},lead:${level},drums:${level},texture:${level},shimmer:${level}};renderStyle(${style})`);
    await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
@@ -68,7 +68,7 @@ app.whenReady().then(async()=>{
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(1)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'noctiluca-phone.png'),(await win.webContents.capturePage()).toPNG());
- await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'orrery-phone.png'),(await win.webContents.capturePage()).toPNG());
+ await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'astra-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(7)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'synapse-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(6)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'aerial-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
@@ -149,7 +149,7 @@ app.whenReady().then(async()=>{
     d.camera=[0,0,0,0];renderStyle(3);const before=pixels();
     input.time+=2;renderStyle(3);if(distance(before,pixels())<10)throw Error('Orbital paths do not travel');
     d.artMotion=originalMotion;gpu.draw(input);const held=pixels();input.time+=300;gpu.draw(input);
-    if(distance(held,pixels())>.01)throw Error('Orrery reads wall time while frozen');
+    if(distance(held,pixels())>.01)throw Error('Astra reads wall time while frozen');
     d.camera=[.7,.3,0,0];gpu.draw(input);if(distance(held,pixels())<10)throw Error('Astral depth does not follow camera');
     input.time=originalTime;d.camera=originalCamera;renderStyle(3);
     report[style].orbitalTravel=true;report[style].frozenClockStable=true;report[style].cameraDepth=true;

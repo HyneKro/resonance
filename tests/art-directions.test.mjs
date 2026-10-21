@@ -13,6 +13,8 @@ test('existing preferences retain Resonance; invalid or imported style choices a
  assert.equal(ART_DIRECTIONS.length,8);assert.equal(new Set(ART_DIRECTIONS.map(a=>a.id)).size,8);
  for(const value of [null,{},42,'form--1','form-30','form-NaN','nope'])assert.equal(sculptureChoice(value),'auto');
  assert.equal(artDirection('unknown').id,'resonance');
+ assert.equal(preferencesWithDefaults(portablePreferences({artDirection:'orrery'})).artDirection,'astra');
+ assert.equal(artDirection('orrery').name,'Astra');
  assert.equal(preferencesWithDefaults({artDirection:'glasshouse'}).artDirection,'afterglow');
  for(const a of ART_DIRECTIONS){const p=preferencesWithDefaults(portablePreferences({artDirection:a.id,ribbonShape:'form-24'}));assert.equal(p.artDirection,a.id);assert.equal(p.ribbonShape,undefined);}
 });
@@ -24,7 +26,7 @@ test('rapid style choices settle on the last destination, changing topology only
   assert.ok(value.opacity>=0&&value.opacity<=1);
   if(value.id!==prior)assert.equal(value.opacity,0);prior=value.id;
  }
- assert.equal(transition.current,'orrery');assert.equal(transition.opacity,1);assert.equal(transition.active,false);
+ assert.equal(transition.current,'astra');assert.equal(transition.opacity,1);assert.equal(transition.active,false);
  assert.deepEqual(transition.update('contour',0,{reduced:true}),{id:'contour',index:4,opacity:1});
  assert.equal(transition.active,false);
 });

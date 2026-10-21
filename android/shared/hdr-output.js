@@ -10,7 +10,7 @@ export async function preflightHDROutput(mode='auto'){
 }
 function takeAdapter(){const adapter=preparedAdapter;preparedAdapter=undefined;return adapter||navigator.gpu.requestAdapter({powerPreference:'high-performance'});}
 // WebGL owns the artwork; WebGPU only presents its final frame in extended range.
-// Log encoding keeps highlights above 1 through the ordinary WebGL canvas copy,
+// Perceptual encoding keeps highlights above 1 through the ordinary WebGL canvas copy,
 // without synchronous readPixels, CPU image buffers or a second animation loop.
 const SHADER=`
 @group(0) @binding(0) var image: texture_2d<f32>;
@@ -19,9 +19,9 @@ const SHADER=`
 }
 @fragment fn fragment(@builtin(position) p:vec4f) -> @location(0) vec4f {
  let encoded=textureLoad(image,vec2i(p.xy),0).rgb;
- let linear=exp2(encoded*log2(5.0))-1.0;
- // rgba16float + srgb uses sRGB encoded components, including values above 1.
- let rgb=select(12.92*linear,1.055*pow(max(linear,vec3f(0)),vec3f(1.0/2.4))-.055,linear>vec3f(.0031308));
+ // The transport reserves 80% of its codes for SDR, including deep shadows.
+ // rgba16float + srgb expects perceptual components, including values above 1.
+ let rgb=select(encoded/.8,1.0+(encoded-.8)*4.0,encoded>vec3f(.8));
  return vec4f(rgb,1);
 }`;
 

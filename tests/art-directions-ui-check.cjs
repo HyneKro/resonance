@@ -6,7 +6,7 @@ let win,service,server,exitCode=0;const pause=ms=>new Promise(r=>setTimeout(r,ms
 async function until(code){for(let i=0;i<250;i++){if(await run(code))return;await pause(100);}throw Error('Timed out: '+code);}
 async function shot(name){await pause(180);fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());}
 app.whenReady().then(async()=>{
- const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});Object.assign(service.lib.config.preferences,{musicOnly:true,sfx:false,hdrMode:'off',reactivityStyle:'classic'});
+ const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});Object.assign(service.lib.config.preferences,{musicOnly:true,sfx:false,hdrMode:'off',reactivityStyle:'classic',artDirection:'orrery'});
  win=new BrowserWindow({show:false,width:1280,height:900,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});
  win.webContents.on('console-message',e=>{if(e.level==='error')log(e.message);});
  await win.loadURL(service.url);await until(`document.body.classList.contains('startup-ready')&&!document.querySelector('#startup')`);
@@ -14,7 +14,8 @@ app.whenReady().then(async()=>{
  await until(`window.lastResponseWeight>.95&&!document.querySelector('#room-gl').hidden`);
 
  await run(`(async()=>{const {GPUScene}=await import('/gpu-scene.js');const draw=GPUScene.prototype.draw;GPUScene.prototype.draw=function(input){window.styleInput=input;return draw.call(this,input);};document.querySelector('#room-visual-settings').click();document.querySelector('[data-section-tab=style]').click();})()`);
- const changes=[['noctiluca',1],['afterglow',2],['orrery',3],['contour',4],['flux',5],['aerial',6],['synapse',7],['resonance',0]];
+ assert.equal(await run(`document.querySelector('[data-preference=artDirection]').value`),'astra','Legacy Orrery choice opens Astra');
+ const changes=[['noctiluca',1],['afterglow',2],['astra',3],['contour',4],['flux',5],['aerial',6],['synapse',7],['resonance',0]];
  for(const [id,index]of changes){
   await run(`(()=>{const s=document.querySelector('[data-preference=artDirection]');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until(`window.styleInput?.dynamics.artStyle.index===${index}&&styleInput.dynamics.artStyle.opacity===1`);

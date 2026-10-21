@@ -3,13 +3,13 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'resonance',name:'Resonance',note:'The original living ribbon and flowing atmosphere.',index:0},
  {id:'noctiluca',name:'Noctiluca',note:'Deep open water. Silver schools turn, scatter and open around shafts of sunlight.',index:1},
  {id:'afterglow',name:'Afterglow',note:'A neon night drive with palms, a layered skyline and mirrored musical echoes. The camera stays fixed; tune the CRT texture below.',index:2},
- {id:'orrery',name:'Orrery',note:'A celestial field. Fine orbits, illuminated planets and comet dust move with the music.',index:3},
+ {id:'astra',name:'Astra',note:'A living star. Frequency orbits, solar flares and comet trails answer the music.',index:3},
  {id:'contour',name:'Contour',note:'A living ink painting. Brushes draw and bend with the music; percussion scatters vermilion on paper.',index:4},
  {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5},
  {id:'aerial',name:'Aerial',note:'A living studio sculpture. Liquid chrome merges and separates among bouncing porcelain, glass and tiny suspended droplets.',index:6},
  {id:'synapse',name:'Synapse',note:'A luminous web. Blue filaments breathe with bass while warm impulses travel from junction to junction.',index:7}
 ]);
-export const artDirection=value=>ART_DIRECTIONS.find(x=>x.id===(value==='glasshouse'?'afterglow':value))||ART_DIRECTIONS[0];
+export const artDirection=value=>ART_DIRECTIONS.find(x=>x.id===(value==='glasshouse'?'afterglow':value==='orrery'?'astra':value))||ART_DIRECTIONS[0];
 
 // Fade through a common quiet ground, never stretch one topology into another.
 // A newer selection replaces the pending destination, including during exit.
