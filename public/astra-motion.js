@@ -1,6 +1,7 @@
 // Continuous scene time, bounded musical events and eased signals. Playback can
 // rest without resetting orbital phase; explicit freeze still holds everything.
 import {SpectrumHistory} from './spectrum-history.js';
+import {Inertia} from './inertia.js';
 const unit=x=>Number.isFinite(x)?Math.max(0,Math.min(1,x)):0;
 const TAU=Math.PI*2,hash=n=>{const x=Math.sin(n*127.1)*43758.5453;return x-Math.floor(x);};
 const smooth=(a,b,x)=>{const t=unit((x-a)/(b-a));return t*t*(3-2*t);};
@@ -28,17 +29,26 @@ export class AstraMotion {
  reset(){
   for(const array of [this.bands,this.orbits,this.events,this.envelopes,this.cometTrail,this.state,this.roles,this.lights,this.echoes])array.fill(0);
   this.history.reset();this.historyRow.fill(0);
+  this.spread=1;this.spreadMotion=null;
   this.warm.set([1,.24,.035]);this.cool.set([.08,.4,1]);this.colored=false;
   this.comets=[];this.fronts=[];this.clock=null;this.time=0;this.next=0;this.emitted=0;
   this.lastHit=-10;this.lastComet=-10;this.cometNext=0;this.envelope=0;return this;
  }
  suspend(){this.clock=null;}
- update(clock,spectrum,{onset=0,drums=0,bass=0,lead=0,texture=0,energy=0,reduced=false,movement=1,active=true,palette,lights}={}){
+ update(clock,spectrum,{onset=0,drums=0,bass=0,lead=0,texture=0,energy=0,reduced=false,movement=1,active=true,palette,lights,spread=1}={}){
   if(!Number.isFinite(clock))return this;
   energy=active?unit(energy):0;bass=energy>.015?unit(bass):0;
   const targets=[bass,drums,lead,texture].map(v=>active?unit(v):0);
   const level=unit(Math.max(onset,drums*.85)),motion=Number.isFinite(movement)?Math.max(0,Math.min(3.5,movement)):0;
   const entry=this.clock===null,dt=entry?0:clock-this.clock;this.clock=clock;
+  // Phrase arrivals also scale the entire scene, independently of Camera zoom.
+  // Ease the final scale after those gestures and profile changes, retaining it
+  // across songs/re-entry. A stalled frame must not catch up several steps at once.
+  const targetSpread=Number.isFinite(spread)?Math.max(.6,Math.min(1.5,spread)):1;
+  this.spreadMotion??=new Inertia(targetSpread,.65);
+  if(reduced){this.spreadMotion.value=targetSpread;this.spreadMotion.velocity=0;}
+  else if(dt>0&&dt<=.25)this.spreadMotion.update(targetSpread,Math.min(dt,1/30));
+  this.spread=this.spreadMotion.value;
   if(dt<=0||dt>.25||reduced||motion<=0){
    // Prime on entry/discontinuity, never manufacture a catch-up eruption.
    if(entry||dt>.25){for(let i=0;i<48;i++)this.envelopes[i]=active?unit(spectrum?.[i]):0;this.envelope=level;}

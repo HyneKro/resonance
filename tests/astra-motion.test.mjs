@@ -1,8 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AstraMotion,keplerPoint} from '../public/astra-motion.js';
+import {MusicalResponse} from '../public/musical-response.js';
 const silent=new Float32Array(48),tone=band=>Float32Array.from(silent,(_,i)=>i===band?.9:0);
 const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights,...m.echoes,...m.history.data,m.history.head,m.history.accumulator];
+
+test('Astra eases whole-scene framing through actual phrase arrivals and source resets',()=>{
+ const musical=new MusicalResponse(),astra=new AstraMotion();let previousTarget=1,previousScale=1,maxTargetStep=0,maxScaleStep=0,peakScale=1;
+ for(let i=0;i<600;i++){
+  const loud=i>=210,raw={db:loud?-12:-40,bands:new Float32Array(8).fill(loud?.8:.15),harmonic:silent,percussive:silent,hits:[loud&&i%15===0?.8:0,0,0]};
+  const response=musical.update({...raw,accents:[0,0,0],morph:[.3,.3,.3,.3],loudness:.5},raw,1/60,{time:i/60});
+  const spread=1-response.tension*.025+response.arrival*.018;
+  astra.update(i/60,silent,{spread});
+  maxTargetStep=Math.max(maxTargetStep,Math.abs(spread-previousTarget));
+  maxScaleStep=Math.max(maxScaleStep,Math.abs(astra.spread-previousScale));peakScale=Math.max(peakScale,astra.spread);
+  previousTarget=spread;previousScale=astra.spread;
+  if(i===240)musical.resetEvidence(); // The next song forgets evidence, not the rendered size.
+ }
+ assert.ok(maxTargetStep>.015,'the fixture reproduces the abrupt phrase scale, independently of camera zoom');
+ assert.ok(maxScaleStep<.0007,'the rendered system must not inherit a one-frame resize');
+ assert.ok(peakScale>1.005,'musical framing remains visible');assert.ok(Math.abs(astra.spread-1)<.0001);
+});
+
+test('Astra framing retains its pose through pauses, missing frames and re-entry',()=>{
+ const m=new AstraMotion();m.update(0,silent,{spread:1.2});assert.equal(m.spread,1.2);
+ m.update(.016,silent,{spread:.8,active:false});const previous=m.spread;assert.ok(previous<1.2&&previous>1.197);
+ m.update(.016,silent,{spread:1.5});assert.equal(m.spread,previous,'frozen time holds framing');
+ m.update(10,silent,{spread:1.5});assert.equal(m.spread,previous,'missing time is not caught up');
+ m.suspend();m.update(20,silent,{spread:.6});assert.equal(m.spread,previous,'re-entry retains the visible scale');
+ for(let i=1;i<=360;i++)m.update(20+i/60,silent,{spread:.8,active:false});
+ assert.ok(Math.abs(m.spread-.8)<1e-6,'quiet scene can finish a transition');
+ m.update(26.1,silent,{spread:1.5});assert.ok(m.spread-.8<.014,'a delayed frame advances at most one 30 fps step');
+ m.update(26.2,silent,{spread:NaN});assert.ok(Number.isFinite(m.spread));
+ m.update(26.3,silent,{spread:2,reduced:true});assert.equal(m.spread,1.5);
+});
 test('Astra displaces the played frequency and accelerates only its orbit',()=>{
  const m=new AstraMotion();m.update(0,silent);
  for(let n=1;n<=60;n++)m.update(n/60,tone(12),{energy:.8});

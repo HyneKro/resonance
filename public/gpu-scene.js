@@ -293,11 +293,11 @@ export class GPUScene {
       }else if(style.index===3){
         // Track changes only change the targets. The solar system retains phase,
         // existing ejecta and velocity while its sound and colours ease across.
-        const stellar=this.astra.update(d.astraClock??d.spectrumClock??time,features.spectrum,{...roles,onset:features.onset,energy:features.loudness,active:d.astraActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,reduced,movement:a.motionAmount});
+        const stellar=this.astra.update(d.astraClock??d.spectrumClock??time,features.spectrum,{...roles,onset:features.onset,energy:features.loudness,active:d.astraActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,reduced,movement:a.motionAmount,spread:a.particleSpread});
         const history=stellar.history;
         gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.astraHistoryTexture);
         if(this.astraHistoryVersion!==history.version){gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.astraHistoryVersion=history.version;}
-        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_ringEcho:stellar.echoes,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
+        const sky={...uniforms,u_particle:[stellar.spread,...uniforms.u_particle.slice(1)],u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_ringEcho:stellar.echoes,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
         for(const p of [this.astraBodies,this.astraPaths,this.astraDust,this.astraDebris]){gl.useProgram(p.program);this.texture(p,'u_astraHistory',this.astraHistoryTexture,5);}
         this.bind(nebula);this.use(this.astraBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.astraBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
