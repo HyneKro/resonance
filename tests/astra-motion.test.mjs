@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AstraMotion,keplerPoint} from '../public/astra-motion.js';
 const silent=new Float32Array(48),tone=band=>Float32Array.from(silent,(_,i)=>i===band?.9:0);
-const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail];
+const snapshot=m=>[m.time,...m.bands,...m.orbits,...m.events,...m.state,...m.cometTrail,...m.roles,...m.warm,...m.cool,...m.lights];
 test('Astra displaces the played frequency and accelerates only its orbit',()=>{
  const m=new AstraMotion();m.update(0,silent);
  for(let n=1;n<=60;n++)m.update(n/60,tone(12),{energy:.8});
@@ -46,10 +46,26 @@ test('heavy bass sustains frequent eruptions without stealing the comet lifetime
 });
 test('silence has a very slow drift and music creates a pronounced speed contrast',()=>{
  const simulate=energy=>{const m=new AstraMotion();m.update(0,silent);for(let i=1;i<=600;i++)m.update(i/60,energy?tone(12):silent,{energy});return m;};
- const quiet=simulate(0),music=simulate(.8);assert.ok(quiet.state[0]<.061);assert.ok(music.state[0]>quiet.state[0]*12);
+ const quiet=simulate(0),music=simulate(.8);assert.ok(quiet.state[0]>.23&&quiet.state[0]<.25);assert.ok(music.state[0]>quiet.state[0]*5);
  assert.ok(music.orbits[48]>2);assert.equal(quiet.orbits[48],0);
  for(let i=601;i<=900;i++)music.update(i/60,silent);const angle=music.orbits[48];
  for(let i=901;i<=960;i++)music.update(i/60,silent);assert.ok(music.orbits[48]-angle<.001);
+});
+test('pause releases smoothly, ambient time continues, and a new palette cannot snap the scene',()=>{
+ const m=new AstraMotion(),palette=[.1,.3,.8, .1,.5,.8, .4,.1,.7, .8,.4,.1, 1,.2,.04, .1,.4,.7];
+ const options={energy:.8,bass:.8,lead:.4,drums:.7,palette,lights:tone(12)};
+ m.update(0,silent,options);for(let i=1;i<=180;i++)m.update(i/60,tone(12),options);
+ const before={band:m.bands[48],role:m.roles[0],warm:m.warm.slice(),phase:m.orbits[48],clock:m.state[0],events:m.emitted};
+ m.update(181/60,tone(12),{...options,active:false,palette:palette.map((x,i)=>palette[(i+1)%18])});
+ assert.ok(m.bands[48]<before.band&&m.bands[48]>before.band*.95);
+ assert.ok(m.roles[0]<before.role&&m.roles[0]>before.role*.95);
+ assert.ok(m.warm.every((x,i)=>Math.abs(x-before.warm[i])<.02));
+ assert.ok(m.orbits[48]>before.phase&&m.state[0]>before.clock);assert.equal(m.emitted,before.events);
+ for(let i=182;i<=480;i++)m.update(i/60,silent,{...options,active:false});
+ assert.ok(m.roles[0]<.001&&m.bands[48]<.001);assert.ok(m.state[0]>before.clock+.12);
+ const quiet=m.roles[0],phase=m.orbits[48];m.update(481/60,tone(12),options);
+ assert.ok(m.roles[0]>quiet&&m.roles[0]<.1);assert.ok(m.orbits[48]-phase<.01);
+ const frozen=snapshot(m);m.update(481/60,silent,{palette:palette.map(()=>1),active:false});assert.deepEqual(snapshot(m),frozen);
 });
 test('comets are closed ellipses with a solar focus and equal swept area per time',()=>{
  const a=2.2,e=.72,b=a*Math.sqrt(1-e*e),h=.0001;

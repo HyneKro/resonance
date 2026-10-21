@@ -100,3 +100,8 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;m
  .room-dock{padding:10px 16px 6px}.room-dock .transport{margin:4px 0}.room-dock .bottom-nav{height:40px}
  #welcome{top:168px;gap:8px}#welcome h1{font-size:calc(22px * var(--ui-text-scale,1))}#welcome .text{margin-top:0}
 }
+
+/* Keep an exposed scene above the non-modal Visuals panel for orbit gestures. */
+#sheet.visual-sheet{height:59dvh;max-height:59dvh;z-index:20}
+.visual-stay-hint{color:var(--accent-light);font-size:calc(11px * var(--ui-text-scale,1));margin:0 0 12px;letter-spacing:.02em}
+@media(orientation:landscape){#sheet.visual-sheet{left:auto;right:0;top:0;bottom:0;width:min(46vw,460px);height:100dvh;max-height:100dvh;transform:none;border-radius:20px 0 0 20px}}

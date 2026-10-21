@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.astraClock;delete d.astraActive;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -84,8 +84,8 @@ app.whenReady().then(async()=>{
   function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
   function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
   for(let style=1;style<=7;style++){
-   d.spectrumLight.fill(0);renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
-   d.spectrumLight.fill(.6);renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
+   const settle=()=>{if(style===3)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
+   d.spectrumLight.fill(.6);settle();renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
    if(style===1){
     const savedClock=d.spectrumClock,savedCamera=d.camera,savedFeatures=input.features,savedTrack=d.trackId;
     const fixed=gpu.school.texture.slice(),steps=gpu.school.steps;
@@ -122,9 +122,9 @@ app.whenReady().then(async()=>{
     d.appearance.aerialFluid=0;d.spectrumClock+=.05;renderStyle(6);if(gpu.aerial.liquid!==0)throw Error('Solid setting ignored');d.appearance.aerialFluid=.8;report[style].studioControls=true;
    }
    report[style].spectrumAddsLight=true;report[style].pausedStable=true;
-   d.spectrumLight.fill(0);const saved=d.roles;d.roles={bass:0,lead:0,drums:0,shimmer:0};renderStyle(style);const silent=energy();d.roles={bass:.8,lead:.8,drums:.8,shimmer:.8};renderStyle(style);const music=energy();d.roles=saved;if(Math.abs(music-silent)<1)throw Error('Missing musical response '+style);report[style].musicChangesScene=true;
-   const response={};d.roles={bass:0,lead:0,drums:0,texture:0};renderStyle(style);const base=[energy(),energy(3)];
-   for(const role of ['bass','lead','drums']){d.roles={bass:0,lead:0,drums:0,texture:0,[role]:.8};renderStyle(style);const delta=[Math.abs(energy()-base[0]),Math.abs(energy(3)-base[1])];if(delta[0]+delta[1]<1)throw Error('Missing '+role+' response in '+style);response[role]=delta.map(x=>Math.round(x));}
+   d.spectrumLight.fill(0);const saved=d.roles;d.roles={bass:0,lead:0,drums:0,shimmer:0};settle();renderStyle(style);const silent=energy();d.roles={bass:.8,lead:.8,drums:.8,shimmer:.8};settle();renderStyle(style);const music=energy();d.roles=saved;if(Math.abs(music-silent)<1)throw Error('Missing musical response '+style);report[style].musicChangesScene=true;
+   const response={};d.roles={bass:0,lead:0,drums:0,texture:0};settle();renderStyle(style);const base=[energy(),energy(3)];
+   for(const role of ['bass','lead','drums']){d.roles={bass:0,lead:0,drums:0,texture:0,[role]:.8};settle();renderStyle(style);const delta=[Math.abs(energy()-base[0]),Math.abs(energy(3)-base[1])];if(delta[0]+delta[1]<1)throw Error('Missing '+role+' response in '+style);response[role]=delta.map(x=>Math.round(x));}
    d.roles=saved;report[style].independentRoles=response;
    if(style===7){
     const clock=d.spectrumClock,features=input.features,originalTime=input.time,originalMotion=[...d.artMotion],camera=d.camera;

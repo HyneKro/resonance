@@ -286,16 +286,19 @@ export class GPUScene {
         this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);gl.drawArrays(gl.POINTS,0,count);
         this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount);yield;
       }else if(style.index===3){
-        if(this.astraTrack!==d.trackId){this.astra.reset();this.astraTrack=d.trackId;}
-        const stellar=this.astra.update(d.spectrumClock??time,features.spectrum,{onset:features.onset,drums:roles.drums,bass:roles.bass,energy:features.loudness,reduced,movement:a.motionAmount});
-        const sky={...uniforms,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        // Track changes only change the targets. The solar system retains phase,
+        // existing ejecta and velocity while its sound and colours ease across.
+        const stellar=this.astra.update(d.astraClock??d.spectrumClock??time,features.spectrum,{...roles,onset:features.onset,energy:features.loudness,active:d.astraActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,reduced,movement:a.motionAmount});
+        const sky={...uniforms,u_roles:stellar.roles,u_stellarWarm:stellar.warm,u_stellarCool:stellar.cool,u_orbitBands:stellar.bands,u_orbitMotion:stellar.orbits,u_astraEvents:stellar.events,u_astraTime:stellar.time,u_stellarState:stellar.state,u_cometTrail:stellar.cometTrail,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:stellar.lights};
         this.bind(nebula);this.use(this.astraBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.astraBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);this.use(this.astraBodies,{...sky,u_bodyDetail:this.mobile?[32,16]:[64,32]});gl.drawArrays(gl.TRIANGLES,0,(this.mobile?33:53)*(this.mobile?512:2048)*6);yield;
+        gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);this.use(this.astraBodies,{...sky,u_bodyOffset:0,u_bodyDetail:this.mobile?[32,16]:[64,32]});gl.drawArrays(gl.TRIANGLES,0,17*(this.mobile?512:2048)*6);
+        // Hundreds of low-poly rocks add depth without multiplying hero geometry.
+        this.use(this.astraBodies,{...sky,u_bodyOffset:17,u_bodyDetail:[8,6]});gl.drawArrays(gl.TRIANGLES,0,(this.mobile?180:520)*48*6);yield;
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         const segments=this.mobile?192:320;
         for(const part of [4,0,1,3,2]){this.use(this.astraPaths,{...sky,u_segments:segments,u_pathPart:part});gl.drawArrays(gl.TRIANGLES,0,(part===2||part===3?70:72)*segments*6);}yield;
-        this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?11000:26000);yield;
+        this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?14000:34000);yield;
       }else if(style.index===4){
         if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}
         const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});

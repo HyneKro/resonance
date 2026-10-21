@@ -33,13 +33,13 @@ export function installListeningControls({isDesktop=()=>false,audio,savePlayer,n
   number.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();number.select();}});
   for(const [id,delta]of [['volume-down',-.01],['volume-up',.01]])$("#"+id).onclick=()=>{setVolume(audio.volume+delta);number.value=percent();};
   audio.addEventListener('volumechange',sync);sync();
-  const settingsClose=()=>{document.body.classList.remove('visual-settings-open');$('.visual-tools').inert=true;$('#room-visual-settings').setAttribute('aria-expanded','false');};
   document.addEventListener('click',e=>{
     if(!popup.hidden&&!e.target.closest('.volume-control'))closeVolume();
     if(document.querySelector('dialog[open]')||e.target.closest('.dance-companion,.library-activity-panel,.library-activity-button'))return;
     let dismissed=false;
     if(document.body.classList.contains('library-open')&&!e.target.closest('.app-shell')){libraryOpen(false);dismissed=true;}
-    if(document.body.classList.contains('visual-settings-open')&&!e.target.closest('.visual-tools,#room-visual-settings')){settingsClose();dismissed=true;}
+    // Visuals stays available while orbiting and adjusting the scene. Its own
+    // close button, toolbar toggle and Escape remain the dismissal controls.
     // The dismissing click must not also press play, skip a song or reopen an overlay.
     if(dismissed){e.preventDefault();e.stopImmediatePropagation();}
   },true);

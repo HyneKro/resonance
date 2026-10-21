@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.astraClock;delete d.astraActive;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -44,7 +44,7 @@ app.whenReady().then(async()=>{
  if(report.comets<.001)throw Error('Spawned comet is invisible');
  report.lightAndColor=await run(`(()=>{
   const roles=d.roles,colors=d.colors,bloom=d.appearance.bloom;
-  const chroma=()=>{gpu.draw(input);const p=pixels(),sum=[0,0,0];for(let i=0;i<p.length;i+=4)for(let c=0;c<3;c++)sum[c]+=p[i+c];const total=sum.reduce((a,b)=>a+b,0);return sum.map(x=>x/total);};
+  const chroma=()=>{for(let i=0;i<55;i++){d.spectrumClock+=.1;gpu.draw(input);}gpu.draw(input);const p=pixels(),sum=[0,0,0];for(let i=0;i<p.length;i+=4)for(let c=0;c<3;c++)sum[c]+=p[i+c];const total=sum.reduce((a,b)=>a+b,0);return sum.map(x=>x/total);};
   d.roles={bass:.9,lead:.05,texture:.1};const bass=chroma();d.roles={bass:.05,lead:.9,texture:.1};const lead=chroma();
   const musicalShift=Math.hypot(...bass.map((x,i)=>x-lead[i]));
   d.colors=[[.7,.05,.02],[.9,.12,.03],[.8,.03,.1]];const other=chroma();
@@ -60,18 +60,22 @@ app.whenReady().then(async()=>{
   const events=new Float32Array(48);events.set([.1,1,.4,0]);gpu.use(probe,{u_resolution:[1,1],u_focalLength:1,u_particle:[1,1,1,1],u_light:[1,1,1,1],u_movement:1,u_astraEvents:events,u_palette:new Float32Array(18).fill(.5)});
   const seed=gl.getAttribLocation(probe.program,'a_seed');gl.disableVertexAttribArray(seed);gl.vertexAttrib4f(seed,.5,.01,.8,.35);gl.enable(gl.RASTERIZER_DISCARD);
   const samples=[];for(const age of [.1,.5,1.0,1.7]){gpu.uniform(probe,'u_astraTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,1,1);gl.endTransformFeedback();const p=new Float32Array(5);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,p);samples.push({age,radius:Math.hypot(p[0],p[1]-.22,5.4-p[3]),alpha:p[4]});}
+  gl.vertexAttrib4f(seed,.5,.01,.1,.35);const escape=[];
+  for(const age of [.1,.5,1,1.7]){gpu.uniform(probe,'u_astraTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,1,1);gl.endTransformFeedback();const p=new Float32Array(5);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,p);escape.push({age,radius:Math.hypot(p[0],p[1]-.22,5.4-p[3]),alpha:p[4]});}
   gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(probe.program);gpu.draw(input);
-  if(gl.getError())throw Error('Gravity readback failed');return samples;
+  if(gl.getError())throw Error('Gravity readback failed');return {bound:samples,escape};
  })()`);
- if(!(report.gravity[1].radius>report.gravity[0].radius&&report.gravity[2].radius<report.gravity[1].radius&&report.gravity[3].alpha===0))throw Error('Burst debris does not fall back into the sun');
+ const bound=report.gravity.bound,escape=report.gravity.escape;
+ if(!(bound[1].radius>bound[0].radius&&bound[2].radius<bound[1].radius&&bound[3].alpha===0))throw Error('Burst debris does not fall back into the sun');
+ if(!(escape.every((p,i)=>i===0||p.radius>escape[i-1].radius)&&escape[3].radius>1.5&&escape[3].alpha>0))throw Error('Escaping ejecta turns back or vanishes too early');
  await run(`gpu.draw(input);const held=pixels(),time=gpu.astra.time;input.time+=300;gpu.draw(input);if(distance(held,pixels())>.001||gpu.astra.time!==time)throw Error('Frozen Astra advances');input.time-=300;
  input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.astra.time!==time)throw Error('Reduced Astra advances');input.reduced=false;gpu.astra.suspend();renderStyle(3);void 0;`);
  report.pausedStable=true;report.reducedEventsHeld=true;
  for(const [name,camera]of [['side',[1.57,.25,0,0]],['above',[0,-1.02,0,0]],['rear',[3.14,.3,0,0]],['below',[0,1.1,0,0]],['outer-system',[0,.15,4,0]],['flare-detail',[.4,.2,-2.7,0]]]){
   await run(`d.camera=${JSON.stringify(camera)};gpu.draw(input);`);await shot(name);
  }
- await run(`d.camera=[0,0,0,0];d.colors=[[.05,.65,.8],[.3,.16,.75],[.1,.4,.8]];d.roles={bass:.5,lead:.9,drums:.3,texture:.5};gpu.draw(input);`);await shot('blue-star');
- await run(`d.trackId='astra-next-track';gpu.draw(input);if(gpu.astra.emitted||gpu.astra.orbits.some(x=>x))throw Error('New track retains events or velocity');`);report.trackReset=true;
+ await run(`d.camera=[0,0,0,0];d.colors=[[.05,.65,.8],[.3,.16,.75],[.1,.4,.8]];d.roles={bass:.5,lead:.9,drums:.3,texture:.5};for(let i=0;i<55;i++){d.spectrumClock+=.1;gpu.draw(input);}`);await shot('blue-star');
+ await run(`gpu.draw(input);const heldTrack=pixels(),phase=gpu.astra.orbits.slice();d.trackId='astra-next-track';gpu.draw(input);if(distance(heldTrack,pixels())>.001||phase.some((v,i)=>v!==gpu.astra.orbits[i]))throw Error('Track change snaps the solar system');`);report.trackContinuity=true;
  // Force the fallback attachment format, then compare the same background
  // through the real compositor. This catches quantization before tone mapping.
  report.background=await run(`(()=>{const gl=gpu.gl;const backdrop=(hdr=0)=>{gpu.draw(input);gpu.bind(gpu.targets[0]);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gpu.bind(gpu.targets[1]);gl.clear(gl.COLOR_BUFFER_BIT);gpu.bind(null);gl.useProgram(gpu.finish.program);gpu.texture(gpu.finish,'u_image',gpu.targets[0].texture,0);gpu.texture(gpu.finish,'u_bloom',gpu.targets[1].texture,1);gpu.texture(gpu.finish,'u_nebula',gpu.targets[3].texture,2);gpu.uniform(gpu.finish,'u_hdrOutput',hdr);gpu.quadDraw(gpu.finish);return pixels();};
