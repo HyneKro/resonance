@@ -10,7 +10,7 @@ import {portablePreferences} from '../public/portable-settings.js';
 test('existing preferences retain Resonance; invalid or imported style choices are safe',()=>{
  assert.equal(preferencesWithDefaults({}).artDirection,'resonance');
  assert.equal(preferencesWithDefaults({}).ribbonShape,undefined);
- assert.equal(ART_DIRECTIONS.length,6);assert.equal(new Set(ART_DIRECTIONS.map(a=>a.id)).size,6);
+ assert.equal(ART_DIRECTIONS.length,7);assert.equal(new Set(ART_DIRECTIONS.map(a=>a.id)).size,7);
  for(const value of [null,{},42,'form--1','form-30','form-NaN','nope'])assert.equal(sculptureChoice(value),'auto');
  assert.equal(artDirection('unknown').id,'resonance');
  assert.equal(preferencesWithDefaults({artDirection:'glasshouse'}).artDirection,'afterglow');
