@@ -7,8 +7,8 @@ android {
         applicationId 'music.resonance.mobile'
         minSdk 29
         targetSdk 35
-        versionCode 82
-        versionName '0.26.0-dev.16'
+        versionCode 83
+        versionName '0.26.0-dev.17'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }

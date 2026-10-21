@@ -67,10 +67,11 @@ vec3 orbit(float i,float a,float r){
  float sweep=polar(i,a);
  r+=amplitude*(.035+.105*(.5+.5*sin(a*3.+i*.21-u_stellarState.y)))+sweep*.055;
  vec3 p=vec3(cos(a)*r,sin(a)*r*.91,sin(a*4.+i*.38-u_stellarState.y*.6)*(amplitude*.12+sweep*.085));
+ // Lift along the local plane normal before applying the orbit's inclination.
+ float echo=spectrumEcho(i,a);
+ p.z+=pow(echo,.98)*(.76/(1.+i*.047))*u_movement;
  float tilt=i<42.?1.02+sin(i*.16)*.10:i<48.?.42+(i-42.)*.32:.90+sin(floor((i-48.)/6.)*2.)*.18;
  p.yz=rot(tilt)*p.yz;p.xz=rot(i<42.?.12:i<48.?.5+(i-42.)*.48:.15+floor((i-48.)/6.)*.16)*p.xz;p.xy=rot(-.22)*p.xy;
- float echo=spectrumEcho(i,a);
- p.y+=pow(echo,.98)*(.76/(1.+i*.047))*u_movement;
  return p+CENTER;
 }
 float bodyLane(float i){return mod(i*5.37,46.);}
