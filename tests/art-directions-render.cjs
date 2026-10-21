@@ -27,15 +27,22 @@ app.whenReady().then(async()=>{
   d.spectrumClock=127/30;
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
- for(const [index,name]of ['resonance','noctiluca','afterglow','orrery','contour','flux','aerial'].entries()){
+ for(const [index,name]of ['resonance','noctiluca','afterglow','orrery','contour','flux','aerial','synapse'].entries()){
   await run(`renderStyle(${index})`);await new Promise(r=>setTimeout(r,120));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
- for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'orrery'],[4,'contour'],[5,'flux'],[6,'aerial']]){
+ for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'orrery'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
   for(const [phase,time,level]of [['quiet',4,0],['attack',4,.9],['later',16,.5]]){
    await run(`window.savedRoles??=d.roles;input.time=${time};d.roles={bass:${level},lead:${level},drums:${level},texture:${level},shimmer:${level}};renderStyle(${style})`);
    await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
   }
  }await run('d.roles=savedRoles');
+ // Follow an actual attack across the connected web with a fixed rest pose.
+ await run(`window.webSaved={features:input.features,roles:d.roles,clock:d.spectrumClock};gpu.synapse.reset();d.spectrumClock=0;d.roles={bass:.35,lead:.4,drums:0,texture:.15};input.features={...webSaved.features,onset:0,loudness:.6};renderStyle(7);`);
+ for(const [name,seconds]of [['synapse-signal',.55],['synapse-propagated',.55]]){
+  await run(`for(let i=0;i<Math.round(${seconds}*60);i++){d.spectrumClock+=1/60;input.features={...input.features,onset:d.spectrumClock<.06?1:0};renderStyle(7);}`);
+  await new Promise(r=>setTimeout(r,70));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
+ }
+ await run(`input.features=webSaved.features;d.roles=webSaved.roles;d.spectrumClock=webSaved.clock;`);
  // Review actual evolving brushwork, not only role changes on a frozen sheet.
  await run(`window.inkSaved={features:input.features,roles:d.roles,clock:d.spectrumClock};gpu.contour.reset();d.spectrumClock=0;renderStyle(4);`);
  for(const [name,seconds]of [['contour-painted',3],['contour-reveal',10.5],['contour-scroll',5],['contour-diamond',17]]){
@@ -55,19 +62,20 @@ app.whenReady().then(async()=>{
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'orrery-phone.png'),(await win.webContents.capturePage()).toPNG());
+ await run('renderStyle(7)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'synapse-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
   const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl);
   gpu.use=(p,u)=>{current=Object.keys(gpu).find(k=>gpu[k]===p)||'?';use(p,u);};gl.drawArrays=(mode,start,count)=>{counts[current]=(counts[current]||0)+count;draw(mode,start,count);};
-  for(let style=0;style<=6;style++){
+  for(let style=0;style<=7;style++){
    const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
    samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report.push({style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]});
   }
   // Verify the actual render targets, not only shader source or controls.
   function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
   function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
-  for(let style=1;style<=6;style++){
+  for(let style=1;style<=7;style++){
    d.spectrumLight.fill(0);renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
    if(style===4){
@@ -86,6 +94,22 @@ app.whenReady().then(async()=>{
    const response={};d.roles={bass:0,lead:0,drums:0,texture:0};renderStyle(style);const base=[energy(),energy(3)];
    for(const role of ['bass','lead','drums']){d.roles={bass:0,lead:0,drums:0,texture:0,[role]:.8};renderStyle(style);const delta=[Math.abs(energy()-base[0]),Math.abs(energy(3)-base[1])];if(delta[0]+delta[1]<1)throw Error('Missing '+role+' response in '+style);response[role]=delta.map(x=>Math.round(x));}
    d.roles=saved;report[style].independentRoles=response;
+   if(style===7){
+    const clock=d.spectrumClock,features=input.features,originalTime=input.time,originalMotion=[...d.artMotion],camera=d.camera;
+    const pixels=()=>{const t=gpu.targets[0];gpu.bind(t);const a=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,a);return a;};
+    const difference=(a,b)=>a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0);
+    gpu.synapse.reset();d.spectrumClock=0;input.features={...features,onset:0,loudness:.7};gpu.draw(input);
+    d.spectrumClock=.02;input.features={...input.features,onset:1};gpu.draw(input);if(gpu.synapse.emitted!==1)throw Error('Synapse missed the attack');
+    input.features={...input.features,onset:0};for(let i=0;i<20;i++){d.spectrumClock+=.02;gpu.draw(input);}const near=pixels();
+    for(let i=0;i<30;i++){d.spectrumClock+=.02;gpu.draw(input);}if(difference(near,pixels())<10)throw Error('Impulse does not travel');
+    const flash=d.appearance.flash;const flashed=energy();d.appearance.flash=0;gpu.draw(input);if(!(energy()<flashed))throw Error('Musical flashes control is ignored');d.appearance.flash=flash;gpu.draw(input);
+    const held=pixels();input.time+=300;gpu.draw(input);if(difference(held,pixels())>.01)throw Error('Synapse reads wall clock');
+    const time=gpu.synapse.time;input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.synapse.time!==time)throw Error('Reduced signals advance');input.reduced=false;
+    d.camera=[.6,.3,0,0];gpu.draw(input);if(difference(held,pixels())<10)throw Error('Synapse lacks camera depth');
+    d.trackId='synapse-new-track';gpu.draw(input);if(gpu.synapse.emitted!==0)throw Error('New track retained signals');
+    input.features=features;input.time=originalTime;d.artMotion=originalMotion;d.camera=camera;d.spectrumClock=clock;gpu.synapse.reset();renderStyle(7);
+    report[style].flashControl=true;report[style].impulsesTravel=true;report[style].frozenClockStable=true;report[style].reducedSignalsHeld=true;report[style].trackClearsSignals=true;report[style].cameraDepth=true;
+   }
    if(style===3){
     const originalTime=input.time,originalMotion=[...d.artMotion],originalCamera=d.camera;
     const pixels=()=>{const t=gpu.targets[0];gpu.bind(t);const a=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,a);return a;};

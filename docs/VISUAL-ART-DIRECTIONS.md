@@ -1,6 +1,6 @@
 # Visual art directions
 
-Development trial for Windows 1.26.0-dev.6 and Android 0.26.0-dev.6. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
+Development trial for Windows 1.26.0-dev.7 and Android 0.26.0-dev.7. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
 
 | Direction | Composition | Musical behavior |
 | --- | --- | --- |
@@ -11,6 +11,9 @@ Development trial for Windows 1.26.0-dev.6 and Android 0.26.0-dev.6. Open **Visu
 | Contour | A flat ink painting: open circle, flowing S and softened diamond; dry bristles over a loaded wash, vermilion accents and quiet editorial type | Bass opens and bends the form; melody adds traveling distortions; percussion loads the brush and deposits splashes. New gestures draw onto the sheet as earlier ones dissolve. |
 | Flux | Luminous spectral filaments, a receding history sheet, current-borne debris and fine digital columns | Frequency increases from left to right; recent samples recede in depth. Bass lifts the ridge, melody bends fine filaments and percussion lifts debris. |
 | Aerial | A pale studio with porcelain, pearl, polished metal and frosted glass spheres, soft shadows and an asymmetric scale hierarchy | Bass changes buoyancy, percussion imparts small impulses, and melody shifts the drift and surface light. Larger spheres have greater inertia. |
+| Synapse | Fine blue filaments form branching, folded webs with open pockets, warm junctions and shallow focus | Bass flexes the larger structure, melody bends strands, and rising percussion sends warm light along connected paths. Small motes drift along the threads. |
+
+Synapse builds a seeded, connected mesh once during preparation: 1,700 junctions on desktop and 680 on mobile. Local connections and a few longer bridges create dense patches and open space. Four graph-distance fields let detected attacks propagate along strand lengths, with at most eight overlapping impulses. Shared GPU deformation keeps endpoints attached. Held loud notes and silence cannot repeatedly trigger pulses; track changes clear signals. Frozen playback clocks hold travel and signal age. Reduced motion holds signals and suppresses deformation; switching away suspends the signal timeline without catch-up. Focus varies with camera depth using soft analytic ribbons and point halos, rather than a full photographic lens simulation. Desktop adds a fine secondary layer of bowed strands; mobile omits it and uses one segment per connection. Both retain artwork palette tinting, frequency lights, camera controls and adaptive resolution. No reference bitmap, extra audio analysis or network service is needed.
 
 Orrery uses a dedicated renderer with nine textured bodies, thin antialiased paths and a sparse stellar background. Most orbits share a tilted plane; four inclined paths open the silhouette. All travel follows the existing integrated world clocks, so changing musical energy never multiplies absolute time or teleports planets. Frozen clocks hold orbital travel, reduced motion suppresses geometric deformation, and the existing camera moves through the field. The scene is an artistic astronomical study, not a physical orbital simulation. Desktop draws 26,000 dust points and 320 segments per path; mobile draws 11,000 and 192. It shares the original analysis and requires no downloaded imagery.
 

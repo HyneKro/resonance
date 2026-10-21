@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ScenePreparation,yieldSceneWork} from '../public/scene-preparation.js';
 import {compileSceneProgram} from '../public/shader-loader.js';
+import {ART_DIRECTIONS} from '../public/art-directions.js';
 import {GPUScene} from '../public/gpu-scene.js';
 import {HDROutput,preflightHDROutput} from '../public/hdr-output.js';
 
@@ -46,7 +47,7 @@ test('the first live frame waits for staged warm-up at both small and final reso
  assert.equal(scene.draw({}),false);assert.equal(scene.draw({}),false);assert.notEqual(scene.warmed,true);
  await scene.warming;assert.equal(scene.warmed,true);
  assert.deepEqual(events.filter(e=>e[0]==='targets').map(e=>e.slice(1,3)),[[64,64],[1920,1080]]);
- const passes=events.filter(e=>e[0]!=='targets');assert.equal(passes.length,24);assert.equal(passes.filter(p=>p[0]==='small').length,21);
+ const passes=events.filter(e=>e[0]!=='targets');assert.equal(passes.length,(ART_DIRECTIONS.length+1)*3);assert.equal(passes.filter(p=>p[0]==='small').length,ART_DIRECTIONS.length*3);
  assert.ok(passes.every((p,i)=>i===0||p.at(-1)>passes[i-1].at(-1)));
  assert.equal(scene.draw({}),true);assert.equal(events.filter(e=>e[0]==='targets').length,2);
 });
@@ -54,7 +55,7 @@ test('the first live frame waits for staged warm-up at both small and final reso
 test('a saved alternate direction also warms the original before any switch back',async()=>{
  const scene=Object.create(GPUScene.prototype),styles=[];
  Object.assign(scene,{ready:true,generation:1,gl:{},output:{update(){}},work:{async checkpoint(){},async drain(){},check(){}},dimensions:()=>({w:100,h:100}),async prepareTargets(){},*renderFrame(input){styles.push(input.dynamics.artStyle.index);yield;},fail(e){throw e;}});
- await scene.warm({dynamics:{artStyle:{index:2,opacity:1}}});assert.deepEqual(new Set(styles),new Set([0,1,2,3,4,5,6]));assert.equal(scene.warmed,true);
+ await scene.warm({dynamics:{artStyle:{index:2,opacity:1}}});assert.deepEqual(new Set(styles),new Set(ART_DIRECTIONS.map(style=>style.index)));assert.equal(scene.warmed,true);
 });
 
 test('disposing while warming prevents a stale scene from being revealed',async()=>{

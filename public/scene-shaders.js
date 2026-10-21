@@ -350,8 +350,8 @@ vec3 composite(vec2 uv){vec3 color=texture(u_image,uv).rgb+texture(u_bloom,uv).r
 vec3 highlights=min(max(color-vec3(.9),vec3(0.))*.22,vec3(.8))*u_hdrOutput;
 color=pow(film(color),vec3(.454545));
 vec3 cloud=texture(u_nebula,uv).rgb;
-if(u_artDirection>2.5&&u_artDirection<3.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return pow(film(texture(u_image,uv).rgb+cloud*(1.-coverage)+texture(u_bloom,uv).rgb*u_light.x*.35),vec3(.454545))+highlights;}
-if(u_artDirection>5.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
+if((u_artDirection>2.5&&u_artDirection<3.5)||u_artDirection>6.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return pow(film(texture(u_image,uv).rgb+cloud*(1.-coverage)+texture(u_bloom,uv).rgb*u_light.x*.35),vec3(.454545))+highlights;}
+if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
 if(u_artDirection>3.5&&u_artDirection<4.5)return cloud*exp(-texture(u_image,uv).rgb*3.4);
 if(u_artDirection>.5&&u_artDirection<3.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);vec3 halo=pow(film(texture(u_bloom,uv).rgb*u_light.x),vec3(.454545));return mix(cloud,color,coverage)+halo*(1.-coverage)+highlights;}
 return 1.-(1.-cloud)*(1.-color)+highlights;}
@@ -402,7 +402,7 @@ void main(){
  }
 }
 vec2 uv=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float r=length(uv);
- color*=1.-smoothstep(.4,.85,length(v_uv-.5))*((u_artDirection>3.5&&u_artDirection<4.5)||u_artDirection>5.5?.08:.4);
+ color*=1.-smoothstep(.4,.85,length(v_uv-.5))*((u_artDirection>3.5&&u_artDirection<4.5)||(u_artDirection>5.5&&u_artDirection<6.5)?.08:.4);
  float contrast=u_artDirection>.5?1.+(u_light.w-1.)*.20:u_light.w;
  color=clamp((color-.18)*contrast+.18,0.,mix(1.,1.8,u_hdrOutput));
  color=mix(vec3(.015,.019,.028),color,u_styleOpacity);

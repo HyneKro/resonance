@@ -5,7 +5,9 @@ import {AerialPhysics} from './aerial-physics.js';
 import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND} from './aerial-shaders.js';
 import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
 import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
-import {artDirection} from './art-directions.js';
+import {artDirection,ART_DIRECTIONS} from './art-directions.js';
+import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
+import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND} from './synapse-shaders.js';
 import {SpectrumHistory} from './spectrum-history.js';
 import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT} from './flux-shaders.js';
 import {FishSchool} from './fish-school.js';
@@ -40,6 +42,19 @@ export class GPUScene {
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
     const specs=[['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
+    for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
+    this.synapse??=new SynapseSignals();this.synapse.suspend();
+    this.synapseNetworks??={};this.synapseTextures={};
+    // Prepare both sizes once; phone quality never uploads the desktop mesh.
+    for(const count of (this.mobile?[680]:[680,1700])){
+      const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint());
+      const textures=[];const edgeRows=Math.ceil(network.edgeCount/1024),edgeData=new Float32Array(edgeRows*1024*4);edgeData.set(network.edges);
+      for(const [width,height,data]of [[count,2,network.nodes],[1024,edgeRows,edgeData]]){
+        const tex=gl.createTexture();textures.push(tex);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,width,height,0,gl.RGBA,gl.FLOAT,data);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);await work.checkpoint();
+      }this.synapseTextures[count]=textures;
+    }
     this.attractors=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.attractors);
     const curves=await attractorCurves(()=>work.checkpoint());
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS,0,gl.RGBA,gl.FLOAT,curves);
@@ -68,7 +83,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -162,7 +177,7 @@ export class GPUScene {
       for(const _ of this.renderFrame(input,true))await work.drain(this.gl);
       // Warm each material branch on a tiny target, yielding between passes.
       const initialStyle=input.dynamics?.artStyle?.index??artDirection(input.dynamics?.artDirection).index;
-      for(let index=0;index<=6;index++)if(index!==initialStyle)for(const _ of this.renderFrame({...input,dynamics:{...input.dynamics,artStyle:{index,opacity:1}}},true))await work.drain(this.gl);
+      for(const {index}of ART_DIRECTIONS)if(index!==initialStyle)for(const _ of this.renderFrame({...input,dynamics:{...input.dynamics,artStyle:{index,opacity:1}}},true))await work.drain(this.gl);
       if(this.output.ready)await this.output.device.queue.onSubmittedWorkDone();await work.checkpoint();
       const {w,h}=this.dimensions(input);await this.prepareTargets(w,h,work);
       // Also finish one full-resolution frame while the splash/wallpaper still
@@ -197,6 +212,7 @@ export class GPUScene {
       if(style.index!==1)this.school.suspend();
       if(style.index!==5)this.spectrumHistory.suspend();
       if(style.index!==6)this.aerial.suspend();
+      if(style.index!==7)this.synapse.suspend();
       const sculpture=identity.sculpture||[0,0,1,0],precise=(sculpture[0]>=24?1-sculpture[2]:0)+(sculpture[1]>=24?sculpture[2]:0);
       const story=d.direction;const uniforms={u_world:d.artMotion||[time*.45,time*1.4,time*.15,time*.16],u_artDirection:style.index,u_styleOpacity:style.opacity,u_story:story?[story.energy,story.texture,story.attack,story.anticipation]:[.5,.5,.3,0],u_storyMix:reduced?0:story?.mix||0,u_camera:cameraUniform(d.camera),u_focalLength:d.cameraFocalLength??1.9,u_rotation:d.rotationClock??0,u_shapeFrom:identity.shapeFrom||identity.signature,u_shapeTo:identity.shapeTo||identity.signature,u_kaleidoWeights:d.kaleidoscopeWeights||this.kaleidoscopeWeights,u_kaleidoMotion:reduced?0:time*.035,u_sculpture:identity.sculpture||[0,0,1,0],u_recipeA:recipe.slice(0,4),u_recipeB:recipe.slice(4,8),u_signature:identity.signature,u_character:identity.character,u_themes:identity.themes,u_roles:[roles.bass||0,roles.drums||0,roles.lead||0,roles.texture||0],u_shimmer:roles.shimmer||0,u_rhythm:[Math.sin(rhythm.phase*Math.PI*2),Math.cos(rhythm.phase*Math.PI*2),reduced?0:rhythm.pulse,rhythm.confidence],u_particle:[a.particleSpread,a.particleSize,a.beatMotion,a.filigree],u_cloud:[a.bgScale,a.bgSpeed,a.turbulence,a.textureDetail],u_light:[a.bloom,a.glow,reduced?0:a.flash,a.contrast],u_movement:reduced?.1:a.motionAmount,u_palette:expandPalette(d.colors).flat(),u_transients:Array.from(features.transients||features.accents,x=>x*(reduced?.1:1)),u_birthCDF:birth.cdf,u_birthTotal:birth.total,u_harmonic:features.harmonic||features.spectrum,u_percussive:features.percussive||features.spectrum,u_spectrum:features.spectrum,u_morph:features.morph||[.24,.32,.2,.18],u_particleStyle:({white:0,palette:1,frequency:2,birth:3})[d.particleColor]??1,u_resolution:[w,h],u_time:time,u_mode:0,u_energy:features.loudness,u_onset:features.onset,u_accents:features.accents.map(x=>x*(reduced?.1:1)),u_low:features.bands.slice(0,4),u_high:features.bands.slice(4),u_form:[d.shape,d.spread,d.flow,d.bloom],u_colorA:d.colors[0],u_colorB:d.colors[1],u_colorC:d.colors[2],u_evolve:1,u_intensity:intensity,u_drive:drive,u_pixel:density,u_ratio:width/height,u_weight:1,u_density:Math.min(2,98304/primaryCount*Math.pow(h/900,1.2))*.75};
       gl.disable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
@@ -230,6 +246,17 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
+      }else if(style.index===7){
+        if(this.synapseTrack!==d.trackId){this.synapse.reset();this.synapseTrack=d.trackId;}
+        const signals=this.synapse.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
+        const web={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_signals:signals.events,u_signalTime:signals.time,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges]=this.synapseTextures[count],segments=this.mobile?1:2;
+        this.bind(nebula);this.use(this.synapseBackground,web);this.quadDraw(this.synapseBackground);yield;
+        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        this.use(this.synapseThreads,{...web,u_segments:segments,u_threadLayer:0});this.texture(this.synapseThreads,'u_nodes',nodes,7);this.texture(this.synapseThreads,'u_edges',edges,8);gl.drawArrays(gl.TRIANGLES,0,network.edgeCount*segments*6);
+        if(!this.mobile){this.uniform(this.synapseThreads,'u_threadLayer',1);gl.drawArrays(gl.TRIANGLES,0,Math.floor(network.edgeCount/3)*segments*6);}yield;
+        this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);gl.drawArrays(gl.POINTS,0,count);
+        this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount);yield;
       }else if(style.index===3){
         const sky={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
         this.bind(nebula);this.use(this.orreryBackground,{...sky,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.orreryBackground);yield;
