@@ -1,6 +1,6 @@
 # Visual art directions
 
-Development trial for Windows 1.26.0-dev.2 and Android 0.26.0-dev.2. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
+Development trial for Windows 1.26.0-dev.3 and Android 0.26.0-dev.3. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
 
 | Direction | Composition | Musical behavior |
 | --- | --- | --- |
@@ -9,6 +9,10 @@ Development trial for Windows 1.26.0-dev.2 and Android 0.26.0-dev.2. Open **Visu
 | Afterglow | An endless neon highway between three-dimensional mountain grids, under a striped sunset and layered skyline | Bass raises broad terrain ridges, melody adds smaller ripples; percussion stretches buildings; spectrum lanes illuminate windows and passing roadside markers |
 | Orrery | A brass astronomical instrument, rotating clockwork, tilted orbital rings, planets, asteroids and comets | Bass expands orbits and the central body; melody tilts planes and lights comet tails; percussion catches the belt and metal |
 | Contour | Textured paper, four intersecting brush circles, a vermilion center and fine contour echoes | Bass opens the geometric form; melody shifts the intersections and traces fine contours; percussion changes brush pressure and scatters restrained ink accents |
+
+| Flux | Luminous spectral filaments, a receding history sheet, current-borne debris and fine digital columns | Frequency increases from left to right; recent samples recede in depth. Bass lifts the ridge, melody bends fine filaments and percussion lifts debris. |
+
+Flux keeps approximately 4.2 seconds of the existing 48-band analysis in a 6 KB memory buffer. It is an artistic spectrogram, not a calibrated measurement display. No audio is recorded or uploaded, and no model is installed. History stops while paused or frozen, clears for a different song, and does no hidden catch-up. Silence drains the existing trail instead of inventing new peaks. Reduced motion holds the history and flowing motion still. Mobile uses fewer traces and particles; the existing adaptive resolution remains in place.
 
 Afterglow replaces Glasshouse. A saved Glasshouse selection opens Afterglow automatically. No artwork or additional audio analysis is downloaded. The aquarium uses local boid separation, alignment and cohesion for its central school; larger animals follow continuous procedural paths. It is a stylized scene rather than a biological simulation.
 

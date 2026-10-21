@@ -4,7 +4,8 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'noctiluca',name:'Noctiluca',note:'A living aquarium. Schools gather, mantas glide and jellyfish glow with the music.',index:1},
  {id:'afterglow',name:'Afterglow',note:'An endless neon drive. Bass sculpts the terrain; the city lights follow the spectrum.',index:2},
  {id:'orrery',name:'Orrery',note:'An astral clockwork. Gears turn behind moving orbits, planets and comet trails.',index:3},
- {id:'contour',name:'Contour',note:'Geometric ink on textured paper. Intersecting circles breathe with bass; melody traces their contours.',index:4}
+ {id:'contour',name:'Contour',note:'Geometric ink on textured paper. Intersecting circles breathe with bass; melody traces their contours.',index:4},
+ {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5}
 ]);
 export const artDirection=value=>ART_DIRECTIONS.find(x=>x.id===(value==='glasshouse'?'afterglow':value))||ART_DIRECTIONS[0];
 

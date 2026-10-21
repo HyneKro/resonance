@@ -128,7 +128,7 @@ void main(){vec2 p=gl_PointCoord*2.-1.;float r=length(p),a;
  fragColor=vec4(v_color*v_alpha*a,v_alpha*a);}`;
 
 // A bounded mesh population replaces the solitary wireframe. Fish, rays,
-// sharks and jellyfish use analytic skinning; no textures or CPU simulation.
+// sharks and jellyfish use analytic skinning; the school supplies flock headings.
 export const ART_SURFACE_VERTEX=`#version 300 es
 precision highp float;
 ${COMMON}

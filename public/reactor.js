@@ -84,9 +84,10 @@ export class Reactor {
     const artStyle=this.artTransition.update(this.artDirection,dt,{reduced:this.reduced});
     if(styleWasActive||this.artTransition.active)this.needsFrame=true;
     this.artWorldMotion??=new ArtWorldMotion();const artMotion=this.artWorldMotion.update(dt,this.roles?.output,{frozen:this.frozen,reduced:this.reduced,movement:this.appearance?.motionAmount});
+    this.spectrumClock=(this.spectrumClock||0)+(this.reactiveActive&&!this.frozen&&!this.reduced?Math.max(0,Math.min(.1,dt)):0);
     this.visualColors=colors;
     const appearance=directedAppearance(this.appearance,direction);
-    return {...d,direction,artStyle,artMotion,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
+    return {...d,direction,artStyle,artMotion,spectrumClock:this.spectrumClock,trackId:this.songId,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
       colors};
   }
   eq(values){
