@@ -19,12 +19,18 @@ app.whenReady().then(async()=>{
   await run(`(()=>{const s=document.querySelector('[data-preference=artDirection]');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until(`window.styleInput?.dynamics.artStyle.index===${index}&&styleInput.dynamics.artStyle.opacity===1`);
   assert.equal(await run(`!!document.querySelector('[data-ribbon-shape]')`),false);
+  assert.equal(await run(`document.querySelector('[data-afterglow-controls]').hidden`),id!=='afterglow');
   assert.equal(await run(`document.querySelector('[data-aerial-controls]').hidden`),id!=='aerial');
   assert.equal(await run(`document.querySelector('[data-ocean-controls]').hidden`),id!=='noctiluca');
   if(id==='noctiluca'){
    await run(`for(const [key,value]of [['schoolOpening',.3],['oceanRays',1.4]]){const e=document.querySelector('[data-preference='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}`);
    await until(`styleInput.dynamics.appearance.schoolOpening===.3&&styleInput.dynamics.appearance.oceanRays===1.4`);
    const p=await run(`fetch('/api/library').then(r=>r.json()).then(x=>x.config.preferences)`);assert.equal(p.schoolOpening,.3);assert.equal(p.oceanRays,1.4);
+  }
+  if(id==='afterglow'){
+   await run(`for(const [key,value]of [['retroScan',.7],['retroPhosphor',.4],['retroColor',.9]]){const e=document.querySelector('[data-preference='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}`);
+   await until(`styleInput.dynamics.appearance.retroScan===.7&&styleInput.dynamics.appearance.retroPhosphor===.4&&styleInput.dynamics.appearance.retroColor===.9`);
+   const p=await run(`fetch('/api/library').then(r=>r.json()).then(x=>x.config.preferences)`);assert.equal(p.retroScan,.7);assert.equal(p.retroPhosphor,.4);assert.equal(p.retroColor,.9);
   }
   if(id==='aerial'){
    await run(`for(const [key,value]of [['aerialFluid',.35],['aerialShade',.7]]){const e=document.querySelector('[data-preference='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}`);
@@ -52,6 +58,11 @@ app.whenReady().then(async()=>{
  assert.equal(await run(`document.querySelector('[data-ocean-controls]').hidden`),false);
  await run(`for(const [key,value]of [['schoolOpening',.25],['oceanRays',1.5]]){const e=document.querySelector('[data-pref='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));}`);await pause(150);
  assert.equal(await run(`Number(document.querySelector('[data-pref=schoolOpening]').value)`),.25);assert.equal(await run(`Number(document.querySelector('[data-pref=oceanRays]').value)`),1.5);
+ await run(`(()=>{const s=document.querySelector('[data-pref=artDirection]');s.value='afterglow';s.dispatchEvent(new Event('input',{bubbles:true}));})()`);await pause(150);
+ assert.equal(await run(`document.querySelector('[data-afterglow-controls]').hidden`),false);
+ await run(`for(const [key,value]of [['retroScan',0],['retroPhosphor',1],['retroColor',.8]]){const e=document.querySelector('[data-pref='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));}`);await pause(150);
+ await run(`document.querySelector('#sheet-close').click();document.querySelector('#visuals').click();document.querySelector('[data-section-tab=style]').click()`);await pause(150);
+ for(const [key,value]of [['retroScan',0],['retroPhosphor',1],['retroColor',.8]])assert.equal(await run(`Number(document.querySelector('[data-pref=${key}]').value)`),value);
  await shot('android-style');
  win.setSize(360,800);await shot('android-compact');assert.equal(await run(`document.documentElement.scrollWidth>innerWidth+2||document.querySelector('#sheet-body').scrollWidth>document.querySelector('#sheet-body').clientWidth+2`),false);
  log('PASS: style persistence, default reset, transitions, automatic shapes without a manual picker, accessible focus, Android controls and compact layout.');
