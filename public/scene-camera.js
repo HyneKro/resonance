@@ -1,6 +1,7 @@
 import {Inertia} from './inertia.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAMERA_SPEED={min:.2,max:20,default:2.22};
+export const AERIAL_CAMERA=Object.freeze({min:-.08,max:1.25});
 export const CAMERA_ZOOM=Object.freeze({max:3,focalLength:1.9});
 // Smooth unwrapped angles in double precision, then reduce only the values
 // uploaded to the GPU. Long fast rail sessions must not lose sub-frame precision.
@@ -8,9 +9,11 @@ export function cameraUniform(pose=[0,0,0,0]){return [pose[0]%(Math.PI*2),pose[1
 export class SceneCamera {
  constructor(){this.yaw=0;this.pitch=0;this.phase=0;this.pose=[0,0,0,0].map(x=>new Inertia(x,.45));this.speed=new Inertia(.12,2);this.zoom=new Inertia(0,1.3);this.zoomSignal=new Inertia(0,.65);this.lens=new Inertia(CAMERA_ZOOM.focalLength,.45);}
  get focalLength(){return this.lens.value;}
- drag(dx,dy){this.yaw+=dx*.005;this.pitch+=dy*.005;}
- reset(){this.yaw=Math.round(this.pose[0].value/(Math.PI*2))*Math.PI*2;this.pitch=Math.round(this.pose[1].value/(Math.PI*2))*Math.PI*2;this.phase=0;}
- update(dt,{rail=false,speed=CAMERA_SPEED.default,zoom=false,features={},reduced=false,frozen=false}={}){
+ drag(dx,dy){this.yaw+=dx*.005;this.pitch+=dy*.005;if(this.grounded)this.pitch=clamp(this.pitch,AERIAL_CAMERA.min,AERIAL_CAMERA.max);}
+ reset(){this.yaw=Math.round(this.pose[0].value/(Math.PI*2))*Math.PI*2;this.pitch=this.grounded?0:Math.round(this.pose[1].value/(Math.PI*2))*Math.PI*2;this.phase=0;}
+ update(dt,{rail=false,speed=CAMERA_SPEED.default,zoom=false,features={},reduced=false,frozen=false,grounded=false}={}){
+  this.grounded=grounded;
+  if(grounded){this.pitch=clamp(this.pitch,AERIAL_CAMERA.min,AERIAL_CAMERA.max);const p=this.pose[1];if(p.value<AERIAL_CAMERA.min||p.value>AERIAL_CAMERA.max){p.value=clamp(p.value,AERIAL_CAMERA.min,AERIAL_CAMERA.max);p.velocity=0;}}
   dt=clamp(dt||0,0,.1);if(frozen)return this.pose.map(p=>p.value);
   const energy=clamp(features.loudness||0,0,1),bass=clamp(features.bands?.[1]||0,0,1);
   let railPitch=0;
@@ -28,8 +31,8 @@ export class SceneCamera {
   // framing stays open instead of magnifying the whole sculpture as heavily.
   const focalLength=CAMERA_ZOOM.focalLength/(1+dive*.18);
   if(reduced){this.lens.value=focalLength;this.lens.velocity=0;}else this.lens.update(focalLength,dt);
-  const target=[this.yaw,this.pitch+railPitch,depth,rail&&!reduced?Math.sin(this.phase*.57)*.07:0];
-  return this.pose.map((p,i)=>{if(reduced){p.value=target[i];p.velocity=0;return p.value;}return p.update(target[i],dt);});
+  const target=[this.yaw,grounded?clamp(this.pitch+railPitch,AERIAL_CAMERA.min,AERIAL_CAMERA.max):this.pitch+railPitch,depth,rail&&!reduced&&!grounded?Math.sin(this.phase*.57)*.07:0];
+  return this.pose.map((p,i)=>{if(reduced){p.value=target[i];p.velocity=0;return p.value;}const value=p.update(target[i],dt);if(grounded&&i===1&&(value<AERIAL_CAMERA.min||value>AERIAL_CAMERA.max)){p.value=clamp(value,AERIAL_CAMERA.min,AERIAL_CAMERA.max);p.velocity=0;}return p.value;});
  }
 }
 export function installCameraControls({reactor}){

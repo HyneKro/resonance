@@ -36,6 +36,10 @@ app.whenReady().then(async()=>{
    await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
   }
  }await run('d.roles=savedRoles');
+ for(const [name,shade,fluid]of [['aerial-dark',1,.8],['aerial-solid',.25,0]]){
+  await run(`d.appearance.aerialShade=${shade};d.appearance.aerialFluid=${fluid};gpu.aerial.reset();d.spectrumClock=0;renderStyle(6);for(let i=1;i<=180;i++){d.spectrumClock=i/60;renderStyle(6);}`);
+  await new Promise(r=>setTimeout(r,90));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
+ }await run(`d.appearance.aerialShade=0;d.appearance.aerialFluid=.8;`);
  // Follow an actual attack across the connected web with a fixed rest pose.
  await run(`window.webSaved={features:input.features,roles:d.roles,clock:d.spectrumClock};gpu.synapse.reset();d.spectrumClock=0;d.roles={bass:.35,lead:.4,drums:0,texture:.15};input.features={...webSaved.features,onset:0,loudness:.6};renderStyle(7);`);
  for(const [name,seconds]of [['synapse-signal',.55],['synapse-propagated',.55]]){
@@ -55,14 +59,17 @@ app.whenReady().then(async()=>{
   await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
  await run(`input.features=inkSaved.features;d.roles=inkSaved.roles;d.spectrumClock=inkSaved.clock;`);
- // Advance the physical world with consecutive frames, including a settling phase.
- await run(`renderStyle(6);for(let i=0;i<2400;i++){input.time+=1/60;d.artMotion=[input.time*.45,0,0,0];gpu.aerial.update(d.artMotion[0],{bass:i%180<90?.8:0,drums:i%30<4?.9:0,lead:.5});}renderStyle(6);`);
+ // Advance consecutive Aerial frames using the same music clock as the app.
+ await run(`window.aerialSaved={clock:d.spectrumClock,roles:d.roles,features:input.features};gpu.aerial.reset();d.spectrumClock=0;renderStyle(6);
+ for(let i=1;i<=1200;i++){d.spectrumClock=i/60;const t=i/60,hit=t%.5<.06?.9:0;d.roles={bass:.4+.3*Math.sin(t*2),drums:hit,lead:.6};input.features={...aerialSaved.features,onset:hit};gpu.aerial.update(t,{...d.roles,onset:hit});}renderStyle(6);`);
  await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,'aerial-motion.png'),(await win.webContents.capturePage()).toPNG());
+ await run(`d.spectrumClock=aerialSaved.clock;d.roles=aerialSaved.roles;input.features=aerialSaved.features;`);
 
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'orrery-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(7)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'synapse-phone.png'),(await win.webContents.capturePage()).toPNG());
+ await run('renderStyle(6)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'aerial-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
@@ -88,7 +95,18 @@ app.whenReady().then(async()=>{
     if(gpu.contour.time!==fixed)throw Error('Reduced-motion ink ages');
     input.reduced=false;d.spectrumClock=savedClock;report[style].flatCameraInvariant=true;report[style].inkFrozen=true;
    }
-   if(style===6){const fixed=gpu.aerial.positions.slice(),steps=gpu.aerial.steps;renderStyle(6);if(gpu.aerial.steps!==steps||fixed.some((x,i)=>x!==gpu.aerial.positions[i]))throw Error('Frozen Aerial physics moved');report[style].physicsFrozen=true;}
+   if(style===6){
+    const fixed=gpu.aerial.positions.slice(),steps=gpu.aerial.steps,clock=d.spectrumClock,camera=d.camera,features=input.features;
+    renderStyle(6);if(gpu.aerial.steps!==steps||fixed.some((x,i)=>x!==gpu.aerial.positions[i]))throw Error('Frozen Aerial physics moved');
+    input.reduced=true;d.spectrumClock+=.1;renderStyle(6);if(gpu.aerial.steps!==steps)throw Error('Reduced Aerial physics moved');input.reduced=false;
+    const before=energy();for(let i=0;i<30;i++){d.spectrumClock+=1/60;input.features={...features,onset:i===0?1:0};renderStyle(6);}if(Math.abs(energy()-before)<1)throw Error('Aerial motion does not render');
+    d.camera=[.5,.4,0,0];renderStyle(6);if(Math.abs(energy()-before)<1)throw Error('Aerial orbit lacks depth');d.camera=camera;
+    d.trackId='aerial-next';renderStyle(6);if(gpu.aerial.hits!==0||gpu.aerial.steps!==0)throw Error('Aerial track did not reset');
+    d.spectrumClock=clock;input.features=features;report[style].physicsFrozen=true;report[style].reducedMotionHeld=true;report[style].physicalMotionVisible=true;report[style].trackResets=true;report[style].cameraDepth=true;
+    if(gpu.canvas.style.transform.includes('rotate'))throw Error('Aerial floor rotated sideways');report[style].uprightPhone=true;
+    const lightStudio=energy(3);d.appearance.aerialShade=1;renderStyle(6);if(!(energy(3)<lightStudio*.4))throw Error('Studio darkness ignored');d.appearance.aerialShade=0;
+    d.appearance.aerialFluid=0;d.spectrumClock+=.05;renderStyle(6);if(gpu.aerial.liquid!==0)throw Error('Solid setting ignored');d.appearance.aerialFluid=.8;report[style].studioControls=true;
+   }
    report[style].spectrumAddsLight=true;report[style].pausedStable=true;
    d.spectrumLight.fill(0);const saved=d.roles;d.roles={bass:0,lead:0,drums:0,shimmer:0};renderStyle(style);const silent=energy();d.roles={bass:.8,lead:.8,drums:.8,shimmer:.8};renderStyle(style);const music=energy();d.roles=saved;if(Math.abs(music-silent)<1)throw Error('Missing musical response '+style);report[style].musicChangesScene=true;
    const response={};d.roles={bass:0,lead:0,drums:0,texture:0};renderStyle(style);const base=[energy(),energy(3)];

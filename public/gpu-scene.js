@@ -162,7 +162,7 @@ export class GPUScene {
     this.use(f.draw,uniforms);const attributes=this.flowAttributes(f.draw,f.buffers[f.current]);gl.drawArrays(gl.POINTS,0,count);attributes.forEach(a=>gl.disableVertexAttribArray(a));
   }
   dimensions({width,height,quality,scale=1,dynamics}){
-    if(dynamics?.portraitScene&&(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)!==4&&height>width)[width,height]=[height,width];
+    if(dynamics?.portraitScene&&![4,6].includes(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)&&height>width)[width,height]=[height,width];
     const cap=quality==='high'?1200:quality==='eco'?560:900;
     const density=Math.min(devicePixelRatio||1,quality==='high'?1.5:1,cap/Math.max(1,height),2200/Math.max(1,width))*(quality==='eco'?.85*(this.mobile?scale:1):quality==='auto'?scale:1);
     return {density,w:Math.max(1,Math.round(width*density)),h:Math.max(1,Math.round(height*density))};
@@ -194,7 +194,8 @@ export class GPUScene {
   }
   *renderFrame({width,height,time,features,dynamics,quality,intensity,scale=1,reduced=false,hdrMode='off'},warmup=false){
     const flat=(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)===4;
-    const portrait=!flat&&dynamics.portraitScene===true&&height>width;
+    const upright=flat||(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)===6;
+    const portrait=!upright&&dynamics.portraitScene===true&&height>width;
     if(portrait)[width,height]=[height,width];
     if(dynamics.portraitScene){this.canvas.style.width=width+'px';this.canvas.style.height=height+'px';this.canvas.style.left='50%';this.canvas.style.top='50%';this.canvas.style.transform='translate(-50%,-50%)'+(portrait?' rotate(90deg)':'');}
     try{
@@ -289,11 +290,15 @@ export class GPUScene {
       }else if(style.index===6){
         const count=this.mobile?16:24;
         if(this.aerial.count!==count)this.aerial=new AerialPhysics(count);
-        const spheres=this.aerial.update(uniforms.u_world[0],reduced?{}:roles);
-        const studio={...uniforms,u_spheres:spheres,u_sphereCount:count,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        if(this.aerialTrack!==d.trackId){this.aerial.reset();this.aerialTrack=d.trackId;}
+        const spheres=this.aerial.update(d.spectrumClock??time,{...roles,onset:features.onset},{reduced,movement:a.motionAmount,beat:a.beatMotion,liquid:a.aerialFluid});
+        const studio={...uniforms,u_spheres:spheres,u_sphereCount:count,u_fluidPass:0,u_aerial:[a.aerialFluid,a.aerialShade],u_studio:[this.aerial.time,this.aerial.hit,reduced?0:a.motionAmount,this.mobile?1:0],u_spectrumLight:d.spectrumLight||this.emptySpectrum};
         this.bind(nebula);this.use(this.aerialBackground,studio);this.quadDraw(this.aerialBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-        gl.enable(gl.DEPTH_TEST);this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,0,count*6);yield;
+        gl.enable(gl.DEPTH_TEST);this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,a.aerialFluid>.03?24:0,(count-(a.aerialFluid>.03?4:0))*6);yield;
+        if(a.aerialFluid>.03){this.use(this.aerialSurface,{...studio,u_fluidPass:1});gl.drawArrays(gl.TRIANGLES,0,6);}yield;
+        const beads=Math.round((this.mobile?64:180)*Math.min(1.5,a.filigree*.7)*Math.min(1.1,a.orbit));
+        this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,24*6,beads*6);yield;
       }else if(style.index===5){
         const history=this.spectrumHistory;
         if(this.historyTrack!==d.trackId){history.reset();this.historyTrack=d.trackId;}

@@ -19,6 +19,12 @@ app.whenReady().then(async()=>{
   await run(`(()=>{const s=document.querySelector('[data-preference=artDirection]');s.value='${id}';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until(`window.styleInput?.dynamics.artStyle.index===${index}&&styleInput.dynamics.artStyle.opacity===1`);
   assert.equal(await run(`!!document.querySelector('[data-ribbon-shape]')`),false);
+  assert.equal(await run(`document.querySelector('[data-aerial-controls]').hidden`),id!=='aerial');
+  if(id==='aerial'){
+   await run(`for(const [key,value]of [['aerialFluid',.35],['aerialShade',.7]]){const e=document.querySelector('[data-preference='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}`);
+   await until(`styleInput.dynamics.appearance.aerialFluid===.35&&styleInput.dynamics.appearance.aerialShade===.7`);
+   const p=await run(`fetch('/api/library').then(r=>r.json()).then(x=>x.config.preferences)`);assert.equal(p.aerialFluid,.35);assert.equal(p.aerialShade,.7);
+  }
   await shot('pc-'+id);
  }
  const prefs=await run(`fetch('/api/library').then(r=>r.json()).then(x=>x.config.preferences)`);assert.equal(prefs.artDirection,'resonance');assert.equal(prefs.ribbonShape,undefined);
@@ -32,6 +38,10 @@ app.whenReady().then(async()=>{
  await run(`document.querySelector('#visuals').click();document.querySelector('[data-section-tab=style]').click()`);
  assert.equal(await run(`document.querySelector('[data-pref=artDirection]').options.length`),8);
  for(const [id,index]of changes){await run(`(()=>{const s=document.querySelector('[data-pref=artDirection]');s.value='${id}';s.dispatchEvent(new Event('input',{bubbles:true}));})()`);await pause(120);assert.equal(await run(`document.body.dataset.visualArt`),id);assert.equal(await run(`!!document.querySelector('[data-ribbon-shape]')`),false);}
+ await run(`(()=>{const s=document.querySelector('[data-pref=artDirection]');s.value='aerial';s.dispatchEvent(new Event('input',{bubbles:true}));})()`);await pause(150);
+ assert.equal(await run(`document.querySelector('[data-aerial-controls]').hidden`),false);
+ await run(`for(const [key,value]of [['aerialFluid',0],['aerialShade',1]]){const e=document.querySelector('[data-pref='+key+']');e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));}`);await pause(150);
+ assert.equal(await run(`Number(document.querySelector('[data-pref=aerialFluid]').value)`),0);assert.equal(await run(`Number(document.querySelector('[data-pref=aerialShade]').value)`),1);
  await shot('android-style');
  win.setSize(360,800);await shot('android-compact');assert.equal(await run(`document.documentElement.scrollWidth>innerWidth+2||document.querySelector('#sheet-body').scrollWidth>document.querySelector('#sheet-body').clientWidth+2`),false);
  log('PASS: style persistence, default reset, transitions, automatic shapes without a manual picker, accessible focus, Android controls and compact layout.');

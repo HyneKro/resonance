@@ -38,6 +38,8 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "meters": false,
   "mode": "resonance",
   "artDirection": "resonance",
+  "aerialFluid": 0.8,
+  "aerialShade": 0,
   "dynamicVisuals": true,
   "sfxVolume": 0.5,
   "sfxGainVersion": 2,

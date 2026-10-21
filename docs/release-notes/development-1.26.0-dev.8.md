@@ -1,0 +1,13 @@
+# Aerial: liquid and solid studio
+
+Windows **1.26.0-dev.8** · Android **0.26.0-dev.8** (versionCode 74). Development channel only.
+
+Open **Visuals → Style → Art direction → Aerial**. The central liquid forms merge and separate among bouncing solid spheres, glass, porcelain and smaller suspended beads. Bass lifts and expands the arrangement, percussion transfers stronger impulses, and melody changes the drifting paths. Sustained loud notes do not repeatedly trigger impacts. Movement and Beat motion adjust the response; frequency lights and Musical flashes remain separate controls.
+
+Two saved Aerial controls appear in Style: **Liquid merging** (zero makes the main bodies solid; higher values join the central droplets) and **Studio darkness** (pale studio through to a dark set). Broad light-card highlights, contact shadows, inter-body shadows and subtle floor reflections give the forms depth. The camera stays above the floor, including on its automatic rail, and Aerial remains upright on phones.
+
+The simulation has 24 main bodies on Windows and 16 on Android, plus bounded small beads. Pause/freeze and reduced motion hold physics; new tracks reset accumulated impulses. Liquid merging, glass transmission and floor reflections are artistic approximations, not a full fluid or optical simulation.
+
+Development installations receive this build through **Settings → App updates**. An ordinary installation needs a one-time development ZIP/APK installation to enter this channel. Keep the Windows test portable in a separate folder. Android installs over the existing signed app and preserves data; confirm through the system installer and do not uninstall. The main branch, ordinary releases and public download buttons remain unchanged.
+
+Verification: 502 shared tests and 134 native Android tests pass. Android lint has zero errors and nine existing warnings. All eight directions pass actual GPU checks, including musical roles, frequency lighting, stable paused frames and graphics-context recovery. Aerial checks cover refresh-rate-independent physics, liquid joining/separation, mass-aware solid contacts, attack gating, reduced motion, track resets, camera bounds, upright phone framing and the two studio controls. Windows and phone interfaces preserve the settings and fit compact screens. Startup, navigation and rapid-skip checks pass. Both extracted startup module graphs pass; a clean Windows package reaches the empty-library welcome screen in 10.0 seconds. The package ID and signing certificate are unchanged. Repository audit: 848 files, no findings. The visual previews use generated test impulses and no personal library data. Physical Android performance, heat and battery use still need device testing.

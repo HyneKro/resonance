@@ -6,7 +6,7 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'orrery',name:'Orrery',note:'A celestial field. Fine orbits, illuminated planets and comet dust move with the music.',index:3},
  {id:'contour',name:'Contour',note:'A living ink painting. Brushes draw and bend with the music; percussion scatters vermilion on paper.',index:4},
  {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5},
- {id:'aerial',name:'Aerial',note:'A soft sculpture of floating spheres. Porcelain, pearl and frosted glass respond with weight, buoyancy and light.',index:6},
+ {id:'aerial',name:'Aerial',note:'A living studio sculpture. Liquid chrome merges and separates among bouncing porcelain, glass and tiny suspended droplets.',index:6},
  {id:'synapse',name:'Synapse',note:'A luminous web. Blue filaments breathe with bass while warm impulses travel from junction to junction.',index:7}
 ]);
 export const artDirection=value=>ART_DIRECTIONS.find(x=>x.id===(value==='glasshouse'?'afterglow':value))||ART_DIRECTIONS[0];
