@@ -1,11 +1,11 @@
 # Visual art directions
 
-Development trial for Windows 1.26.0-dev.8 and Android 0.26.0-dev.8. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
+Development trial for Windows 1.26.0-dev.9 and Android 0.26.0-dev.9. Open **Visuals → Style → Art direction**. Resonance remains the default; resetting the setting returns to it.
 
 | Direction | Composition | Musical behavior |
 | --- | --- | --- |
 | Resonance | The original living ribbon and flowing atmosphere | Existing track character, phrasing and frequency lights |
-| Noctiluca | A central reflective fish flock, gliding mantas, sharks and luminous jellyfish, surface rays and rising bubbles | Smoothly integrated swimming speed; bass opens bells and wings; melody lights tendrils and bodies; percussion accents fish and plankton |
+| Noctiluca | A dense silver school in deep open water, viewed from below, with a moving surface, sun shafts and suspended marine snow | Bass changes speed and spacing, melody bends currents and illuminates the water, percussion creates local escape pockets; spectrum lights catch metallic scales |
 | Afterglow | An endless neon highway between three-dimensional mountain grids, under a striped sunset and layered skyline | Bass raises broad terrain ridges, melody adds smaller ripples; percussion stretches buildings; spectrum lanes illuminate windows and passing roadside markers |
 | Orrery | A dark celestial field: textured planets, 28 fine orbital paths, drifting dust, three comet streams and a flowing gravitational field | Bass opens orbits and sends waves through the field; melody inclines paths and lights trails; percussion lifts debris and catches planetary glints |
 | Contour | A flat ink painting: open circle, flowing S and softened diamond; dry bristles over a loaded wash, vermilion accents and quiet editorial type | Bass opens and bends the form; melody adds traveling distortions; percussion loads the brush and deposits splashes. New gestures draw onto the sheet as earlier ones dissolve. |
@@ -27,7 +27,7 @@ Aerial stays upright in portrait. Manual and rail cameras are limited above the 
 
 Flux keeps approximately 4.2 seconds of the existing 48-band analysis in a 6 KB memory buffer. It is an artistic spectrogram, not a calibrated measurement display. No audio is recorded or uploaded, and no model is installed. History stops while paused or frozen, clears for a different song, and does no hidden catch-up. Silence drains the existing trail instead of inventing new peaks. Reduced motion holds the history and flowing motion still. Mobile uses fewer traces and particles; the existing adaptive resolution remains in place.
 
-Afterglow replaces Glasshouse. A saved Glasshouse selection opens Afterglow automatically. No artwork or additional audio analysis is downloaded. The aquarium uses local boid separation, alignment and cohesion for its central school; larger animals follow continuous procedural paths. It is a stylized scene rather than a biological simulation.
+Afterglow replaces Glasshouse. A saved Glasshouse selection opens Afterglow automatically. No artwork or additional audio analysis is downloaded. Noctiluca is now a dedicated open-water renderer; its earlier seabed, grass, mantas, sharks and jellyfish are no longer drawn.
 
 The directions share playback, musical analysis, cover colors, reduced motion and frequency-light settings. Materials interpret those inputs differently: Contour absorbs light as ink; the neon drive remaps artwork colors toward saturated neon. Scenic backgrounds stay composed while the existing camera moves the foreground geometry; Contour is a fully flat exception.
 
@@ -49,7 +49,11 @@ Review criteria are distinct art direction, recognizable silhouettes, layered co
 
 Automated checks cover saved-style migration, removal of manual shape choices, rapid switching, reduced motion, continuous travel under changing envelopes, all automatic forms, actual GPU output, independent bass/melody/percussion responses, zero frequency-light input, fixed-frame stability and graphics-context recovery. Isolated Windows and Android interface checks cover persistence, keyboard focus and compact layouts. Full application regression, startup, queue and native Android checks are required before publication.
 
-Rendering reuses the existing canvas and bloom pipeline. Alternate scenes skip the original particle birth/flow simulation. The aquarium has 384 schooling fish on desktop and 160 on mobile, with three mantas, two sharks and four jellyfish. The flock uses fixed steps and interpolated positions, with a spatial grid for local neighbours and reusable storage. Inactive scenes do not simulate hidden fish or catch up after a long pause. Surfaces are bounded analytic meshes with shared depth testing. Motion clocks integrate changes in speed instead of multiplying absolute time by changing audio envelopes, avoiding position jumps on attacks.
+Rendering reuses the existing canvas and bloom pipeline. Alternate scenes skip the original particle birth/flow simulation. Noctiluca simulates 384 leaders on desktop and 160 on mobile at 30 fixed steps per second, with interpolated positions and a spatial grid for local separation, alignment and cohesion. GPU followers extend this to at most 4,608 desktop fish and 1,280 phone fish; the saved Living detail setting changes this bounded population. Fish have a three-dimensional body, forked tail, dorsal/pectoral fins and velocity-aligned orientation. Tail phase follows integrated swim time, avoiding jumps when musical energy changes. School opening moves the flock between compact and open formations, while gated attacks push local escape pockets outward. A held loud note does not repeatedly scatter the fish. Track changes reset the flock; pause and reduced motion hold it, and inactive scenes do no hidden catch-up.
+
+Noctiluca shares a submerged perspective camera across the fish, surface and water. It stays upright on phones. There is no seabed or horizon geometry. RGB absorption, bounded integration through moving surface illumination, silver glints and marine snow establish depth. Sun shafts is a saved, resettable light control; melody and percussion also affect illumination. Particle size, Sculpture scale, Movement, Beat motion, Turbulence, Living detail, Orbiting dust, palette and frequency lights remain connected. Surface light, scattering and fish anatomy are procedural artistic approximations, not a full optical or biological simulation; fish do not cast volumetric shadows into the shafts. Mobile uses fewer leaders, followers, mesh segments and ray samples.
+
+Surfaces are bounded analytic meshes with shared depth testing. Motion clocks integrate changes in speed instead of multiplying absolute time by changing audio envelopes, avoiding position jumps on attacks.
 
 Phone quality and adaptive resolution are unchanged. Desktop GPU measurements at phone rendering resolution compare paths but do not establish battery use, heat or sustained frame rate on a physical phone.
 

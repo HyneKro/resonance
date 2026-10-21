@@ -38,6 +38,8 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "meters": false,
   "mode": "resonance",
   "artDirection": "resonance",
+  "schoolOpening": 0.65,
+  "oceanRays": 1,
   "aerialFluid": 0.8,
   "aerialShade": 0,
   "dynamicVisuals": true,

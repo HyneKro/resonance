@@ -1,3 +1,4 @@
+import {NOCTILUCA_BACKGROUND,NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT,NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT} from './noctiluca-shaders.js';
 import {ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT,ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT,ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT,ORRERY_BACKGROUND} from './orrery-shaders.js';
 import {ContourMotion,contourLettering} from './contour-motion.js';
 import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
@@ -40,7 +41,7 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['orreryPaths',ORRERY_PATH_VERTEX,ORRERY_PATH_FRAGMENT],['orreryBodies',ORRERY_BODY_VERTEX,ORRERY_BODY_FRAGMENT],['orreryDust',ORRERY_DUST_VERTEX,ORRERY_DUST_FRAGMENT],['orreryBackground',QUAD,ORRERY_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.synapse??=new SynapseSignals();this.synapse.suspend();
@@ -162,7 +163,7 @@ export class GPUScene {
     this.use(f.draw,uniforms);const attributes=this.flowAttributes(f.draw,f.buffers[f.current]);gl.drawArrays(gl.POINTS,0,count);attributes.forEach(a=>gl.disableVertexAttribArray(a));
   }
   dimensions({width,height,quality,scale=1,dynamics}){
-    if(dynamics?.portraitScene&&![4,6].includes(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)&&height>width)[width,height]=[height,width];
+    if(dynamics?.portraitScene&&![1,4,6].includes(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)&&height>width)[width,height]=[height,width];
     const cap=quality==='high'?1200:quality==='eco'?560:900;
     const density=Math.min(devicePixelRatio||1,quality==='high'?1.5:1,cap/Math.max(1,height),2200/Math.max(1,width))*(quality==='eco'?.85*(this.mobile?scale:1):quality==='auto'?scale:1);
     return {density,w:Math.max(1,Math.round(width*density)),h:Math.max(1,Math.round(height*density))};
@@ -194,7 +195,7 @@ export class GPUScene {
   }
   *renderFrame({width,height,time,features,dynamics,quality,intensity,scale=1,reduced=false,hdrMode='off'},warmup=false){
     const flat=(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)===4;
-    const upright=flat||(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index)===6;
+    const upright=flat||[1,6].includes(dynamics.artStyle?.index??artDirection(dynamics.artDirection).index);
     const portrait=!upright&&dynamics.portraitScene===true&&height>width;
     if(portrait)[width,height]=[height,width];
     if(dynamics.portraitScene){this.canvas.style.width=width+'px';this.canvas.style.height=height+'px';this.canvas.style.left='50%';this.canvas.style.top='50%';this.canvas.style.transform='translate(-50%,-50%)'+(portrait?' rotate(90deg)':'');}
@@ -247,6 +248,22 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
+      }else if(style.index===1){
+        const count=this.mobile?160:384;
+        if(this.school.count!==count)this.school=new FishSchool(count);
+        if(this.schoolTrack!==d.trackId){this.school.reset();this.schoolTrack=d.trackId;}
+        const data=this.school.update(d.spectrumClock??time,{...roles,onset:features.onset},{reduced,movement:a.motionAmount,beat:a.beatMotion,opening:a.schoolOpening,turbulence:a.turbulence});
+        gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
+        if(this.schoolWidth!==count){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,count,2,0,gl.RGBA,gl.FLOAT,data);this.schoolWidth=count;}
+        else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,count,2,gl.RGBA,gl.FLOAT,data);
+        const followers=Math.max(2,Math.round((this.mobile?5:8)*(.5+a.filigree*.5))),detail=this.mobile?7:10;
+        const ocean={...uniforms,u_ocean:[this.school.phase,this.school.hit,a.oceanRays,this.mobile?1:0],u_schoolCount:count,u_followers:followers,u_fishDetail:detail,u_movement:reduced?0:a.motionAmount,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        this.bind(nebula);this.use(this.oceanBackground,ocean);this.quadDraw(this.oceanBackground);yield;
+        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+        this.use(this.oceanFish,ocean);this.texture(this.oceanFish,'u_school',this.schoolTexture,4);
+        gl.drawArraysInstanced(gl.TRIANGLES,0,detail*6*6+15,count*followers);yield;
+        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        this.use(this.oceanSnow,ocean);this.points(this.oceanSnow,warmup?32:Math.round((this.mobile?650:1800)*Math.min(1.5,a.orbit)));yield;
       }else if(style.index===7){
         if(this.synapseTrack!==d.trackId){this.synapse.reset();this.synapseTrack=d.trackId;}
         const signals=this.synapse.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
@@ -319,17 +336,10 @@ export class GPUScene {
         }
       }else{
         this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h],u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.quadDraw(this.artBackground);yield;
-        if(style.index===1){
-          const count=this.mobile?160:384;if(this.school.count!==count)this.school=new FishSchool(count);
-          const data=this.school.update(uniforms.u_world[0],{bass:roles.bass*uniforms.u_movement,lead:roles.lead*uniforms.u_movement});
-          gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
-          if(this.schoolWidth!==this.school.count){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,this.school.count,2,0,gl.RGBA,gl.FLOAT,data);this.schoolWidth=this.school.count;}
-          else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,this.school.count,2,gl.RGBA,gl.FLOAT,data);
-        }
         this.bind(scene);gl.clearColor(0,0,0,style.index===4?1:0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         if(style.index>0){
           if(style.index!==4){gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);}
-          const parts=style.index===1?[[0,this.school.count*48*6],[1,3*192*6],[2,2*192*6],[3,4*192*6]]:style.index===2?[[0,2*32*128*6]]:[[0,4*256*6]];
+          const parts=style.index===2?[[0,2*32*128*6]]:[[0,4*256*6]];
           for(const [part,vertices]of parts){this.use(this.artSurface,{...uniforms,u_artPart:part,u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.texture(this.artSurface,'u_school',this.schoolTexture,4);gl.drawArrays(gl.TRIANGLES,0,vertices);yield;}
           gl.depthMask(false);gl.enable(gl.BLEND);
         }

@@ -67,16 +67,17 @@ app.whenReady().then(async()=>{
 
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
+ await run('renderStyle(1)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'noctiluca-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'orrery-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(7)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'synapse-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(6)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'aerial-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
-  const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl);
-  gpu.use=(p,u)=>{current=Object.keys(gpu).find(k=>gpu[k]===p)||'?';use(p,u);};gl.drawArrays=(mode,start,count)=>{counts[current]=(counts[current]||0)+count;draw(mode,start,count);};
+  const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);
+  gpu.use=(p,u)=>{current=Object.keys(gpu).find(k=>gpu[k]===p)||'?';use(p,u);};gl.drawArrays=(mode,start,count)=>{counts[current]=(counts[current]||0)+count;draw(mode,start,count);};gl.drawArraysInstanced=(mode,start,count,instances)=>{counts[current]=(counts[current]||0)+count*instances;instanced(mode,start,count,instances);};
   for(let style=0;style<=7;style++){
-   const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
+   const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;if(style===1)d.spectrumClock+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
    samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report.push({style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]});
   }
   // Verify the actual render targets, not only shader source or controls.
@@ -85,6 +86,19 @@ app.whenReady().then(async()=>{
   for(let style=1;style<=7;style++){
    d.spectrumLight.fill(0);renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
+   if(style===1){
+    const savedClock=d.spectrumClock,savedCamera=d.camera,savedFeatures=input.features,savedTrack=d.trackId;
+    const fixed=gpu.school.texture.slice(),steps=gpu.school.steps;
+    renderStyle(1);if(gpu.school.steps!==steps||fixed.some((v,i)=>v!==gpu.school.texture[i]))throw Error('Paused school moved');
+    input.reduced=true;d.spectrumClock+=.1;renderStyle(1);if(gpu.school.steps!==steps)throw Error('Reduced school swims');input.reduced=false;
+    const before=energy();for(let i=0;i<30;i++){d.spectrumClock+=1/30;renderStyle(1);}if(Math.abs(energy()-before)<1)throw Error('School lacks visible motion');
+    const back=energy(3);d.appearance.oceanRays=0;renderStyle(1);if(!(energy(3)<back))throw Error('Sun shafts control has no effect');d.appearance.oceanRays=1;
+    const original=energy();d.camera=[.3,-.2,0,0];renderStyle(1);if(Math.abs(energy()-original)<1)throw Error('Ocean camera lacks depth');
+    d.trackId='ocean-new-track';renderStyle(1);if(gpu.school.phase!==0)throw Error('New track retains old school state');
+    if(gpu.canvas.width>=gpu.canvas.height)throw Error('Ocean phone orientation is sideways');
+    d.spectrumClock=savedClock;d.camera=savedCamera;input.features=savedFeatures;d.trackId=savedTrack;renderStyle(1);
+    Object.assign(report[style],{schoolFrozen:true,reducedMotionHeld:true,schoolSwims:true,sunShaftControl:true,trackResets:true,cameraDepth:true,uprightPhone:true});
+   }
    if(style===4){
     const fixed=gpu.contour.time,savedCamera=d.camera,savedRotation=d.rotationClock;
     const rendered=energy();d.camera=[1.2,-.8,.7,2];d.rotationClock=40;renderStyle(4);
