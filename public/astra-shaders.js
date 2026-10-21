@@ -1,8 +1,8 @@
-// Astra: 48 measured frequency orbits around a living photosphere. Everything
+// Astra: 48 frequency orbits plus 24 remote rings around a living photosphere. Everything
 // in world space shares the camera, including prominences and comet trails.
 const SKY=`
 uniform vec2 u_resolution;
-uniform vec4 u_world,u_camera,u_roles,u_particle,u_light,u_orbitBands[48],u_orbitMotion[48],u_astraEvents[12];
+uniform vec4 u_world,u_camera,u_roles,u_particle,u_light,u_orbitBands[48],u_orbitMotion[48],u_astraEvents[12],u_stellarState;
 uniform vec3 u_palette[6];
 uniform float u_focalLength,u_movement,u_pixel,u_astraTime,u_spectrumLight[48];
 const float PI=3.14159265359,TAU=6.28318530718;
@@ -10,21 +10,33 @@ const vec3 CENTER=vec3(0.,.22,0.);
 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
 float hash(float n){return fract(sin(n*127.1)*43758.5453);}
 vec3 direction(float n){float z=hash(n+8.)*2.-1.,a=hash(n+31.)*TAU;return vec3(sqrt(1.-z*z)*cos(a),z,sqrt(1.-z*z)*sin(a));}
-vec4 band(float i){return u_orbitBands[int(clamp(floor(i),0.,47.))];}
-float frequency(float i){return u_spectrumLight[int(clamp(floor(i),0.,47.))];}
-vec3 warm(){vec3 tint=mix(vec3(1.,.27,.045),vec3(.38,.64,1.),clamp(u_roles.z*.72+u_roles.w*.20,0.,.8));return mix(tint,max(vec3(.08),u_palette[4]),.30);}
-vec3 cool(){return mix(vec3(.16,.40,.65),max(vec3(.04),u_palette[1]),.42);}
+vec4 band(float i){return u_orbitBands[int(clamp(floor(i<48.?i:mod((i-48.)*1.9+5.,48.)),0.,47.))];}
+float frequency(float i){return u_spectrumLight[int(clamp(floor(i<48.?i:mod((i-48.)*1.9+5.,48.)),0.,47.))];}
+// Strong track colour plus a continuous hue excursion from musical balance.
+vec3 vivid(vec3 c){c=max(c-vec3(min(c.r,min(c.g,c.b))*.92),vec3(.002));c/=max(c.r,max(c.g,c.b));return pow(c,vec3(1.45));}
+vec3 hueTurn(vec3 c,float angle){vec3 axis=normalize(vec3(1.));return max(vec3(.008),c*cos(angle)+cross(axis,c)*sin(angle)+axis*dot(axis,c)*(1.-cos(angle)));}
+vec3 warm(){vec3 base=mix(u_palette[4],u_palette[1],smoothstep(.12,.85,u_roles.z));return vivid(hueTurn(vivid(base),u_roles.x*1.25-u_roles.z*1.55+u_roles.w*.6));}
+vec3 cool(){return vivid(mix(vivid(u_palette[1]),hueTurn(warm(),1.35),.65));}
+// Coherent radial fronts and rotating angular lobes cross every frequency lane.
+float radius(float i);
+float polar(float i,float a){
+ float r=radius(i),clock=u_stellarState.y;
+ float front=pow(.5+.5*sin(r*5.4-clock*5.+sin(a*3.-clock)*.6),5.);
+ float spoke=pow(.5+.5*cos(a*6.+sin(a*2.+clock)*.8-clock*2.2+r*.45),9.);
+ return (front*(.24+u_roles.x*.95)+spoke*(u_roles.z*.7+u_roles.y*.65))*u_movement;
+}
 vec3 camera(vec3 p){p.xz=rot(u_camera.x)*p.xz;p.yz=rot(u_camera.y)*p.yz;p.xy=rot(u_camera.w)*p.xy;return p;}
 vec4 projectSky(vec3 p){p=camera(p*clamp(u_particle.x,.6,1.5));float d=5.4+u_camera.z-p.z;return vec4(p.x*u_focalLength/(u_resolution.x/u_resolution.y),p.y*u_focalLength,d*1.002002-.2002002,d);}
-float radius(float i){return .57+i*.051+floor(i/8.)*.04;}
-float phase(float i){return u_world.z*(.22+.9/(1.+i*.12))+i*2.39996;}
+float radius(float i){if(i<48.)return .57+i*.051+floor(i/8.)*.04;float group=floor((i-48.)/6.);return 3.55+group*.68+group*group*.16+mod(i-48.,6.)*.065;}
+float phase(float i){return u_stellarState.x*(.22+.9/(1.+i*.12))+i*2.39996;}
 float starRadius(){return .285*(1.+u_roles.x*u_movement*.075);}
 vec3 orbit(float i,float a,float r){
  float amplitude=band(i).x*u_movement;
- r+=amplitude*(.035+.105*(.5+.5*sin(a*3.+i*.21-u_world.z)));
- vec3 p=vec3(cos(a)*r,sin(a)*r*.91,sin(a*4.+i*.38-u_world.z*.6)*amplitude*.12);
- float tilt=i<42.?1.02+sin(i*.16)*.10:.42+(i-42.)*.32;
- p.yz=rot(tilt)*p.yz;p.xz=rot(i<42.?.12:.5+(i-42.)*.48)*p.xz;p.xy=rot(-.22)*p.xy;
+ float sweep=polar(i,a);
+ r+=amplitude*(.035+.105*(.5+.5*sin(a*3.+i*.21-u_stellarState.y)))+sweep*.055;
+ vec3 p=vec3(cos(a)*r,sin(a)*r*.91,sin(a*4.+i*.38-u_stellarState.y*.6)*(amplitude*.12+sweep*.085));
+ float tilt=i<42.?1.02+sin(i*.16)*.10:i<48.?.42+(i-42.)*.32:.90+sin(floor((i-48.)/6.)*2.)*.18;
+ p.yz=rot(tilt)*p.yz;p.xz=rot(i<42.?.12:i<48.?.5+(i-42.)*.48:.15+floor((i-48.)/6.)*.16)*p.xz;p.xy=rot(-.22)*p.xy;
  return p+CENTER;
 }
 float bodyLane(float i){return mod(i*5.37,46.);}
@@ -44,15 +56,21 @@ ${SKY}
 uniform float u_segments,u_pathPart;
 out vec3 v_color;out float v_alpha,v_edge;
 vec3 path(float i,float t){
- if(u_pathPart<1.5){
-  float age=max(0.,u_astraTime-band(i).y),echo=u_pathPart>.5?age*(.20+band(i).w*.4):0.;
+ if(u_pathPart<1.5||u_pathPart>3.5){
+  float age=max(0.,u_astraTime-band(i).y),echo=u_pathPart>.5&&u_pathPart<1.5?age*(.20+band(i).w*.4):0.;
   return orbit(i,t*TAU,radius(i)+echo);
  }
- // Magnetic loops leave and return to the surface; no flat sprite flames.
- vec3 axis=direction(i+19.),a=normalize(cross(axis,vec3(.13,1.,.07))),b=cross(axis,a);
- float growth=.07+.16*pow(.5+.5*sin(u_world.z*.85+i*2.),3.)+u_roles.y*u_movement*.13;
- float angle=(t-.5)*.60;
- return CENTER+normalize(axis+a*sin(angle)+b*cos(t*PI)*.07)*(starRadius()+sin(t*PI)*(growth+sin(t*13.+i+u_world.z)*.008));
+ // Five braided strands per prominence, anchored at both footpoints.
+ float loop=floor(i/5.),strand=mod(i,5.)-2.,clock=u_stellarState.y;
+ vec3 axis=direction(loop+19.);axis.xz=rot(sin(clock*.7+loop)*u_roles.z*.20)*axis.xz;
+ vec3 a=normalize(cross(axis,vec3(.13,1.,.07))),b=cross(axis,a);
+ float voice=band(mod(loop*3.7,48.)).x,arch=sin(t*PI);
+ float growth=.055+.065*pow(.5+.5*sin(clock*.85+loop*2.),3.)+(voice*.16+u_roles.x*.07+u_roles.y*.08)*u_movement;
+ float ripple=sin(t*23.-clock*(3.+voice*3.)+strand*.6+loop)*.009+sin(t*47.+clock*2.+loop)*.003;
+ float twist=t*11.-clock*(1.+u_roles.z*2.)+strand*1.25;
+ float angle=(t-.5)*(.55+voice*.20)+sin(t*PI*2.+clock+loop)*arch*u_roles.z*.12;
+ vec3 dir=normalize(axis+a*(sin(angle)+arch*cos(twist)*strand*.009)+b*(cos(t*PI)*.06+arch*sin(twist)*(.014+u_roles.w*.04)));
+ return CENTER+dir*(starRadius()+arch*(growth+ripple+strand*.004));
 }
 void main(){
  int corner=gl_VertexID%6,cell=gl_VertexID/6,segments=int(u_segments);
@@ -62,16 +80,26 @@ void main(){
  vec2 tangent=(next.xy/next.w-clip.xy/clip.w)*u_resolution;
  vec2 normal=normalize(vec2(-tangent.y,tangent.x)+vec2(.000001));
  float major=1.-step(.5,mod(i,8.)),arc=pow(.5+.5*cos(t*TAU-phase(i)),36.);
- float width=(.46+major*.16+band(i).x*.27)*max(.75,u_pixel);
- v_alpha=(.055+major*.06+arc*.16+band(i).x*.28+frequency(i)*.22)*clamp(.65+p.z*.12,.30,1.);
- v_color=mix(cool(),warm(),major*.5+band(i).x*.45);
- if(i>=42.)v_alpha*=.48;
+ float sweep=polar(i,t*TAU);
+ float width=(.58+major*.22+band(i).x*.40+sweep*.38)*max(.75,u_pixel);
+ v_alpha=(.11+major*.11+arc*.40+band(i).x*.65+frequency(i)*.36+sweep*.65)*clamp(.65+p.z*.12,.30,1.);
+ v_color=mix(cool(),warm(),clamp(major*.4+band(i).x*.35+sweep*.45,0.,1.))*1.35;
+ if(i>=42.&&i<48.)v_alpha*=.60;
+ if(i>=48.)v_alpha*=.48+.20*pow(.5+.5*sin(t*TAU*3.+i),4.);
  if(u_pathPart>.5&&u_pathPart<1.5){
   float age=max(0.,u_astraTime-band(i).y);
-  v_alpha=band(i).z*exp(-age*2.6)*smoothstep(0.,.1,age)*(1.-smoothstep(1.1,1.7,age))*.34*u_movement*min(1.5,u_light.z);
+  v_alpha=band(i).z*exp(-age*2.6)*smoothstep(0.,.1,age)*(1.-smoothstep(1.1,1.7,age))*.65*u_movement*min(1.5,u_light.z);
   width*=1.4;v_color=mix(warm(),cool(),age*.5);
  }
- if(u_pathPart>1.5){v_alpha=sin(t*PI)*(.25+u_roles.x*.20+u_roles.y*.4)*(.28+.72*pow(.5+.5*sin(u_world.z+i),2.));v_color=warm()*1.9;width=(u_pathPart>2.5?3.6:.8)*max(.75,u_pixel);if(u_pathPart>2.5)v_alpha*=.18;}
+ if(u_pathPart>1.5&&u_pathPart<3.5){
+  float loop=floor(i/5.),voice=band(mod(loop*3.7,48.)).x;
+  float knots=pow(.5+.5*sin(t*35.-u_stellarState.y*5.+loop),5.);
+  v_alpha=sin(t*PI)*(.35+u_roles.x*.30+voice*.75+u_roles.y*.55)*(.55+knots*.7);
+  v_color=mix(warm(),vec3(1.),knots*.25)*2.4;
+  width=(u_pathPart>2.5?3.2:.65)*max(.75,u_pixel);if(u_pathPart>2.5)v_alpha*=.11;
+ }
+ if(u_pathPart>3.5){width*=5.;v_alpha*=.13;}
+ v_alpha*=smoothstep(.25,1.,clip.w);
  clip.xy+=normal*side*width*2./u_resolution*clip.w;gl_Position=clip;v_edge=side;
 }`;
 export const ASTRA_PATH_FRAGMENT=`#version 300 es
@@ -102,17 +130,17 @@ float grain(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mi
 void main(){
  vec3 n=normalize(v_normal),eye=normalize(vec3(0.,0.,5.4+u_camera.z)-camera(v_world)),viewNormal=camera(n);
  float facing=max(0.,dot(viewNormal,eye)),rim=pow(1.-facing,3.);
- vec3 p=n;p.xz=rot(u_world.z*.17+v_body)*p.xz;
+ vec3 p=n;p.xz=rot(u_stellarState.y*.17+v_body)*p.xz;
  float rock=.24+grain(p*8.)*.42+grain(p*29.)*.23+grain(p*110.)*.12;
  vec3 tint=mix(cool(),warm(),hash(v_body+4.)*.7);
  float light=max(0.,dot(n,normalize(CENTER-v_world)));
  vec3 color=tint*(.025+light*.65)*rock+cool()*rim*.055;
  if(v_body<.5){
-  vec3 flow=p*7.+vec3(0.,u_world.z*.25,0.);float warp=grain(flow)*2.;
+  vec3 flow=p*7.+vec3(0.,u_stellarState.y*.25,0.);float warp=grain(flow)*2.;
   float cells=grain(p*28.+warp),filaments=pow(1.-abs(cells*2.-1.),7.);
   float spots=smoothstep(.64,.81,grain(p*10.+warp));
   float heat=(.33+cells*.42+filaments*.55)*(1.-spots*.68)*(.45+.55*sqrt(facing));
-  color=mix(warm(),vec3(1.,.89,.67),filaments*.48)*heat*(1.3+u_roles.x*.65)+warm()*rim*.24;
+  color=mix(warm(),vec3(1.),filaments*.30)*heat*(2.1+u_roles.x*1.25)+warm()*rim*.65;
  }else color+=warm()*light*band(mod(v_body*5.37,46.)).x*.25;
  fragColor=vec4(color,1.);
 }`;
@@ -120,31 +148,36 @@ void main(){
 export const ASTRA_DUST_VERTEX=`#version 300 es
 precision highp float;
 ${SKY}
+uniform vec4 u_cometTrail[96];
 in vec4 a_seed;out vec3 v_color;out float v_alpha,v_flare;
 void main(){
  float x=a_seed.x,y=a_seed.y,z=a_seed.z,w=a_seed.w;
  vec3 p;float shine=0.,size=1.;v_flare=0.;
  if(gl_VertexID==0){
-  p=CENTER;size=450.;shine=.050+u_roles.x*.022;v_color=warm();
+  p=CENTER;size=560.;shine=.17+u_roles.x*.13;v_color=warm();
  }else if(w<.28){
   // Thin solar wind with a small number of hotter streamers.
-  float age=fract(x+u_world.z*(.08+y*.025)),r=starRadius()+age*(.35+z*.65);
-  vec3 dir=direction(y*1821.);dir.xz=rot(u_world.z*.12+age*.5)*dir.xz;
-  p=CENTER+dir*r;shine=pow(1.-age,3.)*(.035+pow(z,8.)*.35)*(1.+u_roles.x*.45);
+  float age=fract(x+u_stellarState.y*(.14+y*.045)),r=starRadius()+age*(.18+z*.32);
+  vec3 dir=direction(y*1821.);dir.xz=rot(u_stellarState.y*.12+age*.5)*dir.xz;
+  p=CENTER+dir*r;shine=pow(1.-age,3.)*(.075+pow(z,8.)*.65)*(1.+u_roles.x*.75);
   size=.65+pow(z,9.)*1.7;v_color=mix(warm(),vec3(1.,.83,.58),pow(1.-age,3.)*.6);
  }else if(w<.48){
-  // Twelve bounded burst packets: real births, ballistic travel and a fade.
-  vec4 event=u_astraEvents[int(floor(y*12.))];float age=u_astraTime-event.x;
-  float live=step(0.,age)*(1.-smoothstep(1.4,2.5,age))*event.y;
-  vec3 axis=direction(event.z*51.+7.),dir=normalize(axis+direction(x*1023.)*(.12+z*.6));
-  float travel=max(0.,age)*(.45+z*.85)*( .5+event.y)*u_movement;
-  p=CENTER+dir*(starRadius()+travel);p+=cross(axis,dir)*travel*travel*.16;
-  shine=live*(.10+pow(z,5.)*.55)*min(1.5,u_light.z);size=.7+z*1.3;v_color=mix(warm(),vec3(1.,.88,.71),pow(1.-clamp(age/2.5,0.,1.),4.)*.65);
+  // Short-range ballistic gravity: most debris turns and falls to the surface.
+  // The minority escaping stream retains a slow, fading outward solar wind.
+  vec4 event=u_astraEvents[int(floor(y*12.))];float age=max(0.,u_astraTime-event.x);
+  vec3 axis=direction(event.z*51.+7.),dir=normalize(axis+direction(x*1023.)*(.08+z*.35));
+  float velocity=(.45+z*.5)*(.65+event.y*.4),gravity=1.05+x*.35;
+  float height=velocity*age-.5*gravity*age*age,falling=step(velocity/gravity,age);
+  float bound=step(.26,z),travel=mix(age*(.20+z*.3),max(0.,height),bound)*u_movement;
+  float live=event.y*(1.-smoothstep(1.5,2.1,age))*mix(1.,step(0.,height),bound);
+  p=CENTER+dir*(starRadius()+travel);p+=cross(axis,dir)*sin(age*2.)*travel*.22;
+  shine=live*(.18+pow(z,5.)*.8+falling*bound*.15)*min(1.5,u_light.z);size=.7+z*1.1;
+  v_color=mix(warm(),vec3(1.),(.2+falling*.15)*pow(1.-clamp(travel,0.,1.),2.));
  }else if(w<.76){
-  float ring=10.+y*29.,a=x*TAU+u_world.z*(.16+y*.12);
+  float ring=y<.66?10.+y/.66*29.:48.+(y-.66)/.34*23.,a=x*TAU+u_stellarState.x*(.16+y*.12);
   p=orbit(ring,a,radius(ring)+(z-.5)*.14);p+=direction(x*871.)*.025;
   p+=normalize(p-CENTER)*band(ring).x*u_movement*.08;
-  shine=(.012+pow(z,7.)*.23)*(1.+band(ring).x*.8);size=.65+z*.7;v_color=mix(cool(),warm(),pow(z,2.));
+  shine=(.018+pow(z,7.)*.35)*(1.+band(ring).x*.8+polar(ring,a)*1.8);size=.65+z*.7;v_color=mix(cool(),warm(),pow(z,2.));
  }else if(w<.85){
   float body=1.+floor(y*16.),parent=body>8.5?body-8.:body,lane=bodyLane(parent),boost=u_orbitMotion[int(lane)].y;
   float lag=x*(.035+boost*.65),a=bodyPhase(parent)-lag;
@@ -153,15 +186,14 @@ void main(){
   p+=direction(z*713.)*(.003+x*x*.028);
   shine=smoothstep(.07,.35,boost)*pow(1.-x,2.)*(.06+boost*.25);size=.65+pow(1.-x,6.);v_color=mix(cool(),warm(),boost*.75);
  }else if(w<.96){
-  // A comet has a beginning and an end. Its curved tail samples earlier
-  // positions on the same trajectory, with widening dust behind the nucleus.
-  vec4 event=u_astraEvents[int(floor(y*12.))];float age=u_astraTime-event.x,tail=x;
-  float travel=age-tail*.9,t=travel/3.6;
-  vec3 axis=direction(event.z*71.+3.),side=normalize(cross(axis,vec3(.1,1.,.3)));
-  p=axis*((t-.5)*8.)+side*(.85+sin(t*PI)*.85)+CENTER;
-  p+=direction(z*173.)*(.004+tail*tail*.065);
-  shine=event.y*event.w*smoothstep(0.,.25,age)*(1.-smoothstep(2.9,3.6,age))*step(0.,travel)*pow(1.-tail,3.)*.65*min(1.5,u_light.z);
-  size=.8+pow(1.-tail,12.)*3.5;v_color=mix(warm(),vec3(.55,.78,1.),.6+tail*.4);
+  // Interpolate an actual focus-centred elliptical orbit and its past positions.
+  // Only 96 Kepler samples are solved per frame on the CPU, even on phones.
+  int comet=int(floor(y*6.)),at=int(floor(x*14.999));float f=fract(x*14.999);
+  vec4 point=mix(u_cometTrail[comet*16+at],u_cometTrail[comet*16+at+1],f);
+  p=point.xyz+direction(z*173.)*(.002+x*x*.035);
+  p+=normalize(p-CENTER+vec3(.0001))*x*x*.10;
+  shine=point.w*1.7*min(1.5,u_light.z);size=.9+pow(1.-x,14.)*4.;
+  v_color=mix(warm(),cool(),.3+x*.6);
  }else{
   p=direction(x*439.)*(6.+y*9.);shine=.012+pow(z,15.)*.24;size=.7+pow(z,12.)*1.5;v_color=mix(cool(),vec3(.72,.78,.88),y);
  }
@@ -179,13 +211,16 @@ export const ASTRA_BACKGROUND=`#version 300 es
 precision highp float;
 in vec2 v_uv;out vec4 fragColor;
 uniform vec2 u_resolution;uniform vec4 u_roles;uniform vec3 u_palette[6];
+vec3 vivid(vec3 c){c=max(c-vec3(min(c.r,min(c.g,c.b))*.92),vec3(.002));c/=max(c.r,max(c.g,c.b));return pow(c,vec3(1.45));}
+vec3 hueTurn(vec3 c,float angle){vec3 axis=normalize(vec3(1.));return max(vec3(.008),c*cos(angle)+cross(axis,c)*sin(angle)+axis*dot(axis,c)*(1.-cos(angle)));}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 void main(){
  vec2 p=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);
  float haze=exp(-dot(p-vec2(0.,.08),p-vec2(0.,.08))*7.);
  float cloud=exp(-pow((p.y+p.x*.22-.1)*3.,2.))*exp(-dot(p,p)*1.8);
- vec3 tint=mix(vec3(.12,.28,.5),u_palette[1],.3),sun=mix(vec3(.65,.18,.035),u_palette[4],.35);
- vec3 color=vec3(.0004,.00065,.0012)+tint*haze*.009+sun*cloud*.002*(.5+u_roles.x*.4);
+ vec3 sun=vivid(hueTurn(vivid(mix(u_palette[4],u_palette[1],smoothstep(.12,.85,u_roles.z))),u_roles.x*1.25-u_roles.z*1.55+u_roles.w*.6));
+ vec3 tint=vivid(mix(vivid(u_palette[1]),hueTurn(sun,1.35),.65));
+ vec3 color=vec3(.0004,.00065,.0012)+tint*haze*.012+sun*cloud*.006*(.5+u_roles.x*.4);
  vec2 grid=p*85.,cell=floor(grid),offset=vec2(hash(cell+17.),hash(cell+31.))*.65+.175;
  float seed=hash(cell),r=length((fract(grid)-offset)/max(fwidth(grid),vec2(.001)));
  float stars=step(.985,seed)*exp(-r*r/(.32+pow(seed,50.)*.8));

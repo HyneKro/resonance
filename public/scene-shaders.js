@@ -353,7 +353,8 @@ color=pow(film(color),vec3(.454545));
 vec3 cloud=texture(u_nebula,uv).rgb;
 if(u_artDirection>2.5&&u_artDirection<3.5)cloud=pow(max(cloud,vec3(0.)),vec3(2.2));
 if(u_artDirection>.5&&u_artDirection<1.5){vec4 s=texture(u_image,uv);return pow(film(s.rgb+cloud*(1.-clamp(s.a,0.,1.))+texture(u_bloom,uv).rgb*u_light.x*.08),vec3(.454545));}
-if((u_artDirection>2.5&&u_artDirection<3.5)||u_artDirection>6.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return pow(film(texture(u_image,uv).rgb+cloud*(1.-coverage)+texture(u_bloom,uv).rgb*u_light.x*.35),vec3(.454545))+highlights;}
+if(u_artDirection>2.5&&u_artDirection<3.5){vec4 s=texture(u_image,uv);return pow(film(s.rgb+cloud*(1.-clamp(s.a,0.,1.))+texture(u_bloom,uv).rgb*u_light.x*1.8),vec3(.454545))+highlights;}
+if(u_artDirection>6.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return pow(film(texture(u_image,uv).rgb+cloud*(1.-coverage)+texture(u_bloom,uv).rgb*u_light.x*.35),vec3(.454545))+highlights;}
 if(u_artDirection>4.5&&u_artDirection<5.5)return pow(film(texture(u_image,uv).rgb+cloud+texture(u_bloom,uv).rgb*u_light.x*.65),vec3(.454545))+highlights;
 if(u_artDirection>1.5&&u_artDirection<2.5)return pow(film(texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x*.75),vec3(.454545))+highlights;
 if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}

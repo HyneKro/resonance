@@ -147,7 +147,7 @@ app.whenReady().then(async()=>{
     const pixels=()=>{const t=gpu.targets[0];gpu.bind(t);const a=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,a);return a;};
     const distance=(a,b)=>a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0);
     d.camera=[0,0,0,0];renderStyle(3);const before=pixels();
-    input.time+=2;renderStyle(3);if(distance(before,pixels())<10)throw Error('Orbital paths do not travel');
+    for(let i=0;i<120;i++){d.spectrumClock+=1/60;renderStyle(3);}if(distance(before,pixels())<10)throw Error('Orbital paths do not travel');
     d.artMotion=originalMotion;gpu.draw(input);const held=pixels();input.time+=300;gpu.draw(input);
     if(distance(held,pixels())>.01)throw Error('Astra reads wall time while frozen');
     d.camera=[.7,.3,0,0];gpu.draw(input);if(distance(held,pixels())<10)throw Error('Astral depth does not follow camera');
