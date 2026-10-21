@@ -312,7 +312,9 @@ export class GPUScene {
         this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?14000:34000);yield;
       }else if(style.index===4){
         if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}
-        const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
+        const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced,colors:d.colors,spectrum:features.spectrum});
+        const neutral=Math.min(...ink.accent)*.85,peak=Math.max(.01,Math.max(...ink.accent)-neutral);
+        uniforms.u_inkAccent=Array.from(ink.accent,x=>(x-neutral)/peak);
         const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkEvents:ink.events,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
         const size=w+'x'+h;
         if(this.letteringSize!==size){
@@ -328,7 +330,7 @@ export class GPUScene {
         for(const edition of editions)for(const [layer,count]of [[3,1],[0,strands],[1,2],[2,3]]){
           this.use(this.contourBrush,{...inkUniforms,u_segments:segments,u_strands:count,u_inkLayer:layer,u_inkEdition:edition});gl.drawArrays(gl.TRIANGLES,0,segments*count*6);
         }yield;
-        this.use(this.contourDrops,inkUniforms);gl.drawArrays(gl.POINTS,0,8*24);yield;
+        this.use(this.contourDrops,inkUniforms);gl.drawArrays(gl.POINTS,0,8*40);yield;
         this.use(this.contourPaper,{...inkUniforms,u_paper:0});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
       }else if(style.index===6){
         const count=this.mobile?16:24;
@@ -398,12 +400,12 @@ export class GPUScene {
       }
       gl.depthMask(true);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
       // Downsample and extract emissive light before the separable bloom passes.
-      this.bind(bloomA);this.use(this.blur,{u_direction:[1/w,1/h],u_extract:1});this.texture(this.blur,'u_image',scene.texture);this.quadDraw(this.blur);
+      this.bind(bloomA);this.use(this.blur,{u_direction:[1/w,1/h],u_extract:1,u_inkGlow:style.index===4?1:0,u_inkAccent:uniforms.u_inkAccent||[0,0,0]});this.texture(this.blur,'u_image',scene.texture);this.quadDraw(this.blur);
       yield;
       // Astra's stronger light needs a smooth broad halo, not widely spaced
       // blur samples that repeat bright ring edges as ghost bands.
-      const glowRadius=style.index===3?Math.min(4,1+a.glow*1.5):1+a.glow*4;
-      for(let pass=0;pass<(style.index===3?2:1);pass++){
+      const glowRadius=style.index===3||style.index===4?Math.min(4,1+a.glow*1.5):1+a.glow*4;
+      for(let pass=0;pass<(style.index===3||style.index===4?2:1);pass++){
         this.bind(bloomB);this.use(this.blur,{u_direction:[glowRadius/bloomA.w,0],u_extract:0});this.texture(this.blur,'u_image',bloomA.texture);this.quadDraw(this.blur);
         this.bind(bloomA);this.use(this.blur,{u_direction:[0,glowRadius/bloomA.h],u_extract:0});this.texture(this.blur,'u_image',bloomB.texture);this.quadDraw(this.blur);
       }

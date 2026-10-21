@@ -1,4 +1,4 @@
-// Flat, screen-space brushwork. No scene camera, perspective, lighting or bloom.
+// Flat brushwork: RGB stores ink absorption, alpha stores colored emission only.
 const INK=`
 uniform float u_inkTime,u_ratio,u_movement,u_strands,u_segments,u_inkLayer,u_inkEdition;
 uniform vec2 u_resolution;uniform vec4 u_roles;uniform float u_spectrum[48],u_spectrumLight[48];
@@ -31,27 +31,31 @@ vec2 baseGesture(float t,float edition){
 vec2 gesture(float t,float edition){
  vec2 p=baseGesture(t,edition);
  float bass=clamp(u_roles.x*u_movement,0.,1.6),lead=clamp(u_roles.z*u_movement,0.,1.6);
- float contour=(band(t)*.36+(band(t-.035)+band(t+.035))*.24+(band(t-.07)+band(t+.07))*.08)*2.-.35;
- p*=1.+bass*.19;
- p+=vec2(sin(t*PI*4.+u_inkTime*1.6)*bass*.065,
-  sin(t*PI*4.-u_inkTime*1.8)*lead*.075+contour*lead*.055);
+ // Low to high frequencies run along the brush and its companion line.
+ vec2 tangent=normalize(baseGesture(min(1.,t+.003),edition)-baseGesture(max(0.,t-.003),edition)+vec2(.00001,0.));
+ vec2 normal=vec2(-tangent.y,tangent.x);
+ float spectrum=band(t)*.5+(band(t-.014)+band(t+.014))*.25;
+ float envelope=pow(max(0.,sin(t*PI)),.65);
+ p*=1.+bass*.12;
+ p+=normal*spectrum*envelope*(.40+lead*.15)*u_movement;
  return p;
 }
 vec2 trace(float t,float edition){
  if(u_inkLayer<.5||u_inkLayer>2.5)return gesture(t,edition);
  if(u_inkLayer<1.5){
-  float envelope=pow(max(0.,sin(t*PI)),1.4);
-  return vec2((t-.5)*2.12,-.25+sin(t*PI*3.+u_inkTime*.5)*(.05+u_roles.z*.16*u_movement)*envelope
-   +sin(t*PI*34.)*band(t)*envelope*(.018*u_movement+u_roles.z*.065*u_movement));
+  vec2 tangent=normalize(baseGesture(min(1.,t+.003),edition)-baseGesture(max(0.,t-.003),edition)+vec2(.00001,0.));
+  return gesture(t,edition)-vec2(-tangent.y,tangent.x)*(.024+.066*sin(t*PI));
  }
- float a=t*2.*PI;return vec2(.28,-.02)+vec2(cos(a),sin(a))*(.37+u_roles.x*u_movement*.08);
+ float a=t*2.*PI,f=sin(t*PI),spectrum=band(f)*.5+(band(f-.018)+band(f+.018))*.25;
+ float radius=.37+u_roles.x*u_movement*.105+spectrum*u_movement*.065;
+ return vec2(.28,-.02)+vec2(cos(a),sin(a))*radius;
 }
 `;
 
 export const CONTOUR_VERTEX=`#version 300 es
 precision highp float;
 ${INK}
-out vec4 v_brush;out float v_density;out float v_red;out float v_wash;
+out vec4 v_brush;out float v_density;out float v_red;out float v_wash;out float v_emission;
 void main(){
  int segs=int(u_segments),cell=gl_VertexID/6,corner=gl_VertexID%6;
  float strand=float(cell/segs),t=(float(cell%segs)+((corner==1||corner==3||corner==5)?1.:0.))/u_segments;
@@ -67,7 +71,7 @@ void main(){
  vec2 tangent=normalize(after-before+vec2(.00001,0.)),normal=vec2(-tangent.y,tangent.x);
  float pressure=pow(max(.001,sin(PI*t)),.55)*(.58+.42*sin(t*5.2+.4));
  float width=(.004+pressure*.145)*(1.+clamp(u_roles.y*u_movement,0.,1.4)*.45)*smoothstep(0.,.025,t)*(1.-smoothstep(.90,1.,t));
- if(u_inkLayer>.5&&u_inkLayer<2.5)width=u_inkLayer<1.5?.001+.004*sin(t*PI):.002;
+ if(u_inkLayer>.5&&u_inkLayer<2.5)width=u_inkLayer<1.5?.002+.004*sin(t*PI):.002+u_roles.z*u_movement*.0015;
  float rake=sin(t*27.+seed*9.)*.0017+sin(t*93.+seed*29.)*.0006;
  float filament=width/u_strands*(.48+seed*.9);
  if(u_inkLayer>2.5){lane=0.;filament=width;}
@@ -79,11 +83,13 @@ void main(){
  else if(u_inkLayer>2.5)v_density*=1.85;
  else if(u_inkLayer<2.5)v_density*=u_inkLayer<1.5?1.2:.65;
  v_red=u_inkLayer>.5&&u_inkLayer<1.5?1.:u_inkLayer>1.5&&u_inkLayer<2.5?-1.:0.;v_wash=u_inkLayer>2.5?1.:0.;
+ v_emission=.28+lamp(t)*2.6+band(t)*.8+u_roles.y*.6;
 }`;
 
 export const CONTOUR_FRAGMENT=`#version 300 es
 precision highp float;
-in vec4 v_brush;in float v_density;in float v_red;in float v_wash;out vec4 fragColor;
+in vec4 v_brush;in float v_density;in float v_red;in float v_wash;in float v_emission;out vec4 fragColor;
+uniform vec3 u_inkAccent;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);}
 void main(){
@@ -102,32 +108,36 @@ void main(){
  }
  if(v_red>.5)ink=v_density*fade*(.8+tooth*.2);
  if(v_red<-.5)ink=v_density*fade*.5;
- vec3 pigment=mix(vec3(.78,.79,.82),vec3(.13,1.38,1.52),max(0.,v_red));
- fragColor=vec4(pigment*ink,ink);
+ vec3 pigment=mix(vec3(.78,.79,.82),-log(max(u_inkAccent*.85,vec3(.015)))/3.4,max(0.,v_red));
+ fragColor=vec4(pigment*ink,v_red>.5?ink*v_emission:0.);
 }`;
 
 export const CONTOUR_DROPS_VERTEX=`#version 300 es
 precision highp float;
 ${INK}
-uniform vec4 u_inkEvents[8];out vec3 v_drop;
+uniform vec4 u_inkEvents[8];out vec4 v_drop;
 void main(){
- int burst=gl_VertexID/24;float id=float(gl_VertexID%24),seed=hash(float(gl_VertexID)+.8);
+ int burst=gl_VertexID/40;float id=float(gl_VertexID%40),seed=hash(float(gl_VertexID)+.8);
  vec4 event=u_inkEvents[burst];float age=max(0.,u_inkTime-event.z),angle=id*2.39996+seed;
- float travel=(1.-exp(-age*7.))*(.025+pow(seed,1.8)*.25)*event.w;
- vec2 p=place(event.xy+vec2(cos(angle),sin(angle))*travel);
+ float travel=(1.-exp(-age*6.))*(.025+pow(seed,1.4)*.38)*event.w;
+ vec2 origin=gesture(event.x,event.y);
+ vec2 p=place(origin+vec2(cos(angle),sin(angle))*travel);
  gl_Position=vec4(p.x/u_ratio,p.y,0.,1.);
- gl_PointSize=max(1.2,(id<1.?.028:.002+pow(seed,3.)*.013)*u_resolution.y*(.7+event.w*.7));
- v_drop=vec3((1.-smoothstep(1.4,5.5,age))*step(.001,event.w),seed,age);
+ gl_PointSize=max(1.2,(id<2.?.023:.002+pow(seed,3.)*.015)*u_resolution.y*(.6+event.w*.9));
+ v_drop=vec4((1.-smoothstep(1.4,5.5,age))*step(.001,event.w),seed,age,mod(id,3.)<1.?0.:1.);
 }`;
 
 export const CONTOUR_DROPS_FRAGMENT=`#version 300 es
-precision highp float;in vec3 v_drop;out vec4 fragColor;
+precision highp float;in vec4 v_drop;out vec4 fragColor;uniform vec3 u_inkAccent;uniform vec4 u_roles;
 void main(){
  vec2 p=gl_PointCoord*2.-1.;float a=atan(p.y,p.x),r=length(p);
- float edge=.76+sin(a*3.+v_drop.y*8.)*.07+sin(a*7.+v_drop.y*13.)*.04+sin(a*11.)*.02;
+ float edge=.62+sin(a*3.+v_drop.y*8.)*.08+pow(max(0.,cos(a*7.+v_drop.y*13.)),12.)*.27+sin(a*11.)*.03;
  float ink=(1.-smoothstep(edge-.12,edge,r))*v_drop.x;
  float grain=fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453);
- ink*=.72+grain*.28;fragColor=vec4(vec3(.16,1.12,1.27)*ink,ink);
+ ink*=.72+grain*.28;
+ vec3 pigment=mix(vec3(.85),-log(max(u_inkAccent*.85,vec3(.015)))/3.4,v_drop.w);
+ float wet=1.-smoothstep(.15,1.4,v_drop.z);
+ fragColor=vec4(pigment*ink,ink*v_drop.w*(.18+wet*(.55+u_roles.y)));
 }`;
 
 export const CONTOUR_PAPER=`#version 300 es
@@ -139,11 +149,11 @@ void main(){
   float x=(v_uv.x-.69)/.22;int bin=int(clamp(x,0.,.999)*48.);
   float bar=(1.-smoothstep(.16,.24,abs(fract(x*48.)-.5)))*step(0.,x)*step(x,1.)
    *step(.19,v_uv.y)*(1.-smoothstep(.192+u_spectrum[bin]*.025,.194+u_spectrum[bin]*.025,v_uv.y));
-  ink+=vec3(.32)*bar;fragColor=vec4(ink,label.a+bar);return;}
+  ink+=vec3(.32)*bar;fragColor=vec4(ink,0.);return;}
  vec2 p=v_uv*u_resolution;
  float fine=grain(p*.93),fiber=grain(vec2(p.x*.11,p.y*1.8));
  float tooth=(fine-.5)*.022+(fiber-.5)*.011;
  float wash=sin(v_uv.x*8.+v_uv.y*3.)*sin(v_uv.y*7.)*.005;
- vec3 paper=vec3(.964,.949,.911)+tooth+wash;
+ vec3 paper=vec3(.44,.43,.41)+tooth+wash;
  fragColor=vec4(paper,1.);
 }`;

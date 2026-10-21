@@ -42,3 +42,27 @@ test('a new track clears drying marks and starts a composed sheet',()=>{
  assert.equal(ink.emitted,1);ink.reset();assert.ok(ink.events.every(x=>x===0));
  assert.equal(ink.emitted,0);assert.equal(ink.clock,null);assert.equal(ink.time,4.8);
 });
+
+test('ink color follows the track gradually, stays stable when held, and survives track changes',()=>{
+ const ink=new ContourMotion(),colors=[[.02,.6,.9],[.3,.2,.1],[.04,.5,.8]],spectrum=new Float32Array(48).fill(.6);
+ ink.update(0);const initial=[...ink.accent];ink.update(1/60,{colors,spectrum,energy:1});
+ assert.ok(ink.accent[0]<initial[0]&&ink.accent[2]>initial[2]);assert.ok(Math.abs(ink.accent[0]-initial[0])<.015);
+ for(let i=2;i<=300;i++)ink.update(i/60,{colors,spectrum,energy:1});
+ assert.ok(ink.accent[2]>ink.accent[0]*2);
+ const tint=[...ink.accent];ink.update(5,{colors:colors.map(()=>[1,0,0]),energy:1});assert.deepEqual([...ink.accent],tint);
+ ink.update(200,{colors,energy:1});assert.deepEqual([...ink.accent],tint);
+ ink.reset();assert.deepEqual([...ink.accent],tint);
+ ink.update(0);ink.update(.02,{colors,energy:1,reduced:true});assert.deepEqual([...ink.accent],tint);
+});
+
+test('the accent responds to spectral balance and smooths independently of frame rate',()=>{
+ const colors=[[1,.03,.02],[.7,.3,.1],[.03,.3,1]],results=[];
+ for(const fps of [30,60,120]){
+  const ink=new ContourMotion(),spectrum=new Float32Array(48);spectrum[42]=1;ink.update(0);
+  for(let i=1;i<=fps*3;i++)ink.update(i/fps,{colors,spectrum,energy:1});results.push([...ink.accent]);
+ }
+ for(const row of results)for(let c=0;c<3;c++)assert.ok(Math.abs(row[c]-results[0][c])<1e-5);
+ const low=new ContourMotion(),spectrum=new Float32Array(48);spectrum[3]=1;low.update(0);
+ for(let i=1;i<=180;i++)low.update(i/60,{colors,spectrum,energy:1});
+ assert.ok(low.accent[0]>results[0][0]+.4);assert.ok(results[0][2]>low.accent[2]+.4);
+});

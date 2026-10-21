@@ -10,7 +10,15 @@ class OnlineUpdate {
   try{const r=restoreRelease(JSON.parse(await fs.readFile(path.join(this.directory,'pending.json'),'utf8')),this.current);if(r&&await verifyFile(path.join(this.directory,'download.zip'),r))this.set({phase:r.version===this.state.failedVersion?'error':'ready',release:r,message:r.version===this.state.failedVersion?'This update could not be installed. Check for a newer release or download it again.':`Version ${r.version} is ready. Restart when it suits you.`});else await fs.unlink(path.join(this.directory,'download.zip')).catch(()=>{});}catch{}
   return this.snapshot();
  }
- async save(){const text=JSON.stringify({channel:this.state.channel,autoCheck:this.state.autoCheck,autoDownload:this.state.autoDownload,checkedAt:this.state.checkedAt,failedVersion:this.state.failedVersion||''});const next=this.saving.catch(()=>{}).then(async()=>{const file=path.join(this.directory,'preferences.json');await fs.writeFile(file+'.tmp',text);await fs.rename(file+'.tmp',file);});this.saving=next;await next;}
+ async save(){const text=JSON.stringify({channel:this.state.channel,autoCheck:this.state.autoCheck,autoDownload:this.state.autoDownload,checkedAt:this.state.checkedAt,failedVersion:this.state.failedVersion||''});const next=this.saving.catch(()=>{}).then(async()=>{
+  const file=path.join(this.directory,'preferences.json');await fs.writeFile(file+'.tmp',text);
+  // Windows scanners can briefly hold the destination after a save. Retain
+  // the atomic replacement and serialized writes; never delete the old file.
+  for(let attempt=0;;attempt++){
+   try{await fs.rename(file+'.tmp',file);break;}
+   catch(error){if(!['EPERM','EBUSY'].includes(error.code)||attempt>=5)throw error;await new Promise(resolve=>setTimeout(resolve,25*2**attempt));}
+  }
+ });this.saving=next;await next;}
  async preferences(p){await this.ready;if(typeof p.autoCheck==='boolean')this.state.autoCheck=p.autoCheck;if(typeof p.autoDownload==='boolean')this.state.autoDownload=p.autoDownload;await this.save();return this.set({});}
  async check(automatic=false,{forInstall=false}={}){await this.ready;if(this.busy||this.installing&&!forInstall||['preparing','restarting'].includes(this.state.phase)||automatic&&(!this.state.autoCheck||Date.now()-this.state.checkedAt<checkInterval(this.state)))return this.snapshot();const before=this.snapshot(),prepared=before.phase==='ready'?before:null;this.busy=true;this.abort=new AbortController();this.set({phase:'checking',checkedAt:Date.now(),message:this.state.channel==='development'?'Checking for development updates…':'Checking for approved updates…'});
   try{let release=await this.find(this.current,{signal:AbortSignal.any([this.abort.signal,AbortSignal.timeout(30000)])});

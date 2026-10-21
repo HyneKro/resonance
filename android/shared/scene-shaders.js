@@ -336,15 +336,16 @@ void main(){
 
 export const BLOOM=`#version 300 es
 precision mediump float;in vec2 v_uv;out vec4 fragColor;
-uniform sampler2D u_image;uniform vec2 u_direction;uniform float u_extract;
-void main(){vec3 color=texture(u_image,v_uv).rgb*.227027;
-color+=(texture(u_image,v_uv+u_direction*1.384615).rgb+texture(u_image,v_uv-u_direction*1.384615).rgb)*.316216;
-color+=(texture(u_image,v_uv+u_direction*3.230769).rgb+texture(u_image,v_uv-u_direction*3.230769).rgb)*.070270;
+uniform sampler2D u_image;uniform vec2 u_direction;uniform float u_extract,u_inkGlow;uniform vec3 u_inkAccent;
+vec3 source(vec2 uv){vec4 s=texture(u_image,uv);return u_extract>.5&&u_inkGlow>.5?s.a*u_inkAccent:s.rgb;}
+void main(){vec3 color=source(v_uv)*.227027;
+color+=(source(v_uv+u_direction*1.384615)+source(v_uv-u_direction*1.384615))*.316216;
+color+=(source(v_uv+u_direction*3.230769)+source(v_uv-u_direction*3.230769))*.070270;
 if(u_extract>.5)color*=smoothstep(.12,.65,max(color.r,max(color.g,color.b)));
 fragColor=vec4(color,1.);}`;
 export const FINISH=`#version 300 es
 precision highp float;in vec2 v_uv;out vec4 fragColor;
-uniform vec3 u_retro;uniform vec4 u_world;
+uniform vec3 u_retro,u_inkAccent;uniform vec4 u_world;
 uniform sampler2D u_image,u_bloom,u_nebula;uniform vec4 u_light;uniform vec2 u_resolution;uniform float u_kaleidoWeights[${KALEIDOSCOPE_MODES.length+1}],u_kaleidoMotion,u_hdrOutput,u_artDirection,u_styleOpacity;
 vec3 film(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
 vec3 composite(vec2 uv){vec3 color=texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x;
@@ -358,7 +359,13 @@ if(u_artDirection>6.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);return 
 if(u_artDirection>4.5&&u_artDirection<5.5)return pow(film(texture(u_image,uv).rgb+cloud+texture(u_bloom,uv).rgb*u_light.x*.65),vec3(.454545))+highlights;
 if(u_artDirection>1.5&&u_artDirection<2.5)return pow(film(texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x*.75),vec3(.454545))+highlights;
 if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
-if(u_artDirection>3.5&&u_artDirection<4.5)return cloud*exp(-texture(u_image,uv).rgb*3.4);
+if(u_artDirection>3.5&&u_artDirection<4.5){
+ vec4 ink=texture(u_image,uv);vec3 paper=cloud*exp(-ink.rgb*3.4);
+ // Only the colored ink writes emission. Black brushwork and typography
+ // absorb light instead of becoming luminous through the bloom extraction.
+ vec3 light=(u_inkAccent*.80+vec3(.045))*ink.a+texture(u_bloom,uv).rgb*u_light.x*5.;
+ return paper+film(light)*(1.-paper)*.90;
+}
 if(u_artDirection>.5&&u_artDirection<3.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);vec3 halo=pow(film(texture(u_bloom,uv).rgb*u_light.x),vec3(.454545));return mix(cloud,color,coverage)+halo*(1.-coverage)+highlights;}
 return 1.-(1.-cloud)*(1.-color)+highlights;}
 vec2 patternUV(float mode){

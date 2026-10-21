@@ -54,7 +54,7 @@ app.whenReady().then(async()=>{
    d.spectrumClock+=1/60;const t=d.spectrumClock,hit=t%(.5)<.055?.85:0;
    d.roles={bass:.38+.25*Math.sin(t*2),lead:.48+.20*Math.sin(t*1.2),drums:hit,texture:.2};
    input.features={...inkSaved.features,onset:hit,loudness:.6};
-   gpu.contour.update(t,{onset:hit,energy:.6});if(i%30===0)renderStyle(4);
+   gpu.contour.update(t,{onset:hit,drums:hit,energy:.6,colors:d.colors,spectrum:input.features.spectrum});if(i%30===0)renderStyle(4);
   }renderStyle(4);`);
   await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }

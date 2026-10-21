@@ -1,9 +1,9 @@
 // A small sheet of drying ink. Time follows playback, never the camera or wall clock.
 export class ContourMotion {
- constructor(){this.events=new Float32Array(8*4);this.reset();}
+ constructor(){this.events=new Float32Array(8*4);this.accent=new Float32Array([1,.055,.025]);this.reset();}
  reset(){this.time=4.8;this.clock=null;this.next=0;this.emitted=0;this.envelope=0;this.lastHit=-10;this.events.fill(0);}
  suspend(){this.clock=null;this.envelope=0;}
- update(clock,{onset=0,drums=0,energy=0,reduced=false}={}){
+ update(clock,{onset=0,drums=0,energy=0,reduced=false,colors,spectrum}={}){
   if(!Number.isFinite(clock))return this;
   const level=Math.max(0,Math.min(1,Number(onset)||0));
   const attack=Math.max(level,Math.max(0,Math.min(1,Number(drums)||0))*.8);
@@ -11,14 +11,21 @@ export class ContourMotion {
   const dt=clock-this.clock;this.clock=clock;
   if(reduced||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=attack;return this;}
   this.time+=dt;
+  // Track colors and spectral balance tint wet ink gradually. A held clock
+  // or seek cannot jump the palette; a track reset retains the previous tint.
+  if(colors?.length>=3){
+   let total=0,weighted=0;for(let i=0;i<48;i++){const v=Math.max(0,Number(spectrum?.[i])||0);total+=v;weighted+=v*i/47;}
+   const balance=total>0?weighted/total:.3,mix=Math.min(1,Math.max(0,energy))*.85;
+   const palette=colors[0].map((v,i)=>v*(1-balance)+colors[2][i]*balance);
+   const lo=Math.min(...palette),hi=Math.max(...palette),response=1-Math.exp(-dt/1.4);
+   for(let i=0;i<3;i++){const rest=[1,.055,.025][i],tint=hi-lo>.01?.035+.965*(palette[i]-lo)/(hi-lo):rest;const target=rest*(1-mix)+tint*mix;this.accent[i]+=(target-this.accent[i])*response;}
+  }
   // Rising accents only: a held loud note cannot spray a new burst every frame.
   const rise=attack-this.envelope;
   if(energy>.015&&attack>.24&&rise>.09&&this.time-this.lastHit>.24){
-   const n=this.emitted++,t=(n*.6180339+.13)%1,a=t*5.75+.25,edition=Math.floor(this.time/17)%3;
-   let x=-.28+Math.cos(a)*.53,y=.06+Math.sin(a)*.53;
-   if(edition===1){x=(t-.5)*2.05;y=Math.sin(t*Math.PI*2-.25)*.39+Math.sin(t*Math.PI*4)*.035;}
-   if(edition===2){const qx=Math.sign(Math.cos(a))*Math.abs(Math.cos(a))**.4*.48,qy=Math.sign(Math.sin(a))*Math.abs(Math.sin(a))**.4*.48;x=.93*qx+.36*qy-.12;y=-.36*qx+.93*qy+.03;}
-   this.events.set([x,y,this.time,Math.min(1,attack)],this.next*4);
+   const n=this.emitted++,t=(n*.6180339+.13)%1,edition=Math.floor(this.time/17)%3;
+   // Drops stay attached to a position on the live frequency gesture.
+   this.events.set([t,edition,this.time,Math.min(1,attack)],this.next*4);
    this.next=(this.next+1)%8;this.lastHit=this.time;
   }
   this.envelope=attack>this.envelope?attack:this.envelope+(attack-this.envelope)*(1-Math.exp(-dt/.11));

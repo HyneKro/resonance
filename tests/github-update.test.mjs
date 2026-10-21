@@ -11,6 +11,26 @@ const {OnlineUpdate,restoreRelease,checkInterval}=require('../electron/online-up
 const content=Buffer.from('verified portable archive'),hash=createHash('sha256').update(content).digest('hex');
 function release(v='1.1.5',platform='pc'){const name=platform==='pc'?`Resonance-PC-${v}-portable.zip`:`Resonance-Android-${v}.apk`,tag=platform+'-v'+v;return {tag_name:tag,assets:[{name,size:content.length,state:'uploaded',digest:'sha256:'+hash,browser_download_url:RELEASES_URL+'/download/'+tag+'/'+name}],body:'Changes'};}
 const dir=async()=>fs.mkdtemp(path.join(process.cwd(),'test-output','github-update-'));
+test('temporary preference locks retain the previous file and retry the atomic replacement',async t=>{
+ const directory=await dir(),updater=new OnlineUpdate({directory,current:'1.22.0',canInstall:true});await updater.ready;
+ await updater.preferences({autoDownload:false});
+ const rename=fs.rename;let attempts=0;
+ t.mock.method(fs,'rename',async(from,to)=>{
+  if(to===path.join(directory,'preferences.json')&&++attempts<=2){
+   assert.equal(JSON.parse(await fs.readFile(to,'utf8')).autoDownload,false);
+   throw Object.assign(Error('Temporary lock'),{code:'EPERM'});
+  }
+  return rename(from,to);
+ });
+ await updater.preferences({autoDownload:true});assert.equal(attempts,3);
+ assert.equal(JSON.parse(await fs.readFile(path.join(directory,'preferences.json'),'utf8')).autoDownload,true);
+});
+test('permanent preference storage errors remain visible and retries are bounded',async t=>{
+ const updater=new OnlineUpdate({directory:await dir(),current:'1.22.0',canInstall:true});await updater.ready;
+ let attempts=0,code='EIO';t.mock.method(fs,'rename',async()=>{attempts++;throw Object.assign(Error('Save failed'),{code});});
+ await assert.rejects(updater.preferences({autoDownload:false}),{code:'EIO'});assert.equal(attempts,1);
+ attempts=0;code='EPERM';await assert.rejects(updater.preferences({autoDownload:true}),{code:'EPERM'});assert.equal(attempts,6);
+});
 function devRelease(v='1.25.0-dev.3',platform='pc'){
  const r=release(v,platform);r.tag_name='development-'+r.tag_name;r.prerelease=true;
  r.assets[0].browser_download_url=RELEASES_URL+'/download/'+r.tag_name+'/'+r.assets[0].name;return r;
