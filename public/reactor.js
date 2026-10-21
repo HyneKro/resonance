@@ -1,7 +1,7 @@
 import {RibbonSpectrum} from './particle-spectrum.js';
 import {MusicalResponse} from './musical-response.js';
 import {SongDirector,directedAppearance} from './song-analysis.js';
-import {ArtDirectionTransition} from './art-directions.js';
+import {ArtDirectionTransition,ArtWorldMotion} from './art-directions.js';
 import {KaleidoscopeBlend} from './kaleidoscope.js';
 import {SceneCamera} from './scene-camera.js';
 import {SceneReveal} from './scene-reveal.js';
@@ -73,7 +73,7 @@ export class Reactor {
     const values=[d.shape,d.spread,d.flow,d.bloom,this.intensity];this.formMotion.forEach(s=>s.seconds=1.1/(this.responsiveness||1));
     const form=this.formMotion.map((spring,i)=>this.frozen?spring.value:spring.update(i<4&&(!this.dynamicVisuals||this.reduced)?spring.value:values[i],dt));
     this.songDirector??=new SongDirector();const direction=this.songDirector.update(this.songProfile,Math.max(0,(this.audio.currentTime||0)-(this.visualSync.delayMs||0)/1000),dt,{enabled:this.autoDirection!==false&&!this.desktopSource,active:this.reactiveActive,frozen:this.visualPending||this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
-    const identity=this.character?.update(dt,{direction,amount:this.appearance?.variation,theme:this.visualTheme,shape:this.ribbonShape,enabled:this.autoDirection!==false&&!this.desktopSource,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
+    const identity=this.character?.update(dt,{direction,amount:this.appearance?.variation,theme:this.visualTheme,enabled:this.autoDirection!==false&&!this.desktopSource,frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     if(!this.frozen&&!this.reduced)this.backgroundClock=(this.backgroundClock||0)+dt*this.speedMotion.update((this.appearance?.bgSpeed||1)*(.35+(identity?.character[0]||.5)),dt);
     const colors=this.paletteMixer.update(!this.desktopSource&&this.coverPalette!==false&&this.coverColors?this.coverColors:d.colors,dt,this.frozen);this.atmosphereTransition??=new AtmosphereTransition();const background=this.atmosphereTransition.update(identity,colors,dt,{frozen:this.frozen||this.dynamicVisuals===false,reduced:this.reduced});
     this.backgroundDrift??=new AtmosphereDrift();const backgroundDriftClock=this.backgroundDrift.update(this.backgroundClock,background.identity.recipe[4]);
@@ -83,9 +83,10 @@ export class Reactor {
     this.artTransition??=new ArtDirectionTransition();const styleWasActive=this.artTransition.active;
     const artStyle=this.artTransition.update(this.artDirection,dt,{reduced:this.reduced});
     if(styleWasActive||this.artTransition.active)this.needsFrame=true;
+    this.artWorldMotion??=new ArtWorldMotion();const artMotion=this.artWorldMotion.update(dt,this.roles?.output,{frozen:this.frozen,reduced:this.reduced,movement:this.appearance?.motionAmount});
     this.visualColors=colors;
     const appearance=directedAppearance(this.appearance,direction);
-    return {...d,direction,artStyle,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
+    return {...d,direction,artStyle,artMotion,kaleidoscopeWeights,camera:this.camera.update(dt,{rail:this.rollercoaster,speed:this.cameraSpeed,zoom:this.cameraZoom,features:this.features,reduced:this.reduced,frozen:this.frozen}),cameraFocalLength:this.camera.focalLength,portraitScene:this.portraitScene===true,kaleidoscope:this.kaleidoscope===true,kaleidoscopeMode:this.kaleidoscopeMode,rotationClock:this.clock,background,appearance,identity,backgroundClock:this.backgroundClock,backgroundDriftClock,rhythm:this.tempo?.output,roles:this.roles?.output,shape:form[0],spread:form[1],flow:form[2],bloom:form[3],intensity:form[4],
       colors};
   }
   eq(values){

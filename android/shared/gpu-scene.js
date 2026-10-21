@@ -1,6 +1,7 @@
 import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
 import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
 import {artDirection} from './art-directions.js';
+import {FishSchool} from './fish-school.js';
 import {compileSceneProgram} from './shader-loader.js';
 import {cameraUniform} from './scene-camera.js';
 import {ScenePreparation} from './scene-preparation.js';
@@ -37,6 +38,11 @@ export class GPUScene {
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS,0,gl.RGBA,gl.FLOAT,curves);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    this.school??=new FishSchool(this.mobile?160:384);
+    this.school.suspend();this.schoolTexture=gl.createTexture();this.schoolWidth=this.school.count;gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,this.school.count,2,0,gl.RGBA,gl.FLOAT,this.school.texture);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.flow=null;this.births=null;this.emptySpectrum=new Float32Array(48);this.birthCDF=new Float32Array(48);this.lastTime=undefined;this.lastMode=null;
     this.quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
     this.maxParticles=262144;this.flowCapacity=32768;this.seeds=gl.createBuffer();let seed=8217;const data=new Float32Array(this.maxParticles*4);
@@ -68,14 +74,14 @@ export class GPUScene {
     if(this.targets&&this.targets[0].w===w&&this.targets[0].h===h)return;
     const gl=this.gl;this.canvas.width=w;this.canvas.height=h;
     for(const t of this.targets||[]){gl.deleteTexture(t.texture);gl.deleteFramebuffer(t.frame);if(t.buffer)gl.deleteRenderbuffer(t.buffer);}
-    this.targets=[this.target(w,h),this.target(Math.max(1,w>>2),Math.max(1,h>>2)),this.target(Math.max(1,w>>2),Math.max(1,h>>2)),this.target(Math.max(1,Math.round(w*.65)),Math.max(1,Math.round(h*.65)))];
+    this.targets=[this.target(w,h,true),this.target(Math.max(1,w>>2),Math.max(1,h>>2)),this.target(Math.max(1,w>>2),Math.max(1,h>>2)),this.target(Math.max(1,Math.round(w*.65)),Math.max(1,Math.round(h*.65)))];
   }
   async prepareTargets(w,h,work){
     const gl=this.gl;
     for(const t of this.targets||[]){gl.deleteTexture(t.texture);gl.deleteFramebuffer(t.frame);if(t.buffer)gl.deleteRenderbuffer(t.buffer);}
     this.targets=[];this.canvas.width=w;this.canvas.height=h;await work.checkpoint();
     for(const [x,y]of [[w,h],[Math.max(1,w>>2),Math.max(1,h>>2)],[Math.max(1,w>>2),Math.max(1,h>>2)],[Math.max(1,Math.round(w*.65)),Math.max(1,Math.round(h*.65))]]){
-      this.targets.push(this.target(x,y));await work.drain(gl);
+      this.targets.push(this.target(x,y,this.targets.length===0));await work.drain(gl);
     }
   }
   bind(target){const gl=this.gl;gl.bindFramebuffer(gl.FRAMEBUFFER,target?.frame||null);gl.viewport(0,0,target?.w||this.canvas.width,target?.h||this.canvas.height);}
@@ -172,9 +178,10 @@ export class GPUScene {
       this.kaleidoscopeWeights??=new Float32Array(KALEIDOSCOPE_MODES.length+1);
       if(!d.kaleidoscopeWeights){this.kaleidoscopeWeights.fill(0);this.kaleidoscopeWeights[d.kaleidoscope===true?kaleidoscopeIndex(d.kaleidoscopeMode)+1:0]=1;}
       const style=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1};
+      if(style.index!==1)this.school.suspend();
       const sculpture=identity.sculpture||[0,0,1,0],precise=(sculpture[0]>=24?1-sculpture[2]:0)+(sculpture[1]>=24?sculpture[2]:0);
-      const story=d.direction;const uniforms={u_artDirection:style.index,u_styleOpacity:style.opacity,u_story:story?[story.energy,story.texture,story.attack,story.anticipation]:[.5,.5,.3,0],u_storyMix:reduced?0:story?.mix||0,u_camera:cameraUniform(d.camera),u_focalLength:d.cameraFocalLength??1.9,u_rotation:d.rotationClock??0,u_shapeFrom:identity.shapeFrom||identity.signature,u_shapeTo:identity.shapeTo||identity.signature,u_kaleidoWeights:d.kaleidoscopeWeights||this.kaleidoscopeWeights,u_kaleidoMotion:reduced?0:time*.035,u_sculpture:identity.sculpture||[0,0,1,0],u_recipeA:recipe.slice(0,4),u_recipeB:recipe.slice(4,8),u_signature:identity.signature,u_character:identity.character,u_themes:identity.themes,u_roles:[roles.bass||0,roles.drums||0,roles.lead||0,roles.texture||0],u_shimmer:roles.shimmer||0,u_rhythm:[Math.sin(rhythm.phase*Math.PI*2),Math.cos(rhythm.phase*Math.PI*2),reduced?0:rhythm.pulse,rhythm.confidence],u_particle:[a.particleSpread,a.particleSize,a.beatMotion,a.filigree],u_cloud:[a.bgScale,a.bgSpeed,a.turbulence,a.textureDetail],u_light:[a.bloom,a.glow,reduced?0:a.flash,a.contrast],u_movement:reduced?.1:a.motionAmount,u_palette:expandPalette(d.colors).flat(),u_transients:Array.from(features.transients||features.accents,x=>x*(reduced?.1:1)),u_birthCDF:birth.cdf,u_birthTotal:birth.total,u_harmonic:features.harmonic||features.spectrum,u_percussive:features.percussive||features.spectrum,u_spectrum:features.spectrum,u_morph:features.morph||[.24,.32,.2,.18],u_particleStyle:({white:0,palette:1,frequency:2,birth:3})[d.particleColor]??1,u_resolution:[w,h],u_time:time,u_mode:0,u_energy:features.loudness,u_onset:features.onset,u_accents:features.accents.map(x=>x*(reduced?.1:1)),u_low:features.bands.slice(0,4),u_high:features.bands.slice(4),u_form:[d.shape,d.spread,d.flow,d.bloom],u_colorA:d.colors[0],u_colorB:d.colors[1],u_colorC:d.colors[2],u_evolve:1,u_intensity:intensity,u_drive:drive,u_pixel:density,u_ratio:width/height,u_weight:1,u_density:Math.min(2,98304/primaryCount*Math.pow(h/900,1.2))*.75};
-      gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+      const story=d.direction;const uniforms={u_world:d.artMotion||[time*.45,time*1.4,time*.15,time*.16],u_artDirection:style.index,u_styleOpacity:style.opacity,u_story:story?[story.energy,story.texture,story.attack,story.anticipation]:[.5,.5,.3,0],u_storyMix:reduced?0:story?.mix||0,u_camera:cameraUniform(d.camera),u_focalLength:d.cameraFocalLength??1.9,u_rotation:d.rotationClock??0,u_shapeFrom:identity.shapeFrom||identity.signature,u_shapeTo:identity.shapeTo||identity.signature,u_kaleidoWeights:d.kaleidoscopeWeights||this.kaleidoscopeWeights,u_kaleidoMotion:reduced?0:time*.035,u_sculpture:identity.sculpture||[0,0,1,0],u_recipeA:recipe.slice(0,4),u_recipeB:recipe.slice(4,8),u_signature:identity.signature,u_character:identity.character,u_themes:identity.themes,u_roles:[roles.bass||0,roles.drums||0,roles.lead||0,roles.texture||0],u_shimmer:roles.shimmer||0,u_rhythm:[Math.sin(rhythm.phase*Math.PI*2),Math.cos(rhythm.phase*Math.PI*2),reduced?0:rhythm.pulse,rhythm.confidence],u_particle:[a.particleSpread,a.particleSize,a.beatMotion,a.filigree],u_cloud:[a.bgScale,a.bgSpeed,a.turbulence,a.textureDetail],u_light:[a.bloom,a.glow,reduced?0:a.flash,a.contrast],u_movement:reduced?.1:a.motionAmount,u_palette:expandPalette(d.colors).flat(),u_transients:Array.from(features.transients||features.accents,x=>x*(reduced?.1:1)),u_birthCDF:birth.cdf,u_birthTotal:birth.total,u_harmonic:features.harmonic||features.spectrum,u_percussive:features.percussive||features.spectrum,u_spectrum:features.spectrum,u_morph:features.morph||[.24,.32,.2,.18],u_particleStyle:({white:0,palette:1,frequency:2,birth:3})[d.particleColor]??1,u_resolution:[w,h],u_time:time,u_mode:0,u_energy:features.loudness,u_onset:features.onset,u_accents:features.accents.map(x=>x*(reduced?.1:1)),u_low:features.bands.slice(0,4),u_high:features.bands.slice(4),u_form:[d.shape,d.spread,d.flow,d.bloom],u_colorA:d.colors[0],u_colorB:d.colors[1],u_colorC:d.colors[2],u_evolve:1,u_intensity:intensity,u_drive:drive,u_pixel:density,u_ratio:width/height,u_weight:1,u_density:Math.min(2,98304/primaryCount*Math.pow(h/900,1.2))*.75};
+      gl.disable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
       this.resize(w,h);const [scene,bloomA,bloomB,nebula]=this.targets;
       const atmosphere=features.atmosphere,back=d.background?.identity||identity,backColors=d.background?.colors||d.colors,backRecipe=back.recipe||recipe;const backUniforms={...uniforms,u_signature:back.signature,u_character:back.character,u_themes:back.themes,u_recipeA:backRecipe.slice(0,4),u_recipeB:backRecipe.slice(4,8),u_palette:expandPalette(backColors).flat(),u_colorA:backColors[0],u_colorB:backColors[1],u_colorC:backColors[2]};
       if(style.index===0){
@@ -206,14 +213,27 @@ export class GPUScene {
       }yield;
 
       }else{
-        this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.artBackground);yield;
-        this.bind(scene);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        if(style.index<3){this.use(this.artSurface,uniforms);gl.drawArrays(gl.TRIANGLES,0,style.index===1?64*20*6:13*18*6);yield;}
-        const count=Math.floor(budget*.20),density=Math.min(3,26214/count)*Math.pow(h/900,1.2);
+        this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h],u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.quadDraw(this.artBackground);yield;
+        if(style.index===1){
+          const count=this.mobile?160:384;if(this.school.count!==count)this.school=new FishSchool(count);
+          const data=this.school.update(uniforms.u_world[0],{bass:roles.bass*uniforms.u_movement,lead:roles.lead*uniforms.u_movement});
+          gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
+          if(this.schoolWidth!==this.school.count){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,this.school.count,2,0,gl.RGBA,gl.FLOAT,data);this.schoolWidth=this.school.count;}
+          else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,this.school.count,2,gl.RGBA,gl.FLOAT,data);
+        }
+        this.bind(scene);gl.clearColor(0,0,0,style.index===4?1:0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+        if(style.index>0){
+          if(style.index!==4){gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);}
+          const parts=style.index===1?[[0,this.school.count*48*6],[1,3*192*6],[2,2*192*6],[3,4*192*6]]:style.index===2?[[0,2*32*128*6]]:style.index===3?[[0,7*768*6],[1,8*512*6]]:[[0,4*256*6]];
+          for(const [part,vertices]of parts){this.use(this.artSurface,{...uniforms,u_artPart:part,u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.texture(this.artSurface,'u_school',this.schoolTexture,4);gl.drawArrays(gl.TRIANGLES,0,vertices);yield;}
+          gl.depthMask(false);gl.enable(gl.BLEND);
+        }
+        const fraction=style.index===1?.12:style.index===2?.06:style.index===3?.18:.20;
+        const count=Math.floor(budget*fraction),density=Math.min(3,131072*fraction/count)*Math.pow(h/900,1.2);
         for(const layer of [0,1]){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:layer,u_spectrumLight:this.emptySpectrum});this.points(this.artPoints,count);yield;}
         if(d.spectrumLight?.some(x=>x>0)){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:2,u_spectrumLight:d.spectrumLight});this.points(this.artPoints,Math.floor(count*.55));yield;}
       }
-      gl.disable(gl.BLEND);
+      gl.depthMask(true);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
       // Downsample, extract emissive light, then two separable bloom passes.
       this.bind(bloomA);this.use(this.blur,{u_direction:[1/w,1/h],u_extract:1});this.texture(this.blur,'u_image',scene.texture);this.quadDraw(this.blur);
       yield;

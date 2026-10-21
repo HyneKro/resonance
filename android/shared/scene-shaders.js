@@ -351,6 +351,7 @@ vec3 highlights=min(max(color-vec3(.9),vec3(0.))*.22,vec3(.8))*u_hdrOutput;
 color=pow(film(color),vec3(.454545));
 vec3 cloud=texture(u_nebula,uv).rgb;
 if(u_artDirection>3.5)return cloud*exp(-texture(u_image,uv).rgb*3.4);
+if(u_artDirection>.5&&u_artDirection<3.5){float coverage=clamp(texture(u_image,uv).a,0.,1.);vec3 halo=pow(film(texture(u_bloom,uv).rgb*u_light.x),vec3(.454545));return mix(cloud,color,coverage)+halo*(1.-coverage)+highlights;}
 return 1.-(1.-cloud)*(1.-color)+highlights;}
 vec2 patternUV(float mode){
  vec2 aspect=vec2(u_resolution.x/u_resolution.y,1.);vec2 p=(v_uv-.5)*aspect;float r=length(p),theta=atan(p.y,p.x);vec2 folded;

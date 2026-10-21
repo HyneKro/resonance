@@ -4,13 +4,14 @@ const root=path.resolve(__dirname,'..'),out=path.join(root,'test-output/release-
 fs.mkdirSync(out,{recursive:true});app.setPath('userData',path.join(out,'profile'));
 const log=s=>fs.appendFileSync(path.join(out,'render.log'),String(s)+'\n');
 for(const stream of [process.stdout,process.stderr])stream.on('error',e=>{if(e.code!=='EPIPE'){log(e.stack);app.exit(1);}});
+app.on('window-all-closed',()=>{});
 let win,service,exitCode=0;const errors=[];
 app.whenReady().then(async()=>{
  const {startServer}=await import(pathToFileURL(path.join(root,'server.mjs')).href);
  service=await startServer({port:0,dataDir:fs.mkdtempSync(path.join(out,'data-')),autoScan:false});
  const original=service.server.listeners('request')[0];service.server.removeAllListeners('request');service.server.on('request',(req,res)=>{if(req.url==='/probe'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><body style="margin:0;background:#080b14"></body>');}else original(req,res);});
  win=new BrowserWindow({show:false,width:1440,height:1000,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,backgroundThrottling:false}});
- win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message);});
+ win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message);if(e.level==='error'||e.level==='warning')log(e.message);});
  const run=code=>win.webContents.executeJavaScript(code);await win.loadURL(service.url+'/probe');
  await run(fs.readFileSync(path.join(root,'tests/musical-response-audio.js'),'utf8'));
  await run(`(async()=>{
@@ -21,14 +22,17 @@ app.whenReady().then(async()=>{
   window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
-  window.renderStyle=(index,shape=8)=>{d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
+  window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
- for(const [index,name]of ['resonance','noctiluca','glasshouse','orrery','contour'].entries()){
+ for(const [index,name]of ['resonance','noctiluca','afterglow','orrery','contour'].entries()){
   await run(`renderStyle(${index})`);await new Promise(r=>setTimeout(r,120));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
- for(let shape=24;shape<30;shape++){
-  await run(`renderStyle(0,${shape})`);await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,'shape-'+shape+'.png'),(await win.webContents.capturePage()).toPNG());
- }
+ for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'orrery'],[4,'contour']]){
+  for(const [phase,time,level]of [['quiet',4,0],['attack',4,.9],['later',16,.5]]){
+   await run(`window.savedRoles??=d.roles;input.time=${time};d.roles={bass:${level},lead:${level},drums:${level},texture:${level},shimmer:${level}};renderStyle(${style})`);
+   await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
+  }
+ }await run('d.roles=savedRoles');
  const result=await run(`(async()=>{
   const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
   const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl);
@@ -38,16 +42,21 @@ app.whenReady().then(async()=>{
    samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report.push({style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]});
   }
   // Verify the actual render targets, not only shader source or controls.
-  function energy(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
+  function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
+  function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
   for(let style=1;style<=4;style++){
    d.spectrumLight.fill(0);renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
    report[style].spectrumAddsLight=true;report[style].pausedStable=true;
    d.spectrumLight.fill(0);const saved=d.roles;d.roles={bass:0,lead:0,drums:0,shimmer:0};renderStyle(style);const silent=energy();d.roles={bass:.8,lead:.8,drums:.8,shimmer:.8};renderStyle(style);const music=energy();d.roles=saved;if(Math.abs(music-silent)<1)throw Error('Missing musical response '+style);report[style].musicChangesScene=true;
+   const response={};d.roles={bass:0,lead:0,drums:0,texture:0};renderStyle(style);const base=[energy(),energy(3)];
+   for(const role of ['bass','lead','drums']){d.roles={bass:0,lead:0,drums:0,texture:0,[role]:.8};renderStyle(style);const delta=[Math.abs(energy()-base[0]),Math.abs(energy(3)-base[1])];if(delta[0]+delta[1]<1)throw Error('Missing '+role+' response in '+style);response[role]=delta.map(x=>Math.round(x));}
+   d.roles=saved;report[style].independentRoles=response;
+   if(style===2){d.roles={};renderStyle(style);const quiet=coverage();d.roles={bass:.9};renderStyle(style);if(Math.abs(coverage()-quiet)<1)throw Error('Terrain only changes brightness, not silhouette');report[style].terrainDeforms=true;d.roles=saved;}
   }
   const loss=gl.getExtension('WEBGL_lose_context');if(loss){loss.loseContext();await new Promise(r=>setTimeout(r,100));loss.restoreContext();for(let i=0;i<200&&(gpu.lost||!gpu.ready);i++)await new Promise(r=>setTimeout(r,50));await gpu.preparing;gpu.draw(input);await gpu.warming;if(!gpu.draw(input)||gpu.failed||gl.getError())throw Error('Context recovery failed');report.push({contextRecovery:true});}
   gpu.dispose();return report;
  })()`);
  if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'render-report.json'),JSON.stringify(result,null,2));log(JSON.stringify(result));
 }).catch(e=>{log(e.stack);exitCode=1;}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close();}app.exit(exitCode);});
-setTimeout(()=>{log('Render audit timeout');app.exit(2);},180000).unref();
+setTimeout(()=>{log('Render audit timeout');app.exit(2);},300000).unref();

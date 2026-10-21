@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ART_DIRECTIONS,ArtDirectionTransition,artDirection} from '../public/art-directions.js';
+import {ART_DIRECTIONS,ArtDirectionTransition,ArtWorldMotion,artDirection} from '../public/art-directions.js';
 import {attractorCurves,ATTRACTOR_SAMPLES} from '../public/attractor-curves.js';
 import {SCULPTURE_NAMES,sculptureChoice,expandedSculpture} from '../public/sculpture-forms.js';
 import {CharacterMixer,createTrackCharacter} from '../public/track-character.js';
@@ -9,11 +9,12 @@ import {portablePreferences} from '../public/portable-settings.js';
 
 test('existing preferences retain Resonance; invalid or imported style choices are safe',()=>{
  assert.equal(preferencesWithDefaults({}).artDirection,'resonance');
- assert.equal(preferencesWithDefaults({}).ribbonShape,'auto');
+ assert.equal(preferencesWithDefaults({}).ribbonShape,undefined);
  assert.equal(ART_DIRECTIONS.length,5);assert.equal(new Set(ART_DIRECTIONS.map(a=>a.id)).size,5);
  for(const value of [null,{},42,'form--1','form-30','form-NaN','nope'])assert.equal(sculptureChoice(value),'auto');
  assert.equal(artDirection('unknown').id,'resonance');
- for(const a of ART_DIRECTIONS){const p=preferencesWithDefaults(portablePreferences({artDirection:a.id,ribbonShape:'form-24'}));assert.equal(p.artDirection,a.id);assert.equal(p.ribbonShape,'form-24');}
+ assert.equal(preferencesWithDefaults({artDirection:'glasshouse'}).artDirection,'afterglow');
+ for(const a of ART_DIRECTIONS){const p=preferencesWithDefaults(portablePreferences({artDirection:a.id,ribbonShape:'form-24'}));assert.equal(p.artDirection,a.id);assert.equal(p.ribbonShape,undefined);}
 });
 
 test('rapid style choices settle on the last destination, changing topology only in darkness',()=>{
@@ -42,4 +43,17 @@ test('all thirty shapes are selectable independently of automatic track directio
  }
  const discovered=new Set();for(let i=0;i<500;i++){const p=createTrackCharacter({title:'Test '+i,artist:'Test artist'}),id=expandedSculpture(p);if(id!==null)discovered.add(id);}
  assert.equal(discovered.size,6);
+});
+
+test('world travel is continuous through attacks and honors freeze and reduced motion',()=>{
+ const world=new ArtWorldMotion();let prior=world.update(.016,{});
+ for(let i=0;i<600;i++){
+  const roles=i%120<60?{bass:1,drums:1,lead:1}:{};
+  const value=world.update(1/60,roles);
+  value.forEach((x,j)=>{assert.ok(x>=prior[j]);assert.ok(x-prior[j]<.08);});prior=value;
+ }
+ assert.deepEqual(world.update(30,{bass:1},{frozen:true}),prior);
+ assert.deepEqual(world.update(30,{bass:1},{reduced:true}),prior);
+ assert.deepEqual(world.update(.1,{bass:1},{movement:0}),prior);
+ const after=world.update(30,{});after.forEach((x,j)=>assert.ok(x-prior[j]<.47));
 });

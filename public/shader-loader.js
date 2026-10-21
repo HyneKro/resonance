@@ -7,7 +7,10 @@ export async function compileSceneProgram(gl,vertex,fragment,varyings,{cancelled
   gl.linkProgram(program);gl.flush();await yieldWork();
   while(extension&&!gl.getProgramParameter(program,extension.COMPLETION_STATUS_KHR)){if(cancelled())throw Error('Scene preparation cancelled');await yieldWork();}
   if(cancelled())throw Error('Scene preparation cancelled');
-  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program)||'Shader link failed');
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS)){
+   const details=shaders.map(shader=>gl.getShaderInfoLog(shader)).filter(Boolean).join('\n');
+   throw Error(details||gl.getProgramInfoLog(program)||'Shader link failed');
+  }
   return {program,uniforms:new Map()};
  }catch(e){gl.deleteProgram(program);throw e;}finally{for(const s of shaders)gl.deleteShader(s);}
 }
