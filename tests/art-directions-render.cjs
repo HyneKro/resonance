@@ -84,7 +84,7 @@ app.whenReady().then(async()=>{
   function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
   function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
   for(let style=1;style<=7;style++){
-   const settle=()=>{if(style===3)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
+   const settle=()=>{if(style===3||style===4)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);settle();renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
    if(style===1){
     const savedClock=d.spectrumClock,savedCamera=d.camera,savedFeatures=input.features,savedTrack=d.trackId;

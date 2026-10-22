@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ContourMotion,CONTOUR_RAIN_COUNT,CONTOUR_DROP_LIFE} from '../public/contour-motion.js';
+import {ContourMotion,CONTOUR_RAIN_COUNT,CONTOUR_DROP_LIFE,CONTOUR_MEMORY_COUNT,CONTOUR_MEMORY_LIFE} from '../public/contour-motion.js';
 
 const run=(ink,seconds,options={},fps=60)=>{ink.update(0);for(let i=1;i<=seconds*fps;i++)ink.update(i/fps,typeof options==='function'?options(i/fps):options);return ink;};
 
@@ -16,7 +16,7 @@ test('ink rain follows audible energy and accents, with no droplets born in sile
 
 test('pause, reduced motion, seeks and inactive intervals do not paint or fast-forward',()=>{
  const ink=new ContourMotion();ink.update(0);ink.update(.02,{onset:.9,energy:.8});
- const snapshot=()=>({time:ink.time,drops:[...ink.drops],emitted:ink.emitted}),before=snapshot();
+ const snapshot=()=>({time:ink.time,data:[...ink.data],material:[...ink.material],emitted:ink.emitted}),before=snapshot();
  for(let i=0;i<100;i++)ink.update(.02,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.update(.04,{onset:1,energy:1,reduced:true});assert.deepEqual(snapshot(),before);
  ink.update(120,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
@@ -43,6 +43,49 @@ test('rain density and placement remain consistent across frame rates; a new tra
  const results=[30,60,120].map(fps=>run(new ContourMotion(),20,{energy:.7,bass:.5},fps));
  assert.ok(Math.max(...results.map(m=>m.emitted))-Math.min(...results.map(m=>m.emitted))<=1);
  for(const ink of results){assert.ok(Math.abs(ink.time-20)<1e-8);ink.reset();assert.ok(ink.drops.every(x=>x===0));assert.equal(ink.emitted,0);assert.equal(ink.clock,null);assert.equal(ink.time,0);}
+});
+
+test('rain contains fine mist, ordinary beads and occasional large accented impacts',()=>{
+ const ink=new ContourMotion();ink.update(0);const seen=new Set(),counts=[0,0,0],radii=[[],[],[]];let merges=0;
+ for(let i=1;i<=1800;i++){
+  ink.update(i/60,{energy:.9,bass:.8,texture:.6,onset:i%30<3?1:0});
+  for(let k=0;k<CONTOUR_RAIN_COUNT;k++){const at=k*4,key=k+':'+ink.drops[at+2];if(!ink.drops[at+3]||seen.has(key))continue;seen.add(key);const kind=ink.details[at+2];counts[kind]++;radii[kind].push(ink.details[at]);}
+  merges=Math.max(merges,ink.links.filter((v,k)=>k%4===3&&v>.1).length);
+ }
+ assert.ok(counts.every(n=>n>5));assert.ok(counts[2]<seen.size*.10,'large splashes remain occasional');
+ assert.ok(Math.max(...radii[0])<Math.min(...radii[1]));assert.ok(Math.max(...radii[1])<Math.min(...radii[2]));assert.ok(merges>=2);
+});
+
+test('wet pools join according to paper distance and release their connection as they dry',()=>{
+ const ink=new ContourMotion();ink.update(0);
+ ink.drops.set([0,0,0,.8, .075,0,0,.8]);ink.details.set([.05,.5,1,.7, .05,.5,1,.8]);
+ for(let i=1;i<=90;i++)ink.update(i/60,{energy:0,ratio:1});assert.ok(ink.links[3]>.95&&ink.links[7]>.95);
+ for(let i=91;i<=150;i++)ink.update(i/60,{energy:0,ratio:2});assert.ok(ink.links[3]<.001,'paper aspect is included in the connection distance');
+ for(let i=151;i<=210;i++)ink.update(i/60,{energy:0,ratio:1});assert.ok(ink.links[3]>.5);
+ for(let i=211;i<=300;i++)ink.update(i/60,{energy:0,ratio:1});assert.ok(ink.links[3]<.001&&ink.links[7]<.001);
+});
+
+test('absorbed memory stays faint, bounded, retains its deposited color and is never overwritten while visible',()=>{
+ const ink=new ContourMotion();ink.update(0);let changes=0;
+ for(let i=1;i<=5400;i++){
+  const before=ink.memory.slice(),tints=ink.tints.slice();
+  ink.update(i/60,{energy:.9,bass:.7,onset:i%30<3?1:0,colors:i<2400?[[1,.02,.01],[.8,.1,.1],[1,.04,.03]]:[[.02,.3,1],[.03,.6,.8],[.1,.4,.9]]});
+  for(let k=0;k<CONTOUR_MEMORY_COUNT;k++){
+   const at=k*4,dest=(CONTOUR_RAIN_COUNT+k)*4;
+   if(before[at+2]!==ink.memory[at+2]){changes++;if(before[at+3])assert.ok(ink.time-before[at+2]>=CONTOUR_MEMORY_LIFE);}
+   else if(before[at+3])assert.deepEqual([...ink.tints.subarray(dest,dest+4)],[...tints.subarray(dest,dest+4)]);
+   assert.ok(ink.memory[at+3]<.08);
+  }
+ }
+ assert.ok(changes>128);assert.equal(ink.memory.length,CONTOUR_MEMORY_COUNT*4);
+ const material=[...ink.material];ink.reset();assert.ok(ink.data.every(v=>v===0));assert.deepEqual([...ink.material],material,'the brush does not collapse on a source change');
+});
+
+test('bass changes brush pressure smoothly while quiet sound leaves the continuous gesture visible',()=>{
+ const ink=run(new ContourMotion(),3,{energy:.7,bass:.05});const light=[...ink.material];
+ ink.update(181/60,{energy:.7,bass:.95});assert.ok(ink.material[0]-light[0]<.06);
+ for(let i=182;i<=360;i++)ink.update(i/60,{energy:.7,bass:.95});assert.ok(ink.material[0]>.94);
+ for(let i=361;i<=540;i++)ink.update(i/60,{energy:0});assert.ok(ink.material[0]<.001&&ink.material[1]<.001);
 });
 
 test('ink color follows the track gradually, stays stable when held, and survives track changes',()=>{

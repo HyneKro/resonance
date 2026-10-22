@@ -55,7 +55,9 @@ app.whenReady().then(async()=>{
   const source=CONTOUR_DROPS_VERTEX.replace('out vec2 v_uv;','out vec4 v_probe;out vec2 v_uv;').replace('vec2 offset=quad*size;','v_probe=vec4(p,fall,live);vec2 offset=quad*size;');
   const p=await compileSceneProgram(gl,source,CONTOUR_DROPS_FRAGMENT,['v_probe']),buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();
   gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,16,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);gl.enable(gl.RASTERIZER_DISCARD);
-  const drops=new Float32Array(64*4);drops.set([.2,-.1,.1,.8]);gpu.use(p,{u_inkDrops:drops,u_ratio:1.6,u_resolution:[1280,800]});
+  const {ContourMotion,CONTOUR_INK_WIDTH}=await import('/contour-motion.js'),fixture=new ContourMotion();fixture.drops.set([.2,-.1,.1,.8]);fixture.details.set([.03,.6,1,.37]);fixture.tints.set([1,.04,.02,1]);
+  gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,gpu.inkTexture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,fixture.data);
+  gpu.use(p,{u_inkStage:0,u_ratio:1.6,u_resolution:[1280,800]});gpu.texture(p,'u_inkData',gpu.inkTexture,9);
   const sample=(part,age)=>{gpu.uniform(p,'u_inkTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArraysInstanced(gl.POINTS,part*6,1,1);gl.endTransformFeedback();const out=new Float32Array(4);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,out);return Array.from(out);};
   const falling=[.02,.20,.40].map(age=>sample(10,age)),landed=sample(10,.95),impact=sample(0,.95),dry=sample(0,6.4),satellite=sample(2,1.3);
   gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(p.program);gpu.draw(input);
@@ -63,11 +65,37 @@ app.whenReady().then(async()=>{
  })()`);
  if(!report.rain.falling.every((p,i)=>p[3]>0&&(i===0||p[1]<report.rain.falling[i-1][1]))||report.rain.landed[3]!==0||report.rain.impact[3]<=0||report.rain.dry[3]!==0||Math.hypot(report.rain.satellite[0]-.32,report.rain.satellite[1]+.1)<.02)throw Error('Rain fall / impact / absorption stages failed: '+JSON.stringify(report.rain));
  report.continuousBrush=await run(`(()=>{
-  const saved=gpu.contour.drops.slice(),time=gpu.contour.time;gpu.contour.drops.fill(0);gpu.contour.time=16.99;gpu.draw(input);const before=pixels();
+  const saved=gpu.contour.data.slice(),time=gpu.contour.time;gpu.contour.data.fill(0);gpu.contour.time=16.99;gpu.draw(input);const before=pixels();
   let maximum=0;for(const t of [17.01,34.01,51.01]){gpu.contour.time=t;gpu.draw(input);maximum=Math.max(maximum,distance(before,pixels()));}
-  gpu.contour.time=time;gpu.contour.drops.set(saved);gpu.draw(input);return maximum;
+  gpu.contour.time=time;gpu.contour.data.set(saved);gpu.draw(input);return maximum;
  })()`);
  if(report.continuousBrush>.001)throw Error('Brush still fades or redraws on a timer');
+ report.materials=await run(`(async()=>{
+  const {ContourMotion,CONTOUR_INK_WIDTH}=await import('/contour-motion.js'),gl=gpu.gl,fixture=new ContourMotion(),target=gpu.target(256,256),floating=gpu.hdr,range=floating?1:255;
+  const upload=()=>{gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,gpu.inkTexture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,fixture.data);};
+  const paint=(age,stage=0,count=1,bridge=false)=>{upload();gpu.bind(target);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gpu.use(gpu.contourDrops,{u_inkTime:.1+age,u_inkStage:stage,u_ratio:1,u_resolution:[256,256]});gpu.texture(gpu.contourDrops,'u_inkData',gpu.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,stage?12:6,count);if(bridge)gl.drawArraysInstanced(gl.TRIANGLES,11*6,6,count);const p=floating?new Float32Array(256*256*4):new Uint8Array(256*256*4);gl.readPixels(0,0,256,256,gl.RGBA,floating?gl.FLOAT:gl.UNSIGNED_BYTE,p);return p;};
+  const roi=(pixels,x,y)=>{let value=0,n=0;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const at=((Math.round(y)+j)*256+Math.round(x)+i)*4;value+=(pixels[at]+pixels[at+1]+pixels[at+2])/(3*range);n++;}return value/n;};
+  fixture.drops.set([0,0,.1,.8]);fixture.details.set([.24,.6,2,.37]);fixture.tints.set([1,.04,.02,0]);
+  const shine=age=>{const pixels=paint(age),r=.24*(.34+.66*(1-Math.exp(-Math.max(0,age-.6)*7)));return roi(pixels,128-.30*r*128,128+.31*r*128);};
+  const wet=shine(.8),dry=shine(3.1);
+  fixture.data.fill(0);fixture.drops.set([-.1,0,.1,.8, .1,0,.1,.8]);fixture.details.set([.09,.6,1,.37, .09,.6,1,.4]);fixture.tints.set([1,.04,.02,0, 1,.04,.02,0]);
+  const separate=roi(paint(1.5,0,2),128,128);fixture.links.set([.1,0,.09,1, -.1,0,.09,1]);const joined=roi(paint(1.5,0,2,true),128,128);
+  fixture.data.fill(0);fixture.drops.set([0,0,.1,.8]);fixture.details.set([.2,.6,1,.37]);fixture.tints.set([1,.04,.02,1]);
+  const inkMean=p=>{let sum=0;for(let i=0;i<p.length;i+=4)sum+=1-(p[i]+p[i+1]+p[i+2])/(3*range);return sum/(p.length/4);};
+  const fresh=inkMean(paint(3));fixture.data.fill(0);fixture.memory.set([0,0,.1,.06]);fixture.details.set([.2,.6,1,.37],64*4);fixture.tints.set([1,.04,.02,1],64*4);const memory=inkMean(paint(4,1));
+  gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return {wet,dry,separate,joined,fresh,memory};
+ })()`);
+ if(report.materials.wet<report.materials.dry+.035||report.materials.separate-report.materials.joined<.025||report.materials.memory<=0||report.materials.memory>report.materials.fresh*.20)throw Error('Wet ink / pool joining / faint memory failed: '+JSON.stringify(report.materials));
+ report.pressure=await run(`(async()=>{
+  const {CONTOUR_VERTEX,CONTOUR_FRAGMENT}=await import('/contour-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
+  const p=await compileSceneProgram(gl,CONTOUR_VERTEX,CONTOUR_FRAGMENT,['gl_Position','v_density']),buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,60,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);gl.enable(gl.RASTERIZER_DISCARD);
+  gpu.use(p,{u_ratio:1.6,u_movement:1,u_strands:1,u_segments:192,u_inkLayer:3,u_roles:[0,0,0,0],u_spectrum:new Float32Array(48),u_spectrumLight:new Float32Array(48)});
+  const sample=material=>{gpu.uniform(p,'u_inkMaterial',material);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,60*6,3);gl.endTransformFeedback();const value=new Float32Array(15);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,value);return {width:Math.hypot(value[0]-value[10],value[1]-value[11]),density:value[4]};};
+  const quiet=sample([0,0,.3,0]),loaded=sample([.95,.9,.5,.2]);
+  gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(p.program);gpu.draw(input);return {quiet,loaded};
+ })()`);
+ if(report.pressure.quiet.width<=0||report.pressure.loaded.width<report.pressure.quiet.width*1.5||report.pressure.loaded.density<report.pressure.quiet.density*1.5)throw Error('Musical brush pressure is ineffective: '+JSON.stringify(report.pressure));
  report.light=await run(`(()=>{
   const gl=gpu.gl,bloom=d.appearance.bloom;gpu.draw(input);const lit=pixels();d.appearance.bloom=0;gpu.draw(input);const bloomDifference=distance(lit,pixels());d.appearance.bloom=bloom;
   const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);let skip=false;gpu.use=(p,u)=>{skip=p===gpu.contourDrops||(p===gpu.contourBrush&&u.u_inkLayer===1);use(p,u);};gl.drawArrays=(...args)=>{if(!skip)draw(...args);};gl.drawArraysInstanced=(...args)=>{if(!skip)instanced(...args);};
