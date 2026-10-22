@@ -36,6 +36,21 @@ app.whenReady().then(async()=>{
  d.roles={bass:active?.7:0,drums:hit,lead:active?.65:0,texture:active?.5:0,shimmer:active?.5:0};input.features={...input.features,onset:hit,loudness:active?.8:0};d.synapseActive=active;renderStyle(7);}};
  d.camera=[0,0,0,0];gpu.synapse.reset();d.spectrumClock=0;renderStyle(7);advance(3);void 0;`);
  await shot('active');
+ report.reactivity=await run(`(()=>{
+  const s=gpu.synapse,arrays=['roles','spectrum','detail','events','origins','accents'],scalars=['energy','activity','shimmer','flux','beat','tension'];
+  const saved=Object.fromEntries([...arrays.map(k=>[k,s[k].slice()]),...scalars.map(k=>[k,s[k]])]);
+  const energy=index=>{const a=pixels(index);let total=0,hot=0;for(let i=0;i<a.length;i+=4){total+=a[i]+a[i+1]+a[i+2];if(Math.max(a[i],a[i+1],a[i+2])>1)hot++;}return {total:total/(a.length/4),hot};};
+  for(const k of arrays)s[k].fill(0);for(const k of scalars)s[k]=0;gpu.draw(input);const quiet=energy(0),quietBloom=energy(1);
+  s.roles.set([.8,.8,.8,.5]);s.energy=.8;s.activity=.8;s.shimmer=.8;s.flux=.5;s.beat=.8;s.spectrum.fill(.7);s.accents.set([.8,.6,.7]);
+  for(let i=0;i<48;i++)s.detail.set([.8,.7,.6,.25],i*4);gpu.draw(input);const music=energy(0),musicBloom=energy(1),bloomOn=rgb().reduce((a,b)=>a+b,0);
+  const bloom=d.appearance.bloom;d.appearance.bloom=0;gpu.draw(input);const bloomOff=rgb().reduce((a,b)=>a+b,0);d.appearance.bloom=bloom;
+  const gl=gpu.gl,native=gl.drawArrays.bind(gl);gl.drawArrays=(mode,first,count)=>{if(gl.getParameter(gl.CURRENT_PROGRAM)===gpu.synapseThreads.program&&gl.getUniform(gpu.synapseThreads.program,gpu.location(gpu.synapseThreads,'u_threadLayer'))>1.5)return;native(mode,first,count);};
+  gpu.draw(input);const withoutStreams=energy(0);gl.drawArrays=native;
+  for(const k of arrays)s[k].set(saved[k]);for(const k of scalars)s[k]=saved[k];gpu.draw(input);
+  return {quiet,music,quietBloom,musicBloom,lightRatio:music.total/quiet.total,bloomRatio:musicBloom.total/Math.max(.000001,quietBloom.total),bloomOn,bloomOff,streamEnergy:music.total-withoutStreams.total};
+ })()`);
+ if(report.reactivity.lightRatio<8||report.reactivity.bloomRatio<8||report.reactivity.bloomOn<report.reactivity.bloomOff*1.1||report.reactivity.streamEnergy<.0001)throw Error('Synapse response is too restrained: '+JSON.stringify(report.reactivity));
+
  report.fabric=await run(`(()=>{const n=gpu.synapseNetworks[1700],count=n.facetCount,before=pixels(0);n.facetCount=0;gpu.draw(input);const without=pixels(0);n.facetCount=count;gpu.draw(input);return {facets:n.faces.size,vertices:count*3,delta:distance(before,without)};})()`);
  if(report.fabric.facets<80||report.fabric.delta<.00001)throw Error('Translucent facets and woven detail do not render');
 
@@ -68,6 +83,7 @@ app.whenReady().then(async()=>{
  // Explicitly exercise an RGBA8 background target, even on a float-capable GPU.
  report.gradient=await run(`(()=>{const gl=gpu.gl,wasHDR=gpu.hdr;gpu.hdr=false;const target=gpu.target(1024,64);gpu.hdr=wasHDR;gpu.bind(target);gl.disable(gl.BLEND);gpu.use(gpu.synapseBackground,{u_roles:[.7,.2,.4,.2],u_palette:gpu.synapse.palette});gpu.quadDraw(gpu.synapseBackground);const a=new Uint8Array(1024*64*4);gl.readPixels(0,0,1024,64,gl.RGBA,gl.UNSIGNED_BYTE,a);const values=[new Set(),new Set(),new Set()];let jump=0;for(let x=0;x<1024;x++){const k=(32*1024+x)*4;for(let c=0;c<3;c++){values[c].add(a[k+c]);if(x)jump=Math.max(jump,Math.abs(a[k+c]-a[k+c-4]));}}gl.deleteFramebuffer(target.frame);gl.deleteTexture(target.texture);gpu.draw(input);return {encodedSteps:Math.max(...values.map(v=>v.size)),largestAdjacentStep:jump};})()`);
  if(report.gradient.encodedSteps<8||report.gradient.largestAdjacentStep>3)throw Error('Background gradient quantized: '+JSON.stringify(report.gradient));
+ report.desktop=await run(`(()=>{const samples=[];for(let i=0;i<45;i++){const begin=performance.now();advance(1/60);gpu.gl.finish();if(i>10)samples.push(performance.now()-begin);}samples.sort((a,b)=>a-b);return {medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],nodes:1700,facets:gpu.synapseNetworks[1700].faces.size};})()`);
  await run(`gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;d.camera=[0,0,0,0];advance(2);`);win.setSize(412,915);await new Promise(r=>setTimeout(r,120));await run('renderStyle(7)');await shot('phone');
  report.mobile=await run(`(()=>{const samples=[],n=gpu.synapseNetworks[680];for(let i=0;i<45;i++){const begin=performance.now();advance(1/60);gpu.gl.finish();if(i>10)samples.push(performance.now()-begin);}samples.sort((a,b)=>a-b);return {rgb:rgb(),count:n.count,links:n.links.size,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)]};})()`);
  if(report.mobile.rgb.reduce((a,b)=>a+b,0)<3)throw Error('Phone canvas is blank');

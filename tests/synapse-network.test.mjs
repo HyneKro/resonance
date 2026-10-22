@@ -84,3 +84,44 @@ test('Synapse sparse facets share nearby moving nodes and fade safely within a b
  check();const oldFaces=new Set(n.faces.keys());advance(n,s,8);check();assert.ok([...n.faces.keys()].some(id=>!oldFaces.has(id)));
  const before=n.facets.slice();advance(n,s,1/60);for(let k=3;k<n.facets.length;k+=4)assert.ok(Math.abs(n.facets[k]-before[k])<.07,'Facets must crossfade');
 });
+
+
+test('Synapse raw notes drive geometry independently of spectrum illumination and retain band identity',async()=>{
+ const low=await createSynapseNetwork(680),high=await createSynapseNetwork(680),rest=await createSynapseNetwork(680);
+ const states=[new SynapseSignals(),new SynapseSignals(),new SynapseSignals()];states.forEach(x=>x.update(0));
+ const tone=band=>Float32Array.from({length:48},(_,k)=>.9*Math.exp(-Math.pow((k-band)/3,2)));
+ for(let frame=1;frame<=180;frame++)for(let i=0;i<3;i++){
+  const spectrum=i===2?new Float32Array(48):tone(i===0?8:39),state=states[i],n=[low,high,rest][i];
+  state.update(frame/60,{energy:.7,spectrum,harmonic:spectrum,percussive:new Float32Array(48),lights:new Float32Array(48)});n.update(state);
+ }
+ const centroid=n=>{let sum=0,weighted=0;for(let i=0;i<n.count;i++){const k=i*4,d=Math.hypot(...[0,1,2].map(j=>n.nodes[k+j]-rest.nodes[k+j]));sum+=d;weighted+=d*n.nodes[k+3];}return {weight:sum,band:weighted/sum};};
+ const a=centroid(low),b=centroid(high);assert.ok(a.weight>10&&b.weight>10);assert.ok(a.band<.4&&b.band>.6,JSON.stringify({a,b}));
+ assert.ok(states[0].spectrum.every(x=>x===0));assert.ok(states[0].detail.some(x=>x>.5));
+});
+
+test('Synapse harmonic, percussion and transient channels remain independent and decay on pause',()=>{
+ const harmonic=new SynapseSignals(),percussive=new SynapseSignals(),spectrum=new Float32Array(48).fill(.7),zero=new Float32Array(48);
+ harmonic.update(0);percussive.update(0);
+ for(let i=1;i<=60;i++){
+  harmonic.update(i/60,{energy:.7,spectrum,harmonic:spectrum,percussive:zero,lead:.6});
+  percussive.update(i/60,{energy:.7,spectrum,harmonic:zero,percussive:spectrum,drums:.6});
+ }
+ assert.ok(harmonic.detail[1]>.65&&harmonic.detail[2]===0);assert.ok(percussive.detail[1]===0&&percussive.detail[2]>.65);assert.ok(harmonic.tension>percussive.tension+.5);
+ const before=harmonic.emitted;harmonic.update(1.02,{energy:.7,hits:[0,.9,0]});assert.equal(harmonic.emitted,before+1);assert.equal(harmonic.events[(harmonic.next+7)%8*4+3],.5);
+ assert.ok(harmonic.accents[1]>.5);for(let i=1;i<=360;i++)harmonic.update(1.02+i/60,{active:false,spectrum,harmonic:spectrum,hits:[1,1,1]});
+ assert.ok(harmonic.detail.every(x=>x<.0001));assert.ok(harmonic.accents.every(x=>x<.0001));assert.equal(harmonic.emitted,before+1);
+});
+
+test('Synapse strong spring motion is stable across frame rates',async()=>{
+ const a=await createSynapseNetwork(128),b=await createSynapseNetwork(128),detail=new Float32Array(192).fill(.65),roles=[.9,.7,.8,.7];
+ for(let i=0;i<60;i++)a.place(0,128,3,.9,1/60,roles,[],detail,1.8,.8,.8);
+ for(let i=0;i<30;i++)b.place(0,128,3,.9,1/30,roles,[],detail,1.8,.8,.8);
+ assert.ok(a.nodes.every(Number.isFinite));let difference=0;for(let i=0;i<a.nodes.length;i++)difference=Math.max(difference,Math.abs(a.nodes[i]-b.nodes[i]));assert.ok(difference<.00005,String(difference));
+});
+
+
+test('Synapse carries in-flight pressure and light waves across a track change',()=>{
+ const s=new SynapseSignals();s.update(0);s.update(.02,{onset:1,energy:.8});const events=s.events.slice(),origins=s.origins.slice(),phase=s.phase,time=s.time;
+ s.beginTrack();assert.equal(s.emitted,0);assert.equal(s.phase,phase);assert.equal(s.time,time);assert.deepEqual(s.events,events);assert.deepEqual(s.origins,origins);
+ s.update(.04,{onset:1,energy:.8});assert.equal(s.emitted,0);assert.ok(s.time>time);assert.deepEqual(s.events,events);
+});

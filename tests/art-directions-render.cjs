@@ -138,9 +138,9 @@ app.whenReady().then(async()=>{
     const held=pixels();input.time+=300;gpu.draw(input);if(difference(held,pixels())>.01)throw Error('Synapse reads wall clock');
     const time=gpu.synapse.time;input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.synapse.time!==time)throw Error('Reduced signals advance');input.reduced=false;
     d.camera=[.6,.3,0,0];gpu.draw(input);if(difference(held,pixels())<10)throw Error('Synapse lacks camera depth');
-    d.trackId='synapse-new-track';gpu.draw(input);if(gpu.synapse.emitted!==0)throw Error('New track retained signals');
+    const travelling=gpu.synapse.events.slice();d.trackId='synapse-new-track';gpu.draw(input);if(gpu.synapse.emitted!==0||travelling.some((x,i)=>x!==gpu.synapse.events[i]))throw Error('New track broke wave continuity');
     input.features=features;input.time=originalTime;d.artMotion=originalMotion;d.camera=camera;d.spectrumClock=clock;gpu.synapse.reset();renderStyle(7);
-    report[style].flashControl=true;report[style].impulsesTravel=true;report[style].frozenClockStable=true;report[style].reducedSignalsHeld=true;report[style].trackClearsSignals=true;report[style].cameraDepth=true;
+    report[style].flashControl=true;report[style].impulsesTravel=true;report[style].frozenClockStable=true;report[style].reducedSignalsHeld=true;report[style].trackCountersReset=true;report[style].trackPreservesContinuity=true;report[style].cameraDepth=true;
    }
    if(style===3){
     const originalTime=input.time,originalMotion=[...d.artMotion],originalCamera=d.camera;
