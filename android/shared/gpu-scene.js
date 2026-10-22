@@ -1,8 +1,8 @@
 import {AstraMotion} from './astra-motion.js';
 import {NOCTILUCA_BACKGROUND,NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT,NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT} from './noctiluca-shaders.js';
 import {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,ASTRA_BACKGROUND} from './astra-shaders.js';
-import {ContourMotion,contourLettering,CONTOUR_INK_WIDTH,CONTOUR_CURRENT_WIDTH} from './contour-motion.js';
-import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_CURRENT_VERTEX,CONTOUR_CURRENT_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
+import {ContourMotion,contourLettering,CONTOUR_INK_WIDTH} from './contour-motion.js';
+import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
 import {AerialPhysics} from './aerial-physics.js';
 import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND} from './aerial-shaders.js';
 import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
@@ -43,7 +43,7 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['roadBackground',QUAD,AFTERGLOW_BACKGROUND],['roadTerrain',AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT],['roadPalms',AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT],['roadDust',AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT],['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['astraPaths',ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT],['astraBodies',ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT],['astraDust',ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT],['astraBackground',QUAD,ASTRA_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['roadBackground',QUAD,AFTERGLOW_BACKGROUND],['roadTerrain',AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT],['roadPalms',AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT],['roadDust',AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT],['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['astraPaths',ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT],['astraBodies',ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT],['astraDust',ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT],['astraBackground',QUAD,ASTRA_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourShadows',CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.astra??=new AstraMotion();this.astra.suspend();
@@ -70,11 +70,6 @@ export class GPUScene {
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.contour??=new ContourMotion();this.contour.suspend();this.letteringSize='';this.letteringTexture=gl.createTexture();
-    this.contourCurrent=await compileSceneProgram(gl,CONTOUR_CURRENT_VERTEX,CONTOUR_CURRENT_FRAGMENT,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
-    this.currentTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.currentTexture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,CONTOUR_CURRENT_WIDTH,4,0,gl.RGBA,gl.FLOAT,this.contour.currentData);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.inkTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.inkTexture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,CONTOUR_INK_WIDTH,4,0,gl.RGBA,gl.FLOAT,this.contour.data);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
@@ -324,11 +319,9 @@ export class GPUScene {
         const ink=this.contour.update(d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,reduced,colors:d.colors,spectrum:features.spectrum,lights:d.spectrumLight,ratio:w/h});
         gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,this.inkTexture);
         gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,ink.data);
-        gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,this.currentTexture);
-        gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_CURRENT_WIDTH,4,gl.RGBA,gl.FLOAT,ink.currentData);
         const neutral=Math.min(...ink.accent)*.85,peak=Math.max(.01,Math.max(...ink.accent)-neutral);
         uniforms.u_inkAccent=Array.from(ink.accent,x=>(x-neutral)/peak);
-        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkMaterial:ink.material,u_currentPhase:ink.flowPhase,u_roles:ink.roles,u_spectrum:ink.spectrum,u_spectrumLight:ink.lights};
+        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkMaterial:ink.material,u_inkPhase:ink.inkPhase,u_roles:ink.roles,u_spectrum:ink.spectrum,u_spectrumLight:ink.lights};
         const size=w+'x'+h;
         if(this.letteringSize!==size){
           const labels=contourLettering(w,h);gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,this.letteringTexture);
@@ -338,10 +331,8 @@ export class GPUScene {
         }
         this.bind(nebula);this.use(this.contourPaper,{...inkUniforms,u_paper:1});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
         gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-        this.use(this.contourCurrent,{...inkUniforms,u_currentStage:0,u_segments:this.mobile?24:40,u_resolution:[nebula.w,nebula.h]});this.texture(this.contourCurrent,'u_currentData',this.currentTexture,10);
-        gl.drawArraysInstanced(gl.TRIANGLES,0,3*(this.mobile?24:40)*6,32);
-        this.use(this.contourCurrent,{...inkUniforms,u_currentStage:1,u_segments:this.mobile?8:12,u_resolution:[nebula.w,nebula.h]});
-        gl.drawArraysInstanced(gl.TRIANGLES,0,31*(this.mobile?8:12)*6,8);
+        this.use(this.contourShadows,{...inkUniforms,u_resolution:[nebula.w,nebula.h]});gl.drawArraysInstanced(gl.TRIANGLES,0,6,52);
+        this.use(this.contourDrops,{...inkUniforms,u_inkStage:2,u_resolution:[nebula.w,nebula.h]});this.texture(this.contourDrops,'u_inkData',this.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,6,64);
         this.use(this.contourDrops,{...inkUniforms,u_inkStage:1,u_resolution:[nebula.w,nebula.h]});this.texture(this.contourDrops,'u_inkData',this.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,2*6,128);
         this.uniform(this.contourDrops,'u_inkStage',0);gl.drawArraysInstanced(gl.TRIANGLES,0,18*6,64);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
