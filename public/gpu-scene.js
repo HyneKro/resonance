@@ -57,7 +57,7 @@ export class GPUScene {
     // Prepare both sizes once; phone quality never uploads the desktop mesh.
     for(const count of (this.mobile?[680]:[680,1700])){
       const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint());
-      const textures=[];const edgeRows=Math.ceil(network.edgeCount/1024),edgeData=new Float32Array(edgeRows*1024*4);edgeData.set(network.edges);
+      const textures=[];const edgeRows=network.edgeRows,edgeData=network.edges;
       for(const [width,height,data]of [[count,2,network.nodes],[1024,edgeRows,edgeData]]){
         const tex=gl.createTexture();textures.push(tex);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,width,height,0,gl.RGBA,gl.FLOAT,data);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
@@ -101,7 +101,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_signals'||name==='u_origins'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -284,16 +284,25 @@ export class GPUScene {
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         this.use(this.oceanSnow,ocean);this.points(this.oceanSnow,warmup?32:Math.round((this.mobile?650:1800)*Math.min(1.5,a.orbit)));yield;
       }else if(style.index===7){
-        if(this.synapseTrack!==d.trackId){this.synapse.reset();this.synapseTrack=d.trackId;}
-        const signals=this.synapse.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced});
-        const web={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_signals:signals.events,u_signalTime:signals.time,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
-        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges]=this.synapseTextures[count],segments=this.mobile?1:2;
-        this.bind(nebula);this.use(this.synapseBackground,web);this.quadDraw(this.synapseBackground);yield;
+        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges]=this.synapseTextures[count],segments=this.mobile?2:4;
+        // Track changes keep the organism's position, velocity and palette. Only
+        // obsolete attacks clear; playback is not the simulation's clock.
+        if(this.synapseTrack!==d.trackId){this.synapse.clearEvents();this.synapseTrack=d.trackId;}
+        const signals=this.synapse.update(d.synapseClock??d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,reduced,hold:d.synapseHold===true,active:d.synapseActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,nodes:network.nodes,count});
+        network.update(signals,{movement:a.motionAmount});
+        if(signals.dt){
+          gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,nodes);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,count,2,gl.RGBA,gl.FLOAT,network.nodes);
+          gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_2D,edges);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1024,network.edgeRows,gl.RGBA,gl.FLOAT,network.edges);
+        }
+        const web={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_roles:signals.roles,u_shimmer:signals.shimmer,u_palette:signals.palette,u_neural:[signals.phase,signals.activity,signals.energy,signals.shimmer],u_signals:signals.events,u_origins:signals.origins,u_signalTime:signals.time,u_spectrumLight:signals.spectrum};
+        this.bind(nebula);this.use(this.synapseBackground,{...web,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.synapseBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         this.use(this.synapseThreads,{...web,u_segments:segments,u_threadLayer:0});this.texture(this.synapseThreads,'u_nodes',nodes,7);this.texture(this.synapseThreads,'u_edges',edges,8);gl.drawArrays(gl.TRIANGLES,0,network.edgeCount*segments*6);
-        if(!this.mobile){this.uniform(this.synapseThreads,'u_threadLayer',1);gl.drawArrays(gl.TRIANGLES,0,Math.floor(network.edgeCount/3)*segments*6);}yield;
+        if(!this.mobile){this.uniform(this.synapseThreads,'u_threadLayer',1);gl.drawArrays(gl.TRIANGLES,0,Math.floor(network.edgeCount/2)*segments*6);}yield;
         this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);gl.drawArrays(gl.POINTS,0,count);
-        this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount);yield;
+        this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount);
+        this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,this.mobile?260:900);
+        this.uniform(this.synapseNodes,'u_nodeLayer',3);gl.drawArrays(gl.POINTS,0,8*(this.mobile?36:100));yield;
       }else if(style.index===3){
         // Track changes only change the targets. The solar system retains phase,
         // existing ejecta and velocity while its sound and colours ease across.

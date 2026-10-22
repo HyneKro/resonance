@@ -1,67 +1,113 @@
-// Built once, with persistent junctions and bounded local connectivity. Music
-// deforms this rest mesh on the GPU; it never rebuilds nearest neighbours.
+// Junctions drift through a folded three-dimensional volume. Nearby connections
+// are rebuilt at a bounded cadence and crossfade instead of snapping on/off.
+const TAU=Math.PI*2,clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number(x)||0));
+const noise=n=>{const x=Math.sin(n*127.1)*43758.5453;return x-Math.floor(x);};
 export async function createSynapseNetwork(count=1700,yieldWork=async()=>{}){
- count=Math.max(128,Math.min(2048,Math.floor(count)||1700));
- let seed=73991;
- const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
- const nodes=new Float32Array(count*8),edges=[],adj=Array.from({length:count},()=>[]),grid=new Map(),seen=new Set();
- const cell=.65,key=(x,y,z)=>`${x},${y},${z}`;
- const connect=(a,b)=>{
-  if(a===b)return;const id=Math.min(a,b)*count+Math.max(a,b);if(seen.has(id))return;seen.add(id);
-  const length=Math.hypot(nodes[a*4]-nodes[b*4],nodes[a*4+1]-nodes[b*4+1],nodes[a*4+2]-nodes[b*4+2]);
-  edges.push(a,b,length,random());adj[a].push([b,length]);adj[b].push([a,length]);
- };
- for(let i=0;i<count;i++){
-  const t=random(),angle=random()*Math.PI*2,branch=random(),radius=(.18+.64*Math.sin(t*12+1)**2)*(.87+random()*.26);
-  let x=(t-.5)*10,y=.58*Math.sin(t*8-1)+.28*Math.sin(t*18),z=.65*Math.sin(t*9);
-  if(branch>.63&&branch<.86){x=-2.7+t*4.8;y=-2.3+t*4.8;z=-.6+Math.sin(t*7)*.7;}
-  else if(branch>=.86){x=-4.7+t*9.8;y=1.65+Math.sin(t*7)*.36;z=-1.4;}
-  x+=Math.cos(angle)*radius*.26;y+=Math.cos(angle)*radius;z+=Math.sin(angle)*radius;
-  nodes.set([x,y,z,random()],i*4);
-  const gx=Math.floor(x/cell),gy=Math.floor(y/cell),gz=Math.floor(z/cell),candidates=[];
-  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
-   for(const j of grid.get(key(gx+dx,gy+dy,gz+dz))||[]){const d=(x-nodes[j*4])**2+(y-nodes[j*4+1])**2+(z-nodes[j*4+2])**2;if(d<.85**2)candidates.push([j,d]);}
-  }
-  candidates.sort((a,b)=>a[1]-b[1]);
-  for(const [j]of candidates.slice(0,5))connect(i,j);
-  // A nearest predecessor bridges isolated patches, so every flash can travel
-  // through the graph. This one-off search does no work in the render loop.
-  if(i&&!candidates.length){let nearest=0,distance=Infinity;for(let j=0;j<i;j++){const d=(x-nodes[j*4])**2+(y-nodes[j*4+1])**2+(z-nodes[j*4+2])**2;if(d<distance){distance=d;nearest=j;}}connect(i,nearest);}
-  const k=key(gx,gy,gz);if(!grid.has(k))grid.set(k,[]);grid.get(k).push(i);
-  if(i%128===0)await yieldWork();
+ const network=new SynapseNetwork(count);
+ for(let i=0;i<network.count;i+=128){network.place(i,Math.min(network.count,i+128),0,0);await yieldWork();}
+ network.reconnect(true);await yieldWork();return network;
+}
+
+export class SynapseNetwork{
+ constructor(count=1700){
+  this.count=Math.max(128,Math.min(2048,Math.floor(count)||1700));this.capacity=this.count*5;
+  this.nodes=new Float32Array(this.count*8);this.seeds=new Float32Array(this.count*4);
+  this.edgeRows=Math.ceil(this.capacity/1024);this.edges=new Float32Array(this.edgeRows*4096);
+  this.links=new Map();this.free=Array.from({length:this.capacity},(_,i)=>this.capacity-i-1);
+  this.edgeCount=0;this.rewireAt=0;this.rewires=0;this.version=0;this.steps=0;
+  for(let i=0;i<this.count;i++)this.seeds.set([noise(i+19),noise(i+723),noise(i+1731),noise(i+4391)],i*4);
  }
- // Four graph-distance fields: an impulse follows strand lengths, not a
- // screen-space expanding circle. Distances interpolate along each edge.
- for(let origin=0;origin<4;origin++){
-  const distances=new Float64Array(count).fill(Infinity),visited=new Uint8Array(count);let source=0,best=Infinity;
-  for(let i=0;i<count;i++){const d=(nodes[i*4]-(-3+origin*2))**2+nodes[i*4+1]**2+nodes[i*4+2]**2;if(d<best){best=d;source=i;}}
-  distances[source]=0;
-  for(let step=0;step<count;step++){
-   let at=-1,shortest=Infinity;for(let i=0;i<count;i++)if(!visited[i]&&distances[i]<shortest){at=i;shortest=distances[i];}
-   if(at<0)break;visited[at]=1;
-   for(const [next,length]of adj[at])distances[next]=Math.min(distances[next],shortest+length);
-   if(step%256===0)await yieldWork();
+ place(from,to,phase,drive,dt=0,roles=[0,0,0,0],spectrum=[]){
+  const n=this.count,p=this.nodes,s=this.seeds;
+  for(let i=from;i<to;i++){
+   const k=i*4,t=s[k],a=s[k+1]*TAU+phase*(.28+s[k+2]*.34),branch=s[k+2];
+   const band=clamp(spectrum[Math.floor(t*47)]),r=.22+Math.sqrt(s[k+3])*(.46+drive*.20);
+   let x=(t-.5)*8.6,y=Math.sin(t*8.5+phase*.11)*.78,z=Math.cos(t*7.2+phase*.13)*.86;
+   if(branch>.72){x=-2.7+t*5.4;y=-1.9+t*3.9+Math.sin(t*9+phase*.16)*.32;z=Math.sin(t*8+phase*.14)*1.32;}
+   x+=Math.cos(a)*r*.57+Math.sin(phase*.41+t*17)*( .10+drive*.40);
+   y+=Math.cos(a)*r+Math.sin(t*13+phase*.27)*drive*.52+Math.sin(a*2.2)*band*.28;
+   z+=Math.sin(a)*r+Math.cos(t*11-phase*.23)*drive*.56+Math.cos(a*1.6)*band*.32;
+   // A slowly turning cross-section keeps the organism volumetric from every view.
+   const angle=Math.sin(t*4+phase*.16)*(.22+roles[2]*.42),c=Math.cos(angle),sn=Math.sin(angle);
+   [y,z]=[y*c-z*sn,z*c+y*sn];
+   if(!dt){p.set([x,y,z,s[k+3]],k);continue;}
+   const v=n*4+k,damp=Math.exp(-dt*4.6),spring=10+drive*7;
+   for(let j=0;j<3;j++){
+    const target=j===0?x:j===1?y:z;
+    p[v+j]=(p[v+j]+(target-p[k+j])*spring*dt)*damp;p[k+j]+=p[v+j]*dt;
+   }
+   p[v+3]=band;
   }
-  for(let i=0;i<count;i++)nodes[count*4+i*4+origin]=distances[i];
  }
- return {count,nodes,edges:new Float32Array(edges),edgeCount:edges.length/4};
+ reconnect(initial=false){
+  const p=this.nodes,n=this.count,cell=.85,grid=new Map(),key=(x,y,z)=>`${x},${y},${z}`;
+  for(let i=0;i<n;i++){
+   const k=i*4,id=key(Math.floor(p[k]/cell),Math.floor(p[k+1]/cell),Math.floor(p[k+2]/cell));
+   if(!grid.has(id))grid.set(id,[]);grid.get(id).push(i);
+  }
+  for(const link of this.links.values())link.wanted=false;
+  for(let i=0;i<n;i++){
+   const k=i*4,gx=Math.floor(p[k]/cell),gy=Math.floor(p[k+1]/cell),gz=Math.floor(p[k+2]/cell);
+   const nearest=[-1,-1,-1],distances=[Infinity,Infinity,Infinity];
+   for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
+    for(const j of grid.get(key(gx+dx,gy+dy,gz+dz))||[]){
+     if(j===i)continue;const at=j*4,d=(p[k]-p[at])**2+(p[k+1]-p[at+1])**2+(p[k+2]-p[at+2])**2;
+     if(d>1.35**2||d>=distances[2])continue;
+     let slot=2;while(slot>0&&d<distances[slot-1]){distances[slot]=distances[slot-1];nearest[slot]=nearest[slot-1];slot--;}
+     distances[slot]=d;nearest[slot]=j;
+    }
+   }
+   for(const j of nearest){
+    if(j<0)continue;const a=Math.min(i,j),b=Math.max(i,j),id=a*n+b;
+    let link=this.links.get(id);
+    if(!link&&this.free.length){
+     const slot=this.free.pop();link={slot,wanted:true};this.links.set(id,link);
+     this.edges.set([a,b,initial?1:0,noise(id+71)],slot*4);this.edgeCount=Math.max(this.edgeCount,slot+1);
+    }
+    if(link)link.wanted=true;
+   }
+  }
+  this.rewires++;
+ }
+ update(signals,{movement=1}={}){
+  const dt=signals.dt;if(!dt)return this;
+  if(movement>0)this.place(0,this.count,signals.phase*clamp(movement,0,2),signals.activity,dt,signals.roles,signals.spectrum);
+  this.rewireAt+=dt;if(this.rewireAt>=(this.count>1000?.14:.18)){this.rewireAt%=this.count>1000?.14:.18;this.reconnect();}
+  for(const [id,link]of this.links){
+   const k=link.slot*4,target=link.wanted?1:0;
+   this.edges[k+2]+=(target-this.edges[k+2])*(1-Math.exp(-dt/(target?.22:.17)));
+   if(!link.wanted&&this.edges[k+2]<.012){this.edges.fill(0,k,k+4);this.links.delete(id);this.free.push(link.slot);}
+  }
+  this.steps++;this.version++;return this;
+ }
 }
 
 export class SynapseSignals{
- constructor(){this.events=new Float32Array(32);this.reset();}
- reset(){this.time=0;this.clock=null;this.envelope=0;this.next=0;this.emitted=0;this.lastHit=-10;this.events.fill(0);}
- suspend(){this.clock=null;this.envelope=0;}
- update(clock,{onset=0,drums=0,energy=0,reduced=false}={}){
-  if(!Number.isFinite(clock))return this;
-  const level=Math.max(0,Math.min(1,Math.max(Number(onset)||0,(Number(drums)||0)*.75)));
+ constructor(){this.events=new Float32Array(32);this.origins=new Float32Array(32);this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.palette=new Float32Array(18);this.reset();}
+ reset(){this.time=0;this.phase=0;this.clock=null;this.dt=0;this.activity=0;this.energy=0;this.shimmer=0;this.initialized=false;this.clearEvents();this.roles.fill(0);this.spectrum.fill(0);}
+ clearEvents(){this.envelope=0;this.next=0;this.emitted=0;this.lastHit=-10;this.events.fill(0);this.origins.fill(0);}
+ suspend(){this.clock=null;this.dt=0;}
+ update(clock,{onset=0,drums=0,bass=0,lead=0,texture=0,shimmer=0,energy=0,reduced=false,hold=false,active=true,palette,lights,nodes,count=0}={}){
+  this.dt=0;if(!Number.isFinite(clock))return this;
+  const level=active?clamp(Math.max(Number(onset)||0,(Number(drums)||0)*.85)):0;
+  if(!this.initialized){if(palette?.length===18)this.palette.set(palette);else this.palette.set([.12,.48,.62,.13,.65,.8,.3,.42,.85,.7,.22,.48,1,.35,.18,.8,.5,.22]);this.initialized=true;}
   if(this.clock===null){this.clock=clock;this.envelope=level;return this;}
   const dt=clock-this.clock;this.clock=clock;
-  if(reduced||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=level;return this;}
-  this.time+=dt;
-  if(energy>.015&&level>.25&&level-this.envelope>.10&&this.time-this.lastHit>.28){
-   this.events.set([this.time,level,this.emitted%4,0],this.next*4);this.next=(this.next+1)%8;this.emitted++;this.lastHit=this.time;
+  if(reduced||hold||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=level;return this;}
+  this.dt=dt;this.time+=dt;
+  const mix=(a,b,t)=>a+(b-a)*(1-Math.exp(-dt/t));
+  const incoming=[bass,drums,lead,texture];for(let i=0;i<4;i++)this.roles[i]=mix(this.roles[i],active?clamp(incoming[i]):0,active?.16:.8);
+  this.energy=mix(this.energy,active?clamp(energy):0,.5);this.shimmer=mix(this.shimmer,active?clamp(shimmer):0,.3);
+  this.activity=mix(this.activity,active?clamp(Math.max(energy,bass*.9,lead*.7)):0,.65);
+  this.phase+=dt*(.075+this.activity*1.05+this.roles[1]*.32);
+  for(let i=0;i<48;i++)this.spectrum[i]=mix(this.spectrum[i],active?clamp(lights?.[i]):0,.13);
+  if(palette?.length===18)for(let i=0;i<18;i++)this.palette[i]=mix(this.palette[i],clamp(palette[i],0,2),1.3);
+  if(active&&energy>.015&&level>.25&&level-this.envelope>.10&&this.time-this.lastHit>.23){
+   const source=count?Math.floor(noise(this.emitted+311)*count):this.emitted%4,k=this.next*4;
+   this.events.set([this.time,level,source,0],k);
+   this.origins.set(nodes&&count?[nodes[source*4],nodes[source*4+1],nodes[source*4+2],1]:[-3+(source%4)*2,0,0,1],k);
+   this.next=(this.next+1)%8;this.emitted++;this.lastHit=this.time;
   }
-  this.envelope=level>this.envelope?level:this.envelope+(level-this.envelope)*(1-Math.exp(-dt/.12));
-  return this;
+  this.envelope=level>this.envelope?level:mix(this.envelope,level,.12);return this;
  }
 }
