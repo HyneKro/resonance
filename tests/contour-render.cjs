@@ -40,7 +40,7 @@ app.whenReady().then(async()=>{
   const source=CONTOUR_VERTEX.replace('out vec4 v_brush;','out vec3 v_probe;out vec4 v_brush;').replace('p=place(p);','v_probe=vec3(trace(t,edition),t);p=place(p);');
   const p=await compileSceneProgram(gl,source,CONTOUR_FRAGMENT,['v_probe']),b=gl.createBuffer(),f=gl.createTransformFeedback(),count=192*6;
   gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,f);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,b);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,count*12,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,b);gl.enable(gl.RASTERIZER_DISCARD);
-  gpu.use(p,{u_inkTime:5,u_ratio:1.6,u_movement:1,u_strands:1,u_segments:192,u_inkEdition:0,u_resolution:[1280,800],u_roles:[.4,.4,.4,.2],u_spectrumLight:new Float32Array(48)});
+  gpu.use(p,{u_inkTime:5,u_ratio:1.6,u_movement:1,u_strands:1,u_segments:192,u_resolution:[1280,800],u_roles:[.4,.4,.4,.2],u_spectrumLight:new Float32Array(48)});
   const tone=band=>Float32Array.from({length:48},(_,k)=>.85*Math.exp(-Math.pow((k-band)/2,2)));
   const sample=(layer,spectrum)=>{gpu.use(p,{u_inkLayer:layer,u_spectrum:spectrum});gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,count);gl.endTransformFeedback();const result=new Float32Array(count*3);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,result);return result;};
   const curves=[0,1,2].map(layer=>({rest:sample(layer,new Float32Array(48)),low:sample(layer,tone(8)),high:sample(layer,tone(37))}));
@@ -50,20 +50,38 @@ app.whenReady().then(async()=>{
   gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(b);gl.deleteTransformFeedback(f);gl.deleteProgram(p.program);gpu.draw(input);return result;
  })()`);
  if(report.frequencyGeometry.high.t-report.frequencyGeometry.low.t<.5||report.frequencyGeometry.companionError>1e-5||report.frequencyGeometry.circle.weight<1)throw Error('Spectrum geometry is not coherent: '+JSON.stringify(report.frequencyGeometry));
+ report.rain=await run(`(async()=>{
+  const {CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT}=await import('/contour-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
+  const source=CONTOUR_DROPS_VERTEX.replace('out vec2 v_uv;','out vec4 v_probe;out vec2 v_uv;').replace('vec2 offset=quad*size;','v_probe=vec4(p,fall,live);vec2 offset=quad*size;');
+  const p=await compileSceneProgram(gl,source,CONTOUR_DROPS_FRAGMENT,['v_probe']),buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,16,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);gl.enable(gl.RASTERIZER_DISCARD);
+  const drops=new Float32Array(64*4);drops.set([.2,-.1,.1,.8]);gpu.use(p,{u_inkDrops:drops,u_ratio:1.6,u_resolution:[1280,800]});
+  const sample=(part,age)=>{gpu.uniform(p,'u_inkTime',.1+age);gl.beginTransformFeedback(gl.POINTS);gl.drawArraysInstanced(gl.POINTS,part*6,1,1);gl.endTransformFeedback();const out=new Float32Array(4);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,out);return Array.from(out);};
+  const falling=[.02,.20,.40].map(age=>sample(10,age)),landed=sample(10,.95),impact=sample(0,.95),dry=sample(0,6.4),satellite=sample(2,1.3);
+  gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(p.program);gpu.draw(input);
+  return {falling,landed,impact,dry,satellite};
+ })()`);
+ if(!report.rain.falling.every((p,i)=>p[3]>0&&(i===0||p[1]<report.rain.falling[i-1][1]))||report.rain.landed[3]!==0||report.rain.impact[3]<=0||report.rain.dry[3]!==0||Math.hypot(report.rain.satellite[0]-.32,report.rain.satellite[1]+.1)<.02)throw Error('Rain fall / impact / absorption stages failed: '+JSON.stringify(report.rain));
+ report.continuousBrush=await run(`(()=>{
+  const saved=gpu.contour.drops.slice(),time=gpu.contour.time;gpu.contour.drops.fill(0);gpu.contour.time=16.99;gpu.draw(input);const before=pixels();
+  let maximum=0;for(const t of [17.01,34.01,51.01]){gpu.contour.time=t;gpu.draw(input);maximum=Math.max(maximum,distance(before,pixels()));}
+  gpu.contour.time=time;gpu.contour.drops.set(saved);gpu.draw(input);return maximum;
+ })()`);
+ if(report.continuousBrush>.001)throw Error('Brush still fades or redraws on a timer');
  report.light=await run(`(()=>{
   const gl=gpu.gl,bloom=d.appearance.bloom;gpu.draw(input);const lit=pixels();d.appearance.bloom=0;gpu.draw(input);const bloomDifference=distance(lit,pixels());d.appearance.bloom=bloom;
-  const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl);let skip=false;gpu.use=(p,u)=>{skip=p===gpu.contourDrops||(p===gpu.contourBrush&&u.u_inkLayer===1);use(p,u);};gl.drawArrays=(...args)=>{if(!skip)draw(...args);};
+  const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);let skip=false;gpu.use=(p,u)=>{skip=p===gpu.contourDrops||(p===gpu.contourBrush&&u.u_inkLayer===1);use(p,u);};gl.drawArrays=(...args)=>{if(!skip)draw(...args);};gl.drawArraysInstanced=(...args)=>{if(!skip)instanced(...args);};
   gpu.draw(input);const black=pixels(0),halo=pixels(1);let emission=0,glow=0;for(let i=0;i<black.length;i+=4)emission+=black[i+3];for(let i=0;i<halo.length;i+=4)glow+=halo[i]+halo[i+1]+halo[i+2];
-  gpu.use=use;gl.drawArrays=draw;gpu.draw(input);const paper=pixels(3);let paperMean=0;for(let i=0;i<paper.length;i+=4)paperMean+=(paper[i]+paper[i+1]+paper[i+2])/3;paperMean/=paper.length/4;
+  gpu.use=use;gl.drawArrays=draw;gl.drawArraysInstanced=instanced;gpu.draw(input);const paper=pixels(3);let paperMean=0;for(let i=0;i<paper.length;i+=4)paperMean+=(paper[i]+paper[i+1]+paper[i+2])/3;paperMean/=paper.length/4;
   return {bloomDifference,blackEmission:emission,blackGlow:glow,paperMean};
  })()`);
- if(report.light.bloomDifference<.03||report.light.blackEmission!==0||report.light.blackGlow!==0||report.light.paperMean>.5)throw Error('Ink glow isolation failed: '+JSON.stringify(report.light));
+ if(report.light.bloomDifference<.03||report.light.blackEmission!==0||report.light.blackGlow!==0||report.light.paperMean<.92||report.light.paperMean>.98)throw Error('Ink glow isolation failed: '+JSON.stringify(report.light));
  await run('step(3.025)');await shot('splash');
  report.palette=await run(`(()=>{const before=[...gpu.contour.accent];d.colors=[[.02,.65,.9],[.03,.4,.8],[.02,.5,.8]];for(let i=1;i<=180;i++)step(3.025+i/60);return {before,after:[...gpu.contour.accent]};})()`);await shot('cool-ink');
  if(report.palette.after[2]<report.palette.before[2]+.2)throw Error('Palette has no visible range');
  report.held=await run(`(()=>{gpu.draw(input);const before=pixels(),time=gpu.contour.time;input.time+=300;gpu.draw(input);const paused=distance(before,pixels());input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);const reduced=gpu.contour.time===time;input.reduced=false;gpu.draw(input);const flat=pixels();d.camera=[1.2,-.6,.8,3];gpu.draw(input);return {paused,reduced,camera:distance(flat,pixels())};})()`);
  if(report.held.paused>.001||!report.held.reduced||report.held.camera>.001)throw Error('Flat / frozen behavior regressed');
- for(const [name,seconds]of [['scroll',14],['diamond',31]]){
+ for(const [name,seconds]of [['rain-built-up',14],['continuous-gesture',31]]){
   await run(`while(d.spectrumClock<${seconds})step(d.spectrumClock+1/30);`);await shot(name);
  }
  report.performance=[];

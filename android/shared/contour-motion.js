@@ -1,12 +1,15 @@
-// A small sheet of drying ink. Time follows playback, never the camera or wall clock.
+// A continuous ink gesture with a bounded rain of falling drops and drying marks.
+// Time follows playback, never the camera or wall clock.
+const unit=x=>Number.isFinite(x)?Math.max(0,Math.min(1,x)):0;
+const hash=n=>{const v=Math.sin(n*127.1+19.3)*43758.5453;return v-Math.floor(v);};
+export const CONTOUR_RAIN_COUNT=64,CONTOUR_DROP_LIFE=6.4;
 export class ContourMotion {
- constructor(){this.events=new Float32Array(8*4);this.accent=new Float32Array([1,.055,.025]);this.reset();}
- reset(){this.time=4.8;this.clock=null;this.next=0;this.emitted=0;this.envelope=0;this.lastHit=-10;this.events.fill(0);}
+ constructor(){this.drops=new Float32Array(CONTOUR_RAIN_COUNT*4);this.accent=new Float32Array([1,.055,.025]);this.reset();}
+ reset(){this.time=0;this.clock=null;this.next=0;this.emitted=0;this.envelope=0;this.lastHit=-10;this.credit=0;this.rainEnergy=0;this.drops.fill(0);}
  suspend(){this.clock=null;this.envelope=0;}
- update(clock,{onset=0,drums=0,energy=0,reduced=false,colors,spectrum}={}){
+ update(clock,{onset=0,drums=0,bass=0,texture=0,energy=0,reduced=false,colors,spectrum}={}){
   if(!Number.isFinite(clock))return this;
-  const level=Math.max(0,Math.min(1,Number(onset)||0));
-  const attack=Math.max(level,Math.max(0,Math.min(1,Number(drums)||0))*.8);
+  const attack=Math.max(unit(onset),unit(drums)*.8);energy=unit(energy);
   if(this.clock===null){this.clock=clock;this.envelope=attack;return this;}
   const dt=clock-this.clock;this.clock=clock;
   if(reduced||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=attack;return this;}
@@ -20,13 +23,23 @@ export class ContourMotion {
    const lo=Math.min(...palette),hi=Math.max(...palette),response=1-Math.exp(-dt/1.4);
    for(let i=0;i<3;i++){const rest=[1,.055,.025][i],tint=hi-lo>.01?.035+.965*(palette[i]-lo)/(hi-lo):rest;const target=rest*(1-mix)+tint*mix;this.accent[i]+=(target-this.accent[i])*response;}
   }
-  // Rising accents only: a held loud note cannot spray a new burst every frame.
+  // Audible sustained sound feeds rain; accents briefly feed extra drops. A dry
+  // slot is reused only after its mark has disappeared, never by replacing ink.
+  this.rainEnergy+=(energy-this.rainEnergy)*(1-Math.exp(-dt/.28));
+  this.credit+=energy>.015?dt*(.7+this.rainEnergy*6.5+unit(texture)*1.8):0;
   const rise=attack-this.envelope;
   if(energy>.015&&attack>.24&&rise>.09&&this.time-this.lastHit>.24){
-   const n=this.emitted++,t=(n*.6180339+.13)%1,edition=Math.floor(this.time/17)%3;
-   // Drops stay attached to a position on the live frequency gesture.
-   this.events.set([t,edition,this.time,Math.min(1,attack)],this.next*4);
-   this.next=(this.next+1)%8;this.lastHit=this.time;
+   this.credit+=.7+attack*1.8;this.lastHit=this.time;
+  }
+  this.credit=Math.min(3,this.credit);
+  if(energy>.015)while(this.credit>=1){
+   let slot=-1;
+   for(let j=0;j<CONTOUR_RAIN_COUNT;j++){const k=(this.next+j)%CONTOUR_RAIN_COUNT,at=k*4;if(!this.drops[at+3]||this.time-this.drops[at+2]>=CONTOUR_DROP_LIFE){slot=k;break;}}
+   if(slot<0){this.credit=Math.min(1,this.credit);break;}
+   const n=this.emitted++,strength=unit(.16+energy*.46+unit(bass)*.22+attack*.24);
+   // Low-discrepancy placement covers the sheet, independently of the gesture.
+   this.drops.set([((n*.61803398875+.17)%1)*1.8-.9,((n*.754877666+.31)%1)*1.35-.68,this.time,strength*(.65+hash(n+11)*.35)],slot*4);
+   this.next=(slot+1)%CONTOUR_RAIN_COUNT;this.credit--;
   }
   this.envelope=attack>this.envelope?attack:this.envelope+(attack-this.envelope)*(1-Math.exp(-dt/.11));
   return this;

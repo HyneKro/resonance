@@ -97,7 +97,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkEvents'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_inkDrops'||name==='u_signals'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -312,10 +312,10 @@ export class GPUScene {
         this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?14000:34000);yield;
       }else if(style.index===4){
         if(this.contourTrack!==d.trackId){this.contour.reset();this.contourTrack=d.trackId;}
-        const ink=this.contour.update(d.spectrumClock??time,{onset:features.onset,drums:roles.drums,energy:features.loudness,reduced,colors:d.colors,spectrum:features.spectrum});
+        const ink=this.contour.update(d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,reduced,colors:d.colors,spectrum:features.spectrum});
         const neutral=Math.min(...ink.accent)*.85,peak=Math.max(.01,Math.max(...ink.accent)-neutral);
         uniforms.u_inkAccent=Array.from(ink.accent,x=>(x-neutral)/peak);
-        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkEvents:ink.events,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkDrops:ink.drops,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
         const size=w+'x'+h;
         if(this.letteringSize!==size){
           const labels=contourLettering(w,h);gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,this.letteringTexture);
@@ -324,13 +324,13 @@ export class GPUScene {
           gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);this.letteringSize=size;
         }
         this.bind(nebula);this.use(this.contourPaper,{...inkUniforms,u_paper:1});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
+        gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+        this.use(this.contourDrops,{...inkUniforms,u_resolution:[nebula.w,nebula.h]});gl.drawArraysInstanced(gl.TRIANGLES,0,11*6,64);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         const segments=this.mobile?112:192,strands=this.mobile?36:64;
-        const editions=ink.time>=17&&ink.time%17<4.5?[1,0]:[0];
-        for(const edition of editions)for(const [layer,count]of [[3,1],[0,strands],[1,2],[2,3]]){
-          this.use(this.contourBrush,{...inkUniforms,u_segments:segments,u_strands:count,u_inkLayer:layer,u_inkEdition:edition});gl.drawArrays(gl.TRIANGLES,0,segments*count*6);
+        for(const [layer,count]of [[3,1],[0,strands],[1,2],[2,3]]){
+          this.use(this.contourBrush,{...inkUniforms,u_segments:segments,u_strands:count,u_inkLayer:layer});gl.drawArrays(gl.TRIANGLES,0,segments*count*6);
         }yield;
-        this.use(this.contourDrops,inkUniforms);gl.drawArrays(gl.POINTS,0,8*40);yield;
         this.use(this.contourPaper,{...inkUniforms,u_paper:0});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
       }else if(style.index===6){
         const count=this.mobile?16:24;

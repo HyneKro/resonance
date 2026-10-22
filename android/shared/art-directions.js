@@ -4,7 +4,7 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'noctiluca',name:'Noctiluca',note:'Deep open water. Silver schools turn, scatter and open around shafts of sunlight.',index:1},
  {id:'afterglow',name:'Afterglow',note:'A neon night drive with palms, a layered skyline and mirrored musical echoes. The camera stays fixed; tune the CRT texture below.',index:2},
  {id:'astra',name:'Astra',note:'A living star. Frequency orbits, solar flares and comet trails answer the music.',index:3},
- {id:'contour',name:'Contour',note:'A painted spectrum on dusk paper. Frequencies bend the brush and neon line; beats scatter dark and colored ink.',index:4},
+ {id:'contour',name:'Contour',note:'A living brushstroke on white paper. Music sends ink rain onto the sheet, where splashes spread and dry.',index:4},
  {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5},
  {id:'aerial',name:'Aerial',note:'A living studio sculpture. Liquid chrome merges and separates among bouncing porcelain, glass and tiny suspended droplets.',index:6},
  {id:'synapse',name:'Synapse',note:'A luminous web. Blue filaments breathe with bass while warm impulses travel from junction to junction.',index:7}
