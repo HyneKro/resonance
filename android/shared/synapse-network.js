@@ -1,6 +1,6 @@
 // Junctions drift through a folded three-dimensional volume. Nearby connections
 // are rebuilt at a bounded cadence and crossfade instead of snapping on/off.
-const TAU=Math.PI*2,clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number(x)||0));
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number(x)||0));
 const noise=n=>{const x=Math.sin(n*127.1)*43758.5453;return x-Math.floor(x);};
 export async function createSynapseNetwork(count=1700,yieldWork=async()=>{}){
  const network=new SynapseNetwork(count);
@@ -14,45 +14,49 @@ export class SynapseNetwork{
   this.nodes=new Float32Array(this.count*8);this.seeds=new Float32Array(this.count*4);
   this.edgeRows=Math.ceil(this.capacity/1024);this.edges=new Float32Array(this.edgeRows*4096);
   this.links=new Map();this.free=Array.from({length:this.capacity},(_,i)=>this.capacity-i-1);
+  this.facetCapacity=this.count*2;this.facetRows=Math.ceil(this.facetCapacity/1024);this.facets=new Float32Array(this.facetRows*4096);
+  this.faces=new Map();this.faceFree=Array.from({length:this.facetCapacity},(_,i)=>this.facetCapacity-i-1);this.facetCount=0;
   this.edgeCount=0;this.rewireAt=0;this.rewires=0;this.version=0;this.steps=0;
   for(let i=0;i<this.count;i++)this.seeds.set([noise(i+19),noise(i+723),noise(i+1731),noise(i+4391)],i*4);
  }
  place(from,to,phase,drive,dt=0,roles=[0,0,0,0],spectrum=[]){
   const n=this.count,p=this.nodes,s=this.seeds;
   for(let i=from;i<to;i++){
-   const k=i*4,t=s[k],a=s[k+1]*TAU+phase*(.28+s[k+2]*.34),branch=s[k+2];
-   const band=clamp(spectrum[Math.floor(t*47)]),r=.22+Math.sqrt(s[k+3])*(.46+drive*.20);
-   let x=(t-.5)*8.6,y=Math.sin(t*8.5+phase*.11)*.78,z=Math.cos(t*7.2+phase*.13)*.86;
-   if(branch>.72){x=-2.7+t*5.4;y=-1.9+t*3.9+Math.sin(t*9+phase*.16)*.32;z=Math.sin(t*8+phase*.14)*1.32;}
-   x+=Math.cos(a)*r*.57+Math.sin(phase*.41+t*17)*( .10+drive*.40);
-   y+=Math.cos(a)*r+Math.sin(t*13+phase*.27)*drive*.52+Math.sin(a*2.2)*band*.28;
-   z+=Math.sin(a)*r+Math.cos(t*11-phase*.23)*drive*.56+Math.cos(a*1.6)*band*.32;
-   // A slowly turning cross-section keeps the organism volumetric from every view.
-   const angle=Math.sin(t*4+phase*.16)*(.22+roles[2]*.42),c=Math.cos(angle),sn=Math.sin(angle);
+   const k=i*4,t=s[k],v=s[k+1]*2-1,depth=s[k+2]*2-1;
+   const band=clamp(spectrum[Math.floor(t*47)]);
+   // A spacious folded field, rather than a narrow branching tube. Independent
+   // drift moves neighbours through each other without pinning a rigid lattice.
+   let x=(t-.5)*10.6+Math.sin(v*4+phase*.31+s[k+3]*3)*(.16+drive*.33);
+   let y=v*1.75+(t-.5)*1.9+Math.sin(t*6.1+phase*.16)*(.45+drive*.24);
+   let z=depth*2.55+Math.sin(t*5.6+v*2.1-phase*.13)*(.44+drive*.27);
+   y+=Math.sin(t*15+depth*3+phase*.32)*(.12+drive*.30)+band*Math.sin(v*3)*.32;
+   z+=Math.cos(v*4.2+t*9-phase*.28)*(.12+drive*.34)+band*Math.cos(t*8)*.34;
+   const angle=Math.sin(t*4+phase*.12)*(.12+roles[2]*.18),c=Math.cos(angle),sn=Math.sin(angle);
    [y,z]=[y*c-z*sn,z*c+y*sn];
    if(!dt){p.set([x,y,z,s[k+3]],k);continue;}
-   const v=n*4+k,damp=Math.exp(-dt*4.6),spring=10+drive*7;
+   const velocity=n*4+k,damp=Math.exp(-dt*4.6),spring=10+drive*7;
    for(let j=0;j<3;j++){
     const target=j===0?x:j===1?y:z;
-    p[v+j]=(p[v+j]+(target-p[k+j])*spring*dt)*damp;p[k+j]+=p[v+j]*dt;
+    p[velocity+j]=(p[velocity+j]+(target-p[k+j])*spring*dt)*damp;p[k+j]+=p[velocity+j]*dt;
    }
-   p[v+3]=band;
+   p[velocity+3]=band;
   }
  }
  reconnect(initial=false){
-  const p=this.nodes,n=this.count,cell=.85,grid=new Map(),key=(x,y,z)=>`${x},${y},${z}`;
+  const p=this.nodes,n=this.count,cell=1.65,grid=new Map(),key=(x,y,z)=>`${x},${y},${z}`;
   for(let i=0;i<n;i++){
    const k=i*4,id=key(Math.floor(p[k]/cell),Math.floor(p[k+1]/cell),Math.floor(p[k+2]/cell));
    if(!grid.has(id))grid.set(id,[]);grid.get(id).push(i);
   }
   for(const link of this.links.values())link.wanted=false;
+  for(const face of this.faces.values())face.wanted=false;
   for(let i=0;i<n;i++){
    const k=i*4,gx=Math.floor(p[k]/cell),gy=Math.floor(p[k+1]/cell),gz=Math.floor(p[k+2]/cell);
    const nearest=[-1,-1,-1],distances=[Infinity,Infinity,Infinity];
    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
     for(const j of grid.get(key(gx+dx,gy+dy,gz+dz))||[]){
      if(j===i)continue;const at=j*4,d=(p[k]-p[at])**2+(p[k+1]-p[at+1])**2+(p[k+2]-p[at+2])**2;
-     if(d>1.35**2||d>=distances[2])continue;
+     if(d>1.65**2||d>=distances[2])continue;
      let slot=2;while(slot>0&&d<distances[slot-1]){distances[slot]=distances[slot-1];nearest[slot]=nearest[slot-1];slot--;}
      distances[slot]=d;nearest[slot]=j;
     }
@@ -66,6 +70,17 @@ export class SynapseNetwork{
     }
     if(link)link.wanted=true;
    }
+   // Sparse triangles use the very same nearest neighbours and fade with the
+   // changing graph. Their slot pool is bounded independently of the links.
+   if(i%3===0&&nearest[1]>=0){
+    const ids=[i,nearest[0],nearest[1]].sort((a,b)=>a-b),[a,b,c]=ids;
+    const bc=Math.hypot(p[b*4]-p[c*4],p[b*4+1]-p[c*4+1],p[b*4+2]-p[c*4+2]);
+    if(bc<1.5){
+     const id=a*n*n+b*n+c;let face=this.faces.get(id);
+     if(!face&&this.faceFree.length){const slot=this.faceFree.pop();face={slot,wanted:true};this.faces.set(id,face);this.facets.set([a,b,c,initial?1:0],slot*4);this.facetCount=Math.max(this.facetCount,slot+1);}
+     if(face)face.wanted=true;
+    }
+   }
   }
   this.rewires++;
  }
@@ -77,6 +92,11 @@ export class SynapseNetwork{
    const k=link.slot*4,target=link.wanted?1:0;
    this.edges[k+2]+=(target-this.edges[k+2])*(1-Math.exp(-dt/(target?.22:.17)));
    if(!link.wanted&&this.edges[k+2]<.012){this.edges.fill(0,k,k+4);this.links.delete(id);this.free.push(link.slot);}
+  }
+  for(const [id,face]of this.faces){
+   const k=face.slot*4+3,target=face.wanted?1:0;
+   this.facets[k]+=(target-this.facets[k])*(1-Math.exp(-dt/(target?.40:.28)));
+   if(!face.wanted&&this.facets[k]<.009){this.facets.fill(0,k-3,k+1);this.faces.delete(id);this.faceFree.push(face.slot);}
   }
   this.steps++;this.version++;return this;
  }

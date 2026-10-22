@@ -9,7 +9,7 @@ import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FR
 import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
 import {artDirection,ART_DIRECTIONS} from './art-directions.js';
 import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
-import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND} from './synapse-shaders.js';
+import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND,SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT} from './synapse-shaders.js';
 import {SpectrumHistory} from './spectrum-history.js';
 import {AFTERGLOW_BACKGROUND,AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT,AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT,AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT} from './afterglow-shaders.js';
 import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT,FLUX_DUST_VERTEX} from './flux-shaders.js';
@@ -45,7 +45,7 @@ export class GPUScene {
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
     const specs=[['roadBackground',QUAD,AFTERGLOW_BACKGROUND],['roadTerrain',AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT],['roadPalms',AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT],['roadDust',AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT],['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['astraPaths',ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT],['astraBodies',ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT],['astraDust',ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT],['astraBackground',QUAD,ASTRA_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourShadows',CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
-    for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
+    for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseFacets',SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.astra??=new AstraMotion();this.astra.suspend();
     this.astraDebris=await compileSceneProgram(gl,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.astraHistoryVersion=-1;this.astraHistoryTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.astraHistoryTexture);
@@ -58,7 +58,7 @@ export class GPUScene {
     for(const count of (this.mobile?[680]:[680,1700])){
       const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint());
       const textures=[];const edgeRows=network.edgeRows,edgeData=network.edges;
-      for(const [width,height,data]of [[count,2,network.nodes],[1024,edgeRows,edgeData]]){
+      for(const [width,height,data]of [[count,2,network.nodes],[1024,edgeRows,edgeData],[1024,network.facetRows,network.facets]]){
         const tex=gl.createTexture();textures.push(tex);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,width,height,0,gl.RGBA,gl.FLOAT,data);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);await work.checkpoint();
@@ -284,8 +284,8 @@ export class GPUScene {
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         this.use(this.oceanSnow,ocean);this.points(this.oceanSnow,warmup?32:Math.round((this.mobile?650:1800)*Math.min(1.5,a.orbit)));yield;
       }else if(style.index===7){
-        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges]=this.synapseTextures[count],segments=this.mobile?2:4;
-        // Track changes keep the organism's position, velocity and palette. Only
+        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges,facets]=this.synapseTextures[count];
+        // Track changes keep the network's position, velocity and palette. Only
         // obsolete attacks clear; playback is not the simulation's clock.
         if(this.synapseTrack!==d.trackId){this.synapse.clearEvents();this.synapseTrack=d.trackId;}
         const signals=this.synapse.update(d.synapseClock??d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,reduced,hold:d.synapseHold===true,active:d.synapseActive!==false,palette:uniforms.u_palette,lights:d.spectrumLight,nodes:network.nodes,count});
@@ -293,16 +293,19 @@ export class GPUScene {
         if(signals.dt){
           gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,nodes);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,count,2,gl.RGBA,gl.FLOAT,network.nodes);
           gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_2D,edges);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1024,network.edgeRows,gl.RGBA,gl.FLOAT,network.edges);
+          gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,facets);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1024,network.facetRows,gl.RGBA,gl.FLOAT,network.facets);
         }
         const web={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_roles:signals.roles,u_shimmer:signals.shimmer,u_palette:signals.palette,u_neural:[signals.phase,signals.activity,signals.energy,signals.shimmer],u_signals:signals.events,u_origins:signals.origins,u_signalTime:signals.time,u_spectrumLight:signals.spectrum};
         this.bind(nebula);this.use(this.synapseBackground,{...web,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.synapseBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        this.use(this.synapseThreads,{...web,u_segments:segments,u_threadLayer:0});this.texture(this.synapseThreads,'u_nodes',nodes,7);this.texture(this.synapseThreads,'u_edges',edges,8);gl.drawArrays(gl.TRIANGLES,0,network.edgeCount*segments*6);
-        if(!this.mobile){this.uniform(this.synapseThreads,'u_threadLayer',1);gl.drawArrays(gl.TRIANGLES,0,Math.floor(network.edgeCount/2)*segments*6);}yield;
+        this.use(this.synapseFacets,web);this.texture(this.synapseFacets,'u_nodes',nodes,7);this.texture(this.synapseFacets,'u_facets',facets,10);gl.drawArrays(gl.TRIANGLES,0,network.facetCount*3);
+        this.use(this.synapseThreads,{...web,u_segments:1,u_threadLayer:0});this.texture(this.synapseThreads,'u_nodes',nodes,7);this.texture(this.synapseThreads,'u_edges',edges,8);this.texture(this.synapseThreads,'u_facets',facets,10);gl.drawArrays(gl.TRIANGLES,0,network.edgeCount*6);
+        const strands=this.mobile?4:9,segments=this.mobile?3:5;
+        this.use(this.synapseThreads,{u_segments:segments,u_weaveCount:strands,u_threadLayer:1});this.texture(this.synapseThreads,'u_facets',facets,10);gl.drawArrays(gl.TRIANGLES,0,network.facetCount*strands*segments*6);yield;
         this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);gl.drawArrays(gl.POINTS,0,count);
         this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount);
-        this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,this.mobile?260:900);
-        this.uniform(this.synapseNodes,'u_nodeLayer',3);gl.drawArrays(gl.POINTS,0,8*(this.mobile?36:100));yield;
+        this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,this.mobile?90:300);
+        this.uniform(this.synapseNodes,'u_nodeLayer',3);gl.drawArrays(gl.POINTS,0,8*(this.mobile?24:72));yield;
       }else if(style.index===3){
         // Track changes only change the targets. The solar system retains phase,
         // existing ejecta and velocity while its sound and colours ease across.

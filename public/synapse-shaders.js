@@ -1,16 +1,17 @@
-// Every layer uses the same moving junctions and spherical pulse fronts, so
-// fine filaments, cores and travelling charges remain attached in three dimensions.
+// Straight polygon links, sparse facets and ruled micro-filaments share the
+// moving graph. Depth-of-field turns distant points into soft photographic bokeh.
 const WEB=`
-uniform sampler2D u_nodes,u_edges;
+uniform sampler2D u_nodes,u_edges,u_facets;
 uniform vec2 u_resolution;
 uniform vec4 u_world,u_camera,u_roles,u_particle,u_light,u_signals[8],u_origins[8],u_neural;
 uniform vec3 u_palette[6];
 uniform float u_focalLength,u_movement,u_pixel,u_signalTime,u_spectrumLight[48],u_shimmer;
 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
 float hash(float n){return fract(sin(n*127.1)*43758.5453);}
-vec3 pigment(vec3 c){return pow(max(vec3(0.),c/max(.24,max(c.r,max(c.g,c.b)))),vec3(2.2));}
-vec3 cool(){return mix(pigment(u_palette[1]),pigment(u_palette[2]),.28);}
-vec3 warm(){return mix(pigment(u_palette[4]),pigment(u_palette[0]),.18);}
+vec3 pigment(vec3 c){return pow(max(vec3(0.),c/max(.24,max(c.r,max(c.g,c.b)))),vec3(1.8));}
+vec3 cool(){return mix(vec3(.025,.64,1.),pigment(u_palette[1]),.74);}
+vec3 warm(){return mix(vec3(.64,.075,1.),pigment(u_palette[4]),.74);}
+vec3 webColor(vec3 p,float seed){float blend=clamp(.5+p.x*.09+sin(p.y*.7+p.z*.4)*.18+seed*.16,0.,1.);return mix(cool(),warm(),blend);}
 float frequency(float t){float x=clamp(t,0.,1.)*47.;int i=int(x);return mix(u_spectrumLight[i],u_spectrumLight[min(47,i+1)],fract(x));}
 float impulse(vec3 p){
  float light=0.;for(int i=0;i<8;i++){
@@ -34,41 +35,65 @@ vec4 projectWeb(vec3 p){
 export const SYNAPSE_THREAD_VERTEX=`#version 300 es
 precision highp float;
 ${WEB}
-uniform float u_segments,u_threadLayer;
+uniform float u_segments,u_threadLayer,u_weaveCount;
 out vec3 v_color;out float v_alpha,v_edge,v_t,v_seed,v_pulse;
 void main(){
  int c=gl_VertexID%6,cell=gl_VertexID/6,segments=int(u_segments),id=cell/segments;
- if(u_threadLayer>.5)id*=2;
- vec4 edge=texelFetch(u_edges,ivec2(id%1024,id/1024),0);int a=int(edge.x),b=int(edge.y);
  float t=(float(cell%segments)+float(c==1||c==4||c==5))/u_segments,side=c==0||c==1||c==4?-1.:1.;
- vec3 pa=junction(a),pb=junction(b),p=mix(pa,pb,t);float lengthAB=length(pa-pb);
- vec3 axis=normalize(cross(pb-pa,vec3(.31,.87,.41))+vec3(.00001));
- float arc=sin(t*3.14159)*min(.18,lengthAB*.30);
- p+=axis*arc*sin(edge.w*51.+u_neural.x*1.6)*( .35+u_roles.z*.65);
- p+=axis*arc*sin(t*6.283+edge.w*19.+u_neural.x)*u_threadLayer;
+ vec3 pa,pb,p;float fade,seed;
+ if(u_threadLayer>.5){
+  int strand=id%int(u_weaveCount);id/=int(u_weaveCount);
+  vec4 face=texelFetch(u_facets,ivec2(id%1024,id/1024),0);
+  vec3 a=junction(int(face.x)),b=junction(int(face.y)),cpos=junction(int(face.z));
+  seed=hash(face.x*3.7+face.y*5.1+face.z);float f=(float(strand)+1.)/(u_weaveCount+1.);
+  // Ruled strands bow inside occasional triangular patches, giving the fine
+  // woven fans in the reference while leaving the main polygon links straight.
+  pa=mix(a,b,f);pb=mix(a,cpos,f);p=mix(pa,pb,t);
+  vec3 normal=normalize(cross(b-a,cpos-a)+vec3(.00001));
+  p+=normal*sin(t*3.14159)*sin(f*3.14159)*(.025+u_roles.z*.055);
+  fade=face.w*step(.57,seed);seed+=f*.12;
+ }else{
+  vec4 edge=texelFetch(u_edges,ivec2(id%1024,id/1024),0);
+  pa=junction(int(edge.x));pb=junction(int(edge.y));p=mix(pa,pb,t);fade=edge.z;seed=edge.w;
+ }
  vec4 clip=projectWeb(p),ca=projectWeb(pa),cb=projectWeb(pb);
  vec2 tangent=(cb.xy/cb.w-ca.xy/ca.w)*u_resolution,normal=normalize(vec2(-tangent.y,tangent.x)+vec2(.00001));
- float blur=smoothstep(.65,3.5,abs(clip.w-6.1));
- float pulse=impulse(p/clamp(u_particle.x,.65,1.5)),lit=frequency(fract(edge.w*3.7));
- float width=(.65+blur*2.0+pulse*.4)*max(.7,u_pixel);
- clip.xy+=normal*side*width*2./u_resolution*clip.w;gl_Position=clip;v_edge=side;v_t=t;v_seed=edge.w;v_pulse=pulse;
- v_color=mix(cool(),warm(),clamp(pulse*.75+hash(edge.w*19.)*.40,0.,1.));
- v_alpha=(.065+lit*.38+u_roles.x*.055+pulse*.95+u_roles.w*.06)*(1.-blur*.68)*edge.z;
- v_alpha*=mix(.12,1.,smoothstep(2.,5.,clip.w))*(1.-smoothstep(.65,1.65,lengthAB)*.85);
- v_alpha*=1.-u_threadLayer*.60;
+ float blur=smoothstep(.55,2.6,abs(clip.w-6.6)),pulse=impulse(p/clamp(u_particle.x,.65,1.5)),lit=frequency(fract(seed*3.7));
+ float width=mix(.95,.55,u_threadLayer)+blur*1.2;
+ clip.xy+=normal*side*width*max(.7,u_pixel)*2./u_resolution*clip.w;gl_Position=clip;
+ v_edge=side;v_t=t;v_seed=seed;v_pulse=pulse;v_color=webColor(p,seed);
+ v_alpha=(.035+lit*.16+u_roles.x*.025+pulse*.35+u_roles.w*.025)*fade*exp(-blur*3.8);
+ v_alpha*=mix(.08,1.,smoothstep(1.5,4.5,clip.w))*(1.-smoothstep(.9,1.8,length(pa-pb))*.80);
+ v_alpha*=mix(1.,.55,u_threadLayer);
 }`;
 export const SYNAPSE_THREAD_FRAGMENT=`#version 300 es
 precision highp float;
 in vec3 v_color;in float v_alpha,v_edge,v_t,v_seed,v_pulse;out vec4 fragColor;
 uniform vec4 u_neural;
 void main(){
- float sheath=exp(-v_edge*v_edge*3.4),core=exp(-v_edge*v_edge*35.);
- float charge=pow(.5+.5*sin(v_t*28.-u_neural.x*5.+v_seed*61.),16.);
- float beads=pow(.5+.5*sin(v_t*70.+v_seed*171.),24.);
- vec3 color=v_color*(sheath*.70+core*(.38+charge*.9+beads*.32))*v_alpha;
- color+=mix(v_color,vec3(1.),.55)*core*charge*v_pulse*v_alpha*.65;
+ float line=exp(-v_edge*v_edge*1.8),core=exp(-v_edge*v_edge*24.);
+ float charge=pow(.5+.5*sin(v_t*12.-u_neural.x*6.+v_seed*61.),24.);
+ vec3 color=v_color*(line*.82+core*(.22+charge*.6))*v_alpha;
+ color+=mix(v_color,vec3(1.),.30)*core*charge*v_pulse*v_alpha*.30;
  fragColor=vec4(color,0.);
 }`;
+
+export const SYNAPSE_FACET_VERTEX=`#version 300 es
+precision highp float;
+${WEB}
+out vec3 v_color;out float v_alpha;out vec3 v_bary;
+void main(){
+ int id=gl_VertexID/3,corner=gl_VertexID%3;vec4 face=texelFetch(u_facets,ivec2(id%1024,id/1024),0);
+ int node=int(corner==0?face.x:corner==1?face.y:face.z);vec3 p=junction(node);gl_Position=projectWeb(p);
+ float seed=hash(face.x*3.7+face.y*5.1+face.z),pulse=impulse(p/clamp(u_particle.x,.65,1.5));
+ float blur=smoothstep(.5,2.8,abs(gl_Position.w-6.6));
+ v_color=webColor(p,seed);v_alpha=(.004+frequency(seed)*.009+pulse*.014)*face.w*step(.62,seed)*exp(-blur*3.);
+ v_bary=corner==0?vec3(1.,0.,0.):corner==1?vec3(0.,1.,0.):vec3(0.,0.,1.);
+}`;
+export const SYNAPSE_FACET_FRAGMENT=`#version 300 es
+precision highp float;
+in vec3 v_color,v_bary;in float v_alpha;out vec4 fragColor;
+void main(){float edge=min(v_bary.x,min(v_bary.y,v_bary.z));fragColor=vec4(v_color*v_alpha*(.45+smoothstep(0.,.25,edge)*.55),0.);}`;
 
 export const SYNAPSE_NODE_VERTEX=`#version 300 es
 precision highp float;
@@ -87,7 +112,7 @@ void main(){
  }else if(u_nodeLayer>1.5){
   p=vec3((hash(float(id)*5.1)-.5)*13.,(hash(float(id)*8.3)-.5)*8.,(hash(float(id)*9.7)-.5)*7.);
   p+=vec3(sin(u_neural.x*.2+seed*17.),cos(u_neural.x*.17+seed*21.),sin(u_neural.x*.15+seed*31.))*.32;
-  data=vec4(p,seed);fade=.08+u_neural.y*.15;
+  data=vec4(p,seed);fade=.035+u_neural.y*.075;
  }else if(u_nodeLayer>.5){
   vec4 edge=texelFetch(u_edges,ivec2(id%1024,id/1024),0);int a=int(edge.x),b=int(edge.y);
   float t=fract(edge.w+u_neural.x*(.12+hash(edge.w*8.)*.24));p=mix(junction(a),junction(b),t);
@@ -95,12 +120,12 @@ void main(){
  }else{data=texelFetch(u_nodes,ivec2(id,0),0);p=junction(id);}
  gl_Position=projectWeb(p);v_seed=data.w;
  float pulse=impulse(p/clamp(u_particle.x,.65,1.5)),f=frequency(data.w);v_pulse=pulse;
- v_blur=smoothstep(.6,3.1,abs(gl_Position.w-6.1));v_hero=step(.91,data.w)*step(u_nodeLayer,.5);
- float size=3.8+v_hero*10.+pulse*12.+f*5.+v_blur*25.;
- if(u_nodeLayer>1.5)size=4.+seed*4.+v_blur*18.;
+ v_blur=smoothstep(.55,2.6,abs(gl_Position.w-6.6));v_hero=step(.97,data.w)*step(u_nodeLayer,.5);
+ float size=3.4+v_hero*8.+pulse*4.+f*2.5+v_blur*(11.+seed*15.);
+ if(u_nodeLayer>1.5)size=3.+seed*3.+v_blur*22.;
  gl_PointSize=clamp(size*u_pixel*clamp(u_particle.y,.6,1.8),2.,70.);
- v_color=mix(cool(),warm(),clamp(v_hero*.55+pulse*.72+seed*.18,0.,1.));
- v_power=(.20+v_hero*.95+f*1.3+pulse*4.+u_roles.x*.18+u_shimmer*.18)*(1.-v_blur*.78)*fade;
+ v_color=webColor(p,seed);
+ v_power=(.15+v_hero*.65+f*.80+pulse*1.9+u_roles.x*.12+u_shimmer*.10)*mix(1.,.16,v_blur)*fade;
  v_power*=1.+u_roles.y*.65*v_hero*clamp(u_light.z*5.,0.,2.);
  if(gl_Position.w<1.)v_power=0.;
 }`;
@@ -108,25 +133,33 @@ export const SYNAPSE_NODE_FRAGMENT=`#version 300 es
 precision highp float;
 in vec3 v_color;in float v_power,v_blur,v_hero,v_seed,v_pulse;out vec4 fragColor;
 uniform vec4 u_neural;
-void main(){vec2 p=gl_PointCoord*2.-1.;float r=length(p);if(r>1.)discard;
- float core=exp(-r*r*mix(95.,6.,v_blur)),halo=exp(-r*r*5.)*.14;
- float angle=atan(p.y,p.x),membrane=exp(-pow((r-.40-sin(angle*5.+v_seed*31.+u_neural.x)*.025)*26.,2.));
- float nucleus=exp(-dot(p-vec2(.12,-.08),p-vec2(.12,-.08))*95.);
- vec3 color=v_color*(core+halo+membrane*v_hero*.15*(1.-v_blur))*v_power;
- color+=mix(v_color,vec3(1.),.25)*(core*.27+nucleus*.10*v_hero)*v_power*(1.-v_blur);
+void main(){
+ vec2 p=gl_PointCoord*2.-1.;float r=length(p);if(r>1.)discard;
+ float core=exp(-r*r*mix(105.,8.,v_blur));
+ // A filled, softly defocused hexagonal aperture; no cellular rims or nuclei.
+ float angle=atan(p.y,p.x),hex=r*cos(mod(angle+3.14159/6.,3.14159/3.)-3.14159/6.);
+ float bokeh=(1.-smoothstep(.63,.86,hex))*v_blur*.075;
+ float halo=exp(-r*r*7.)*.055;
+ float star=(exp(-abs(p.x)*75.)*exp(-abs(p.y)*5.)+exp(-abs(p.y)*75.)*exp(-abs(p.x)*5.))*v_hero*(1.-v_blur)*.28;
+ vec3 color=v_color*(core+halo+bokeh+star)*v_power*mix(1.,step(.55,v_seed),v_blur);
+ color+=mix(v_color,vec3(1.),.70)*core*v_power*.30*(1.-v_blur);
  fragColor=vec4(color,0.);
 }`;
 
 export const SYNAPSE_BACKGROUND=`#version 300 es
 precision highp float;
 in vec2 v_uv;out vec4 fragColor;
-uniform vec4 u_roles;uniform vec3 u_palette[6];
+uniform vec4 u_roles,u_neural;uniform vec3 u_palette[6];
 void main(){
- vec2 p=v_uv-.5;float haze=exp(-dot(p-vec2(-.28,.18),p-vec2(-.28,.18))*3.2);
- // Store the smooth dark gradient perceptually. A linear RGBA8 intermediate
- // otherwise reduces it to a few values before the final tone mapping pass.
- vec3 tint=u_palette[1]/max(.24,max(u_palette[1].r,max(u_palette[1].g,u_palette[1].b)));
- vec3 linear=mix(vec3(.00065,.0012,.0024),tint*.008,.60)*(.32+haze*.9+u_roles.x*.16);
+ vec2 p=v_uv-.5;float drift=sin(u_neural.x*.10)*.055;
+ float cyan=exp(-dot((p-vec2(-.32,.16+drift))*vec2(1.2,1.8),(p-vec2(-.32,.16+drift))*vec2(1.2,1.8))*3.);
+ float violet=exp(-dot((p-vec2(.37,-.24-drift))*vec2(1.5,1.25),(p-vec2(.37,-.24-drift))*vec2(1.5,1.25))*3.);
+ vec3 a=u_palette[1]/max(.24,max(u_palette[1].r,max(u_palette[1].g,u_palette[1].b)));
+ vec3 b=u_palette[4]/max(.24,max(u_palette[4].r,max(u_palette[4].g,u_palette[4].b)));
+ vec3 linear=vec3(.0012,.0013,.0032)+mix(vec3(.001,.018,.035),a*.019,.78)*cyan+mix(vec3(.018,.001,.037),b*.018,.78)*violet;
+ linear*=.80+u_roles.x*.22;
+ // Perceptual storage plus static sub-code dithering keeps the broad atmospheric
+ // gradients smooth through both the float and RGBA8 intermediate targets.
  float dither=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;
  fragColor=vec4(clamp(pow(linear,vec3(1./2.2))+dither/255.,0.,1.),1.);
 }`;

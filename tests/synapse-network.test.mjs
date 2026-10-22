@@ -13,7 +13,7 @@ test('Synapse prepares deterministic volumetric nodes with bounded nearest conne
  for(const link of a.links.values()){
   const [x,y,opacity]=a.edges.slice(link.slot*4,link.slot*4+3);assert.ok(x>=0&&y<a.count&&x<y);assert.equal(opacity,1);
   const key=x+':'+y;assert.ok(!pairs.has(key));pairs.add(key);degree[x]++;degree[y]++;
-  assert.ok(Math.hypot(...[0,1,2].map(j=>a.nodes[x*4+j]-a.nodes[y*4+j]))<=1.35);
+  assert.ok(Math.hypot(...[0,1,2].map(j=>a.nodes[x*4+j]-a.nodes[y*4+j]))<=1.65);
  }
  assert.ok(degree.every(x=>x>=3));
  for(const axis of [0,1,2]){const values=Array.from({length:a.count},(_,i)=>a.nodes[i*4+axis]);assert.ok(Math.max(...values)-Math.min(...values)>2,'Not a flat billboard');}
@@ -68,4 +68,19 @@ test('Synapse track colours ease continuously and clearing old attacks preserves
  const s=new SynapseSignals(),a=Array(18).fill(.1),b=Array(18).fill(.9);s.update(0,{palette:a});s.update(.02,{...input,palette:a,onset:1});
  const phase=s.phase,time=s.time;s.clearEvents();assert.equal(s.phase,phase);assert.equal(s.time,time);assert.equal(s.emitted,0);
  s.update(.04,{palette:b});assert.ok(s.palette[0]>.1&&s.palette[0]<.12);for(let i=3;i<=300;i++)s.update(i*.02,{palette:b});assert.ok(s.palette[0]>.88);
+});
+
+
+test('Synapse sparse facets share nearby moving nodes and fade safely within a bounded pool',async()=>{
+ const n=await createSynapseNetwork(680),s=new SynapseSignals();s.update(0);
+ const check=()=>{
+  assert.ok(n.faces.size>80&&n.faces.size<n.facetCapacity);assert.equal(n.faces.size+n.faceFree.length,n.facetCapacity);
+  const slots=new Set();for(const face of n.faces.values()){
+   assert.ok(!slots.has(face.slot));slots.add(face.slot);const [a,b,c,fade]=n.facets.slice(face.slot*4,face.slot*4+4);
+   assert.ok(a>=0&&a<b&&b<c&&c<n.count);assert.ok(fade>=0&&fade<=1);
+   if(face.wanted)for(const [x,y]of [[a,b],[a,c],[b,c]])assert.ok(Math.hypot(...[0,1,2].map(j=>n.nodes[x*4+j]-n.nodes[y*4+j]))<2.5);
+  }assert.ok(n.facets.every(Number.isFinite));for(const free of n.faceFree)assert.ok(!slots.has(free));
+ };
+ check();const oldFaces=new Set(n.faces.keys());advance(n,s,8);check();assert.ok([...n.faces.keys()].some(id=>!oldFaces.has(id)));
+ const before=n.facets.slice();advance(n,s,1/60);for(let k=3;k<n.facets.length;k+=4)assert.ok(Math.abs(n.facets[k]-before[k])<.07,'Facets must crossfade');
 });
