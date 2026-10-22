@@ -65,9 +65,9 @@ app.whenReady().then(async()=>{
  })()`);
  if(!report.rain.falling.every((p,i)=>p[3]>0&&(i===0||p[1]<report.rain.falling[i-1][1]))||report.rain.landed[3]!==0||report.rain.impact[3]<=0||report.rain.dry[3]!==0||Math.hypot(report.rain.satellite[0]-.32,report.rain.satellite[1]+.1)<.02)throw Error('Rain fall / impact / absorption stages failed: '+JSON.stringify(report.rain));
  report.continuousBrush=await run(`(()=>{
-  const saved=gpu.contour.data.slice(),time=gpu.contour.time;gpu.contour.data.fill(0);gpu.contour.time=16.99;gpu.draw(input);const before=pixels();
+  const saved=gpu.contour.data.slice(),currents=gpu.contour.currentData.slice(),time=gpu.contour.time;gpu.contour.data.fill(0);gpu.contour.currentData.fill(0);gpu.contour.time=16.99;gpu.draw(input);const before=pixels();
   let maximum=0;for(const t of [17.01,34.01,51.01]){gpu.contour.time=t;gpu.draw(input);maximum=Math.max(maximum,distance(before,pixels()));}
-  gpu.contour.time=time;gpu.contour.data.set(saved);gpu.draw(input);return maximum;
+  gpu.contour.time=time;gpu.contour.data.set(saved);gpu.contour.currentData.set(currents);gpu.draw(input);return maximum;
  })()`);
  if(report.continuousBrush>.001)throw Error('Brush still fades or redraws on a timer');
  report.materials=await run(`(async()=>{
@@ -86,6 +86,17 @@ app.whenReady().then(async()=>{
   gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return {wet,dry,separate,joined,fresh,memory};
  })()`);
  if(report.materials.wet<report.materials.dry+.035||report.materials.separate-report.materials.joined<.025||report.materials.memory<=0||report.materials.memory>report.materials.fresh*.20)throw Error('Wet ink / pool joining / faint memory failed: '+JSON.stringify(report.materials));
+ report.currents=await run(`(async()=>{
+  const {ContourMotion,CONTOUR_CURRENT_WIDTH}=await import('/contour-motion.js'),gl=gpu.gl,fixture=new ContourMotion(),target=gpu.target(512,512),floating=gpu.hdr,range=floating?1:255;
+  fixture.writeCurrent(0,-.65,-.25,.4,.9,.37,0,[1,.03,.02,1]);fixture.writeCurrent(32,0,0,.4,.9,.37,1,[1,.03,.02,1]);
+  gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,gpu.currentTexture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_CURRENT_WIDTH,4,gl.RGBA,gl.FLOAT,fixture.currentData);
+  const paint=(age,stage=0,phase=0)=>{gpu.bind(target);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gpu.use(gpu.contourCurrent,{u_inkTime:age,u_currentStage:stage,u_currentPhase:phase,u_segments:40,u_ratio:1,u_resolution:[512,512],u_movement:1,u_inkMaterial:[.8,.9,.4,.5],u_roles:[.4,.5,.4,.2],u_spectrum:new Float32Array(48)});gpu.texture(gpu.contourCurrent,'u_currentData',gpu.currentTexture,10);gl.drawArraysInstanced(gl.TRIANGLES,0,(stage?31:3)*40*6,1);const pixels=floating?new Float32Array(512*512*4):new Uint8Array(512*512*4);gl.readPixels(0,0,512,512,gl.RGBA,floating?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);return pixels;};
+  const absorption=p=>{let sum=0;for(let i=0;i<p.length;i+=4)sum+=1-(p[i]+p[i+1]+p[i+2])/(3*range);return sum/(p.length/4);};
+  const early=absorption(paint(.2)),wet=paint(3),grown=absorption(wet),pulseChange=distance(wet,paint(3,0,.3))/range,expired=absorption(paint(9.1));
+  const bud=absorption(paint(.4,1)),bloom=absorption(paint(3,1)),trace=absorption(paint(10,1)),gone=absorption(paint(15.1,1));
+  gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return {early,grown,pulseChange,expired,bud,bloom,trace,gone};
+ })()`);
+ if(report.currents.grown<report.currents.early*2||report.currents.pulseChange<.00001||report.currents.expired>.000001||report.currents.bloom<report.currents.bud*2||report.currents.trace<=0||report.currents.trace>report.currents.bloom*.25||report.currents.gone>.000001)throw Error('Ink current growth, transport or bloom drying failed: '+JSON.stringify(report.currents));
  report.pressure=await run(`(async()=>{
   const {CONTOUR_VERTEX,CONTOUR_FRAGMENT}=await import('/contour-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl;
   const p=await compileSceneProgram(gl,CONTOUR_VERTEX,CONTOUR_FRAGMENT,['gl_Position','v_density']),buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();
@@ -107,6 +118,14 @@ app.whenReady().then(async()=>{
  await run('step(3.025)');await shot('splash');
  report.palette=await run(`(()=>{const before=[...gpu.contour.accent];d.colors=[[.02,.65,.9],[.03,.4,.8],[.02,.5,.8]];for(let i=1;i<=180;i++)step(3.025+i/60);return {before,after:[...gpu.contour.accent]};})()`);await shot('cool-ink');
  if(report.palette.after[2]<report.palette.before[2]+.2)throw Error('Palette has no visible range');
+ report.trackTransition=await run(`(()=>{
+  gpu.draw(input);const saved={features:input.features,roles:d.roles,light:d.spectrumLight},before=pixels(),data=gpu.contour.data.slice(),currents=gpu.contour.currentData.slice(),spectrum=gpu.contour.spectrum.slice();
+  d.trackId='contour-transition-next';input.features={...input.features,spectrum:new Float32Array(48),loudness:0,onset:0};d.roles={bass:0,drums:0,lead:0,texture:0};d.spectrumLight=new Float32Array(48);gpu.draw(input);
+  const held=distance(before,pixels()),preserved=distance(data,gpu.contour.data)+distance(currents,gpu.contour.currentData);
+  d.spectrumClock+=1/60;input.time+=1/60;gpu.draw(input);const step=Math.max(...gpu.contour.spectrum.map((v,i)=>Math.abs(v-spectrum[i])));
+  input.features=saved.features;d.roles=saved.roles;d.spectrumLight=saved.light;return {held,preserved,step};
+ })()`);
+ if(report.trackTransition.held>.00001||report.trackTransition.preserved!==0||report.trackTransition.step>.04)throw Error('Track change erased or snapped the painting: '+JSON.stringify(report.trackTransition));
  report.held=await run(`(()=>{gpu.draw(input);const before=pixels(),time=gpu.contour.time;input.time+=300;gpu.draw(input);const paused=distance(before,pixels());input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);const reduced=gpu.contour.time===time;input.reduced=false;gpu.draw(input);const flat=pixels();d.camera=[1.2,-.6,.8,3];gpu.draw(input);return {paused,reduced,camera:distance(flat,pixels())};})()`);
  if(report.held.paused>.001||!report.held.reduced||report.held.camera>.001)throw Error('Flat / frozen behavior regressed');
  for(const [name,seconds]of [['rain-built-up',14],['continuous-gesture',31]]){

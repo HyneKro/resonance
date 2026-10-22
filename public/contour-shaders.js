@@ -199,6 +199,89 @@ void main(){
  fragColor=vec4(color,clamp(ink,0.,.95));
 }`;
 
+// Currents share the exact live brush curve: their roots cannot drift away
+// from the frequency gesture when its shape, orientation or layout changes.
+export const CONTOUR_CURRENT_VERTEX=`#version 300 es
+precision highp float;
+${INK}
+uniform highp sampler2D u_currentData;uniform float u_currentStage,u_currentPhase;
+out vec4 v_current;out vec4 v_pigment;out float v_seed;
+vec2 stream(vec2 a,vec2 b,float t,float seed,float branch){
+ vec2 delta=b-a,normal=vec2(-delta.y,delta.x);
+ float bend=sin(seed*13.+branch*2.)*.24+sin(u_currentPhase*.7+seed*8.)*.035*u_inkMaterial.z;
+ return mix(a,b,t)+normal*sin(t*PI)*(bend+sin(t*PI*2.+seed*9.)*.085);
+}
+vec2 bloom(vec2 root,vec2 normal,float node,float t,float seed,float radius){
+ int lineage[5];int depth=0,n=int(node)+1;
+ for(int i=0;i<5;i++){lineage[i]=n;if(n>1){depth++;n/=2;}}
+ vec2 p=root;float angle=atan(normal.y,normal.x)+sin(seed*19.)*.65;
+ for(int i=4;i>=0;i--){
+  int id=lineage[i];if(i>depth)continue;
+  if(id>1)angle+=(id%2==0?-1.:1.)*(.37+hash(float(id)+seed*37.)*.48);
+  float segment=radius*pow(.64,float(depth-i));
+  // Ancestors have already grown; the last segment is sampled along its length.
+  float along=i==0?t:1.;
+  p+=vec2(cos(angle),sin(angle))*segment*along;
+  p+=vec2(-sin(angle),cos(angle))*sin(along*PI)*segment*.18*sin(seed*21.+float(id));
+ }
+ return p;
+}
+void main(){
+ int corner=gl_VertexID%6,cell=gl_VertexID/6,segs=int(u_segments),branch=cell/segs;
+ float t=(float(cell%segs)+((corner==1||corner==3||corner==5)?1.:0.))/u_segments;
+ float edge=(corner==0||corner==1||corner==3)?-1.:1.;
+ int index=gl_InstanceID+(u_currentStage>.5?32:0);
+ vec4 event=texelFetch(u_currentData,ivec2(index,0),0),detail=texelFetch(u_currentData,ivec2(index,1),0),link=texelFetch(u_currentData,ivec2(index,3),0);
+ v_pigment=texelFetch(u_currentData,ivec2(index,2),0);v_seed=detail.y;
+ float age=max(0.,u_inkTime-event.z),live=step(.001,event.w)*step(event.z,u_inkTime),seed=detail.y;
+ vec2 root=place(gesture(detail.x,0.));
+ vec2 tangent=normalize(place(baseGesture(detail.x+.003,0.))-place(baseGesture(detail.x-.003,0.))+vec2(.00001,0.));
+ vec2 normal=vec2(-tangent.y,tangent.x),p,before,after;
+ float growth=1.-exp(-age*(.65+event.w*.55)),width=.0018+event.w*.0026,opacity=.48;
+ if(u_currentStage<.5){
+  vec2 source=vec2(event.x*u_ratio,event.y),target=root;
+  if(branch>0){
+   // Two fine tributaries either reach another wet pool or fork into the tooth.
+   vec2 delta=root-source;
+   target=stream(source,root,branch==1?.43:.70,seed,0.);
+   source=branch==1&&link.z>.5?vec2(link.x*u_ratio,link.y):source+vec2(-delta.y,delta.x)*(branch==1?.45:-.38);
+   width*=.50;opacity*=.55;
+  }
+  p=stream(source,target,t,seed,float(branch));before=stream(source,target,max(0.,t-.006),seed,float(branch));after=stream(source,target,min(1.,t+.006),seed,float(branch));
+  live*=1.-smoothstep(5.,9.,age);opacity*=smoothstep(0.,.9,age);
+ }else{
+  float radius=.065+event.w*.12,depth=floor(log2(float(branch)+1.));
+  p=bloom(root,normal,float(branch),t,seed,radius);before=bloom(root,normal,float(branch),max(0.,t-.006),seed,radius);after=bloom(root,normal,float(branch),min(1.,t+.006),seed,radius);
+  growth=clamp(age/2.8,0.,1.);growth=clamp(growth*5.-depth,0.,1.);
+  width=(.0026+event.w*.0025)*pow(.66,depth);opacity=.52*mix(1.,.10,smoothstep(3.,7.,age));
+  live*=1.-smoothstep(11.,15.,age);
+ }
+ vec2 axis=normalize(after-before+vec2(.00001,0.));
+ float pulse=pow(max(0.,cos((t*2.5-u_currentPhase-seed)*6.28318)),22.)*u_inkMaterial.y;
+ width*=.85+pulse*1.4;
+ p+=vec2(-axis.y,axis.x)*edge*width*(.55+.45*sin(t*PI));
+ gl_Position=vec4(p.x/u_ratio,p.y,0.,1.);
+ v_current=vec4(t,edge,live*opacity,growth);
+}`;
+
+export const CONTOUR_CURRENT_FRAGMENT=`#version 300 es
+precision highp float;
+in vec4 v_current,v_pigment;in float v_seed;out vec4 fragColor;
+uniform float u_currentPhase,u_currentStage;uniform vec4 u_inkMaterial;
+void main(){
+ float t=v_current.x,edge=v_current.y;
+ float tooth=fract(sin(dot(floor(gl_FragCoord.xy),vec2(127.1,311.7)))*43758.5453);
+ float line=1.-smoothstep(.35,1.,abs(edge));
+ float grown=1.-smoothstep(v_current.w-.025,v_current.w+.025,t);
+ float pulse=pow(max(0.,cos((t*2.5-u_currentPhase-v_seed)*6.28318)),22.)*u_inkMaterial.y;
+ vec3 pigment=mix(vec3(.025,.031,.038),max(vec3(.018),v_pigment.rgb)*.74,v_pigment.a);
+ // Pigment catches a travelling, coloured wet highlight. It dries back into
+ // the paper, with no full-screen light source or change to its white point.
+ pigment=mix(pigment,max(pigment,v_pigment.rgb)*.75,pulse*.70);
+ float ink=line*grown*v_current.z*(.55+tooth*.45)*(1.+pulse*.45);
+ fragColor=vec4(pigment,clamp(ink,0.,.9));
+}`;
+
 export const CONTOUR_PAPER=`#version 300 es
 precision highp float;in vec2 v_uv;out vec4 fragColor;
 uniform vec2 u_resolution;uniform sampler2D u_lettering;uniform float u_paper;uniform float u_spectrum[48];

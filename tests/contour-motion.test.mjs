@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ContourMotion,CONTOUR_RAIN_COUNT,CONTOUR_DROP_LIFE,CONTOUR_MEMORY_COUNT,CONTOUR_MEMORY_LIFE} from '../public/contour-motion.js';
+import {ContourMotion,contourAnchor,CONTOUR_RAIN_COUNT,CONTOUR_DROP_LIFE,CONTOUR_MEMORY_COUNT,CONTOUR_MEMORY_LIFE,CONTOUR_CURRENT_WIDTH} from '../public/contour-motion.js';
 
 const run=(ink,seconds,options={},fps=60)=>{ink.update(0);for(let i=1;i<=seconds*fps;i++)ink.update(i/fps,typeof options==='function'?options(i/fps):options);return ink;};
 
@@ -16,13 +16,58 @@ test('ink rain follows audible energy and accents, with no droplets born in sile
 
 test('pause, reduced motion, seeks and inactive intervals do not paint or fast-forward',()=>{
  const ink=new ContourMotion();ink.update(0);ink.update(.02,{onset:.9,energy:.8});
- const snapshot=()=>({time:ink.time,data:[...ink.data],material:[...ink.material],emitted:ink.emitted}),before=snapshot();
+ const snapshot=()=>({time:ink.time,data:[...ink.data],currents:[...ink.currentData],phase:ink.flowPhase,material:[...ink.material],emitted:ink.emitted}),before=snapshot();
  for(let i=0;i<100;i++)ink.update(.02,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.update(.04,{onset:1,energy:1,reduced:true});assert.deepEqual(snapshot(),before);
  ink.update(120,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.update(3,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.suspend();ink.update(900,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.update(900.02,{energy:0});assert.ok(ink.time-before.time<.021);assert.equal(ink.emitted,before.emitted);
+});
+
+test('currents bind landed pools to the brush in landscape and portrait, retaining pigment',()=>{
+ for(const ratio of [1.6,.55]){
+  const ink=new ContourMotion();ink.update(0);const anchor=contourAnchor(.4,ratio);
+  ink.drops.set([anchor[0]+.15/ratio,anchor[1],0,.8]);ink.details.set([.03,.5,1,.37]);ink.tints.set([.1,.3,.8,1]);
+  for(let i=1;i<=50;i++)ink.update(i/60,{energy:.5,ratio});
+  assert.equal(ink.bound[0],1);assert.ok(ink.currents>=1);
+  const row=CONTOUR_CURRENT_WIDTH*4,at=Array.from({length:32},(_,i)=>i*4).find(i=>Math.abs(ink.currentData[i]-ink.drops[0])<1e-6);
+  assert.notEqual(at,undefined);const p=contourAnchor(ink.currentData[row+at],ratio);
+  assert.ok(Math.hypot((p[0]-ink.currentData[at])*ratio,p[1]-ink.currentData[at+1])<.55);
+  assert.deepEqual([...ink.currentData.subarray(row*2+at,row*2+at+4)],[...ink.tints.subarray(0,4)]);
+  const pigment=ink.currentData.slice(row*2+at,row*2+at+4);
+  for(let i=51;i<=180;i++)ink.update(i/60,{energy:0,ratio,colors:[[1,0,0],[1,0,0],[1,0,0]]});
+  assert.deepEqual(ink.currentData.slice(row*2+at,row*2+at+4),pigment);
+ }
+});
+
+test('branching blooms require distinct strong accents and never replace visible currents',()=>{
+ const ink=new ContourMotion();ink.update(0);let changes=0;
+ for(let i=1;i<=3600;i++){
+  const before=ink.currentData.slice();ink.update(i/60,{energy:.9,bass:.7,onset:i%30<3?1:0});
+  for(let slot=0;slot<40;slot++){const a=slot*4;if(before[a+2]!==ink.currentData[a+2]){changes++;if(before[a+3])assert.ok(ink.time-before[a+2]>=(slot<32?9:15));}}
+ }
+ assert.ok(ink.currents>30&&ink.blooms>8&&ink.blooms<22);assert.ok(changes>50);
+ assert.equal(ink.currentData.length,40*4*4);assert.ok(ink.currentData.every(Number.isFinite));
+ const count=[ink.currents,ink.blooms];for(let i=3601;i<=4200;i++)ink.update(i/60,{energy:0,onset:1});assert.deepEqual([ink.currents,ink.blooms],count);
+ ink.reset();assert.ok(ink.currentData.every(v=>v===0));assert.equal(ink.flowPhase,0);
+});
+
+test('ink transport accelerates with bass and advances consistently across frame rates',()=>{
+ const quiet=run(new ContourMotion(),6,{energy:.1,bass:0}),heavy=run(new ContourMotion(),6,{energy:.9,bass:.9});
+ assert.ok(heavy.flowPhase>quiet.flowPhase*3);
+ const phases=[30,60,120].map(fps=>run(new ContourMotion(),10,{energy:.8,bass:.7},fps).flowPhase);
+ assert.ok(Math.max(...phases)-Math.min(...phases)<.015);
+});
+
+test('track changes keep the entire painting and held pose, then ease into the new spectrum',()=>{
+ const ink=new ContourMotion();ink.selectTrack('first');run(ink,8,{energy:.8,bass:.7,lead:.6,onset:.9,spectrum:new Float32Array(48).fill(.8),lights:new Float32Array(48).fill(.7)});
+ const snapshot={data:ink.data.slice(),currents:ink.currentData.slice(),spectrum:ink.spectrum.slice(),roles:ink.roles.slice(),time:ink.time,phase:ink.flowPhase};
+ ink.selectTrack('second');ink.update(8,{energy:0,spectrum:new Float32Array(48)});
+ assert.deepEqual(ink.data,snapshot.data);assert.deepEqual(ink.currentData,snapshot.currents);assert.deepEqual(ink.spectrum,snapshot.spectrum);assert.deepEqual(ink.roles,snapshot.roles);assert.equal(ink.time,snapshot.time);assert.equal(ink.flowPhase,snapshot.phase);
+ ink.update(8+1/60,{energy:.8,spectrum:new Float32Array(48).fill(.1)});assert.ok(snapshot.spectrum[0]-ink.spectrum[0]<.03);
+ for(let i=2;i<=180;i++)ink.update(8+i/60,{energy:.8,spectrum:new Float32Array(48).fill(.1)});
+ assert.ok(Math.abs(ink.spectrum[0]-.1)<.001);assert.equal(ink.transition,0);
 });
 
 test('bounded rain never overwrites a visible mark and distributes impacts across the sheet',()=>{
@@ -39,7 +84,7 @@ test('bounded rain never overwrites a visible mark and distributes impacts acros
  assert.ok(changed>500);assert.ok(ranges[1]-ranges[0]>1.7&&ranges[3]-ranges[2]>1.25);
 });
 
-test('rain density and placement remain consistent across frame rates; a new track starts a clean sheet',()=>{
+test('rain density and placement remain consistent across frame rates; an explicit canvas reset starts a clean sheet',()=>{
  const results=[30,60,120].map(fps=>run(new ContourMotion(),20,{energy:.7,bass:.5},fps));
  assert.ok(Math.max(...results.map(m=>m.emitted))-Math.min(...results.map(m=>m.emitted))<=1);
  for(const ink of results){assert.ok(Math.abs(ink.time-20)<1e-8);ink.reset();assert.ok(ink.drops.every(x=>x===0));assert.equal(ink.emitted,0);assert.equal(ink.clock,null);assert.equal(ink.time,0);}
