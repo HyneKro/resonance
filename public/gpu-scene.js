@@ -316,12 +316,12 @@ export class GPUScene {
         this.use(this.astraDust,sky);this.points(this.astraDust,warmup?256:this.mobile?14000:34000);yield;
       }else if(style.index===4){
         this.contour.selectTrack(d.trackId);
-        const ink=this.contour.update(d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,reduced,colors:d.colors,spectrum:features.spectrum,lights:d.spectrumLight,ratio:w/h});
+        const ink=this.contour.update(d.contourClock??d.spectrumClock??time,{...roles,onset:features.onset,energy:features.loudness,active:d.contourActive!==false,hold:d.contourHold===true,reduced,colors:d.colors,spectrum:features.spectrum,lights:d.spectrumLight,ratio:w/h});
         gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,this.inkTexture);
         gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,ink.data);
         const neutral=Math.min(...ink.accent)*.85,peak=Math.max(.01,Math.max(...ink.accent)-neutral);
         uniforms.u_inkAccent=Array.from(ink.accent,x=>(x-neutral)/peak);
-        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_inkMaterial:ink.material,u_inkPhase:ink.inkPhase,u_roles:ink.roles,u_spectrum:ink.spectrum,u_spectrumLight:ink.lights};
+        const inkUniforms={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_inkTime:ink.time,u_waterTime:ink.waterTime,u_inkMaterial:ink.material,u_inkPhase:ink.inkPhase,u_roles:ink.roles,u_spectrum:ink.spectrum,u_spectrumLight:ink.lights};
         const size=w+'x'+h;
         if(this.letteringSize!==size){
           const labels=contourLettering(w,h);gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,this.letteringTexture);
@@ -331,7 +331,7 @@ export class GPUScene {
         }
         this.bind(nebula);this.use(this.contourPaper,{...inkUniforms,u_paper:1});this.texture(this.contourPaper,'u_lettering',this.letteringTexture,6);this.quadDraw(this.contourPaper);yield;
         gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-        this.use(this.contourShadows,{...inkUniforms,u_resolution:[nebula.w,nebula.h]});gl.drawArraysInstanced(gl.TRIANGLES,0,6,52);
+        this.use(this.contourShadows,{...inkUniforms,u_resolution:[nebula.w,nebula.h]});gl.drawArraysInstanced(gl.TRIANGLES,0,6,64);
         this.use(this.contourDrops,{...inkUniforms,u_inkStage:2,u_resolution:[nebula.w,nebula.h]});this.texture(this.contourDrops,'u_inkData',this.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,6,64);
         this.use(this.contourDrops,{...inkUniforms,u_inkStage:1,u_resolution:[nebula.w,nebula.h]});this.texture(this.contourDrops,'u_inkData',this.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,2*6,128);
         this.uniform(this.contourDrops,'u_inkStage',0);gl.drawArraysInstanced(gl.TRIANGLES,0,18*6,64);yield;

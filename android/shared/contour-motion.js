@@ -1,5 +1,6 @@
 // A continuous ink gesture, wet pools and a bounded memory of absorbed pigment.
-// Every stage follows playback time; pause never catches up missing simulation.
+// A continuous scene clock lets impacts finish and motion coast after audio stops.
+// Explicit freeze, reduced motion and inactive gaps never catch up simulation.
 const unit=x=>Number.isFinite(x)?Math.max(0,Math.min(1,x)):0;
 const hash=n=>{const v=Math.sin(n*127.1+19.3)*43758.5453;return v-Math.floor(v);};
 export const CONTOUR_RAIN_COUNT=64,CONTOUR_DROP_LIFE=7.0,CONTOUR_MEMORY_COUNT=128,CONTOUR_MEMORY_LIFE=45;
@@ -14,7 +15,7 @@ export class ContourMotion {
   this.material=new Float32Array(4);this.accent=new Float32Array([1,.055,.025]);this.spectrum=new Float32Array(48);this.lights=new Float32Array(48);this.roles=new Float32Array(4);this.reset();
  }
  reset(){this.time=0;this.clock=null;this.next=0;this.memoryNext=0;this.emitted=0;this.remembered=0;this.envelope=0;this.lastHit=-10;this.lastLarge=-10;this.credit=0;this.rainEnergy=0;this.data.fill(0);this.connections.fill(-1);this.archived.fill(0);
-  this.inkPhase=0;
+  this.inkPhase=0;this.waterTime=0;this.motion=0;this.rest=8;this.everActive=false;
   this.track=undefined;this.hasTrack=false;this.transition=0;this.spectrum.fill(0);this.lights.fill(0);this.roles.fill(0);
  }
  selectTrack(id){
@@ -24,27 +25,43 @@ export class ContourMotion {
   this.track=id;this.hasTrack=true;
  }
  suspend(){this.clock=null;this.envelope=0;}
- update(clock,{onset=0,drums=0,bass=0,lead=0,texture=0,energy=0,reduced=false,colors,spectrum,lights,ratio=1}={}){
+ update(clock,{onset=0,drums=0,bass=0,lead=0,texture=0,energy=0,active=true,hold=false,reduced=false,colors,spectrum,lights,ratio=1}={}){
   if(!Number.isFinite(clock))return this;
-  const attack=Math.max(unit(onset),unit(drums)*.8);energy=unit(energy);
+  let attack=Math.max(unit(onset),unit(drums)*.8);energy=unit(energy);
   if(this.clock===null){this.clock=clock;this.envelope=attack;return this;}
   const dt=clock-this.clock;this.clock=clock;
-  if(reduced||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=attack;return this;}
-  this.time+=dt;
-  const response=1-Math.exp(-dt/(.065+.48*this.transition/1.6));
-  for(let i=0;i<48;i++){this.spectrum[i]+=(unit(spectrum?.[i])-this.spectrum[i])*response;this.lights[i]+=(unit(lights?.[i])-this.lights[i])*response;}
+  if(hold||reduced||dt<=0||dt>.25){if(dt<0||dt>.25)this.envelope=attack;return this;}
+  if(!active&&(!this.everActive||this.rest>=8))return this;
+  const step=active?dt:Math.min(dt,8-this.rest),tau=active?.35:1.4,target=active?1:0,decay=Math.exp(-step/tau);
+  const moving=target*step+(this.motion-target)*tau*(1-decay);
+  this.motion=target+(this.motion-target)*decay;
+  if(active){if(this.rest>0&&this.everActive){this.transition=Math.max(this.transition,1.2);this.envelope=attack;}this.rest=0;this.everActive=true;}
+  else{this.rest=Math.min(8,this.rest+dt);energy=0;attack=0;drums=0;bass=0;lead=0;texture=0;this.credit=0;}
+  this.time+=step;this.waterTime+=moving;
+  const response=1-Math.exp(-step/(active?.065+.48*this.transition/1.6:1.05));
+  for(let i=0;i<48;i++){this.spectrum[i]+=((active?unit(spectrum?.[i]):0)-this.spectrum[i])*response;this.lights[i]+=((active?unit(lights?.[i]):0)-this.lights[i])*response;}
   const roleTargets=[bass,drums,lead,texture];for(let i=0;i<4;i++)this.roles[i]+=(unit(roleTargets[i])-this.roles[i])*response;
-  this.transition=Math.max(0,this.transition-dt);
+  this.transition=Math.max(0,this.transition-step);
   let total=0,weighted=0;for(let i=0;i<48;i++){const v=unit(spectrum?.[i]);total+=v;weighted+=v*i/47;}
-  const balance=total>0?weighted/total:.3;
-  if(colors?.length>=3){
+  const balance=active?(total>0?weighted/total:.3):this.material[2];
+  if(active&&colors?.length>=3){
    const mix=energy*.85,palette=colors[0].map((v,i)=>v*(1-balance)+colors[2][i]*balance);
    const lo=Math.min(...palette),hi=Math.max(...palette),response=1-Math.exp(-dt/1.4);
    for(let i=0;i<3;i++){const rest=[1,.055,.025][i],tint=hi-lo>.01?.035+.965*(palette[i]-lo)/(hi-lo):rest;this.accent[i]+=(rest*(1-mix)+tint*mix-this.accent[i])*response;}
   }
   const targets=[unit(bass),energy,balance,attack];
-  for(let i=0;i<4;i++)this.material[i]+=(targets[i]-this.material[i])*(1-Math.exp(-dt/(i===3?.14:.30)));
-  this.inkPhase+=dt*(.10+this.material[1]*.22+this.material[0]*.38);
+  for(let i=0;i<4;i++)this.material[i]+=(targets[i]-this.material[i])*(1-Math.exp(-step/(active?(i===3?.14:.30):.9)));
+  this.inkPhase+=moving*(.10+this.material[1]*.22+this.material[0]*.38);
+  // An incompressible current carries landed pigment and its ripple centre.
+  // Nearby stains share the field; incoming rain keeps its straight flight.
+  const aspect=Math.max(.4,Math.min(3,ratio)),drift=(events,falling)=>{
+   for(let i=0;i<events.length;i+=4){
+    if(!events[i+3]||(falling&&this.time-events[i+2]<this.details[i+1]))continue;
+    const x=events[i]*aspect,y=events[i+1],phase=x*2+y*1.7+this.waterTime*.12;
+    events[i]+=(.0102*Math.cos(phase)-.024*Math.sin(y*3-this.waterTime*.036))*.45*moving/aspect;
+    events[i+1]+=-.012*Math.cos(phase)*.45*moving;
+   }
+  };drift(this.drops,true);drift(this.memory,false);
   // Archive a selection of dry marks. Never replace a still-visible memory.
   for(let i=0;i<CONTOUR_RAIN_COUNT;i++){
    const at=i*4,wet=this.time-this.drops[at+2]-this.details[at+1];
@@ -65,7 +82,7 @@ export class ContourMotion {
   const rise=attack-this.envelope;
   if(energy>.015&&attack>.24&&rise>.09&&this.time-this.lastHit>.24){this.credit+=.7+attack*1.8;this.lastHit=this.time;}
   this.credit=Math.min(3,this.credit);
-  if(energy>.015)while(this.credit>=1){
+  if(active&&energy>.015)while(this.credit>=1){
    let slot=-1;
    for(let j=0;j<CONTOUR_RAIN_COUNT;j++){const k=(this.next+j)%CONTOUR_RAIN_COUNT,at=k*4;if(!this.drops[at+3]||this.time-this.drops[at+2]>=CONTOUR_DROP_LIFE){slot=k;break;}}
    if(slot<0){this.credit=Math.min(1,this.credit);break;}
@@ -91,6 +108,7 @@ export class ContourMotion {
   }
   this.updatePools(dt,Math.max(.4,Math.min(3,ratio)));
   this.envelope=attack>this.envelope?attack:this.envelope+(attack-this.envelope)*(1-Math.exp(-dt/.11));
+  if(this.rest>=8)this.motion=0;
   return this;
  }
  updatePools(dt,ratio){

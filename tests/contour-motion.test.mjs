@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ContourMotion,CONTOUR_RAIN_COUNT,CONTOUR_DROP_LIFE,CONTOUR_MEMORY_COUNT,CONTOUR_MEMORY_LIFE,CONTOUR_RAIN_TOP,CONTOUR_RAIN_SPEED} from '../public/contour-motion.js';
+import {Reactor} from '../public/reactor.js';
 
 const run=(ink,seconds,options={},fps=60)=>{ink.update(0);for(let i=1;i<=seconds*fps;i++)ink.update(i/fps,typeof options==='function'?options(i/fps):options);return ink;};
 
@@ -14,7 +15,7 @@ test('ink rain follows audible energy and accents, with no droplets born in sile
  const before=beat.emitted;for(let i=721;i<=900;i++)beat.update(i/60,{energy:0,onset:1});assert.equal(beat.emitted,before);
 });
 
-test('pause, reduced motion, seeks and inactive intervals do not paint or fast-forward',()=>{
+test('held clocks, reduced motion, seeks and inactive intervals do not paint or fast-forward',()=>{
  const ink=new ContourMotion();ink.update(0);ink.update(.02,{onset:.9,energy:.8});
  const snapshot=()=>({time:ink.time,data:[...ink.data],phase:ink.inkPhase,material:[...ink.material],emitted:ink.emitted}),before=snapshot();
  for(let i=0;i<100;i++)ink.update(.02,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
@@ -23,6 +24,49 @@ test('pause, reduced motion, seeks and inactive intervals do not paint or fast-f
  ink.update(3,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.suspend();ink.update(900,{onset:1,energy:1});assert.deepEqual(snapshot(),before);
  ink.update(900.02,{energy:0});assert.ok(ink.time-before.time<.021);assert.equal(ink.emitted,before.emitted);
+});
+
+test('pausing finishes existing rain, damps motion and reaches an exact bounded still frame',()=>{
+ const ink=run(new ContourMotion(),4,{energy:.9,bass:.8,spectrum:new Float32Array(48).fill(.8),onset:.9});
+ const emitted=ink.emitted,phase=ink.inkPhase,water=ink.waterTime,pose=ink.spectrum[0],startMotion=ink.motion;let lateMotion=0;
+ for(let i=1;i<=480;i++){ink.update(4+i/60,{active:false,energy:1,bass:1,onset:1,spectrum:new Float32Array(48).fill(1)});if(i===180)lateMotion=ink.motion;}
+ assert.equal(ink.emitted,emitted,'stale audio cannot emit new drops while paused');assert.ok(ink.inkPhase>phase&&ink.waterTime>water);
+ assert.ok(lateMotion<startMotion*.15&&lateMotion>0);assert.ok(ink.spectrum[0]<pose*.001);assert.equal(ink.motion,0);
+ assert.ok(Math.abs(ink.time-12)<1e-8,'rain and its impact tail finish at normal speed');
+ const snapshot={data:ink.data.slice(),time:ink.time,phase:ink.inkPhase,water:ink.waterTime,material:ink.material.slice()};
+ for(let i=481;i<=900;i++)ink.update(4+i/60,{active:false,energy:1});
+ assert.deepEqual(ink.data,snapshot.data);assert.equal(ink.time,snapshot.time);assert.equal(ink.inkPhase,snapshot.phase);assert.equal(ink.waterTime,snapshot.water);assert.deepEqual(ink.material,snapshot.material);
+ ink.update(4+901/60,{active:true,energy:.8,bass:.8,spectrum:new Float32Array(48).fill(.8)});
+ assert.ok(ink.motion>0&&ink.motion<.06);assert.ok(ink.spectrum[0]<.04,'resume eases from the resting pose');
+});
+
+test('explicit hold and reduced motion override settling without catch-up',()=>{
+ const ink=run(new ContourMotion(),3,{energy:.8,bass:.7});const before={time:ink.time,water:ink.waterTime,phase:ink.inkPhase,data:ink.data.slice()};
+ for(let i=1;i<=60;i++)ink.update(3+i/60,{active:false,hold:true});
+ assert.equal(ink.time,before.time);assert.equal(ink.waterTime,before.water);assert.deepEqual(ink.data,before.data);
+ for(let i=61;i<=120;i++)ink.update(3+i/60,{active:false,reduced:true});assert.equal(ink.inkPhase,before.phase);
+ ink.update(5+1/60,{active:false});assert.ok(ink.time-before.time<.02);
+});
+
+test('landed ink and absorbed pigment drift together while incoming rain keeps its landing target',()=>{
+ const ink=new ContourMotion();ink.update(0);
+ ink.drops.set([.2,.15,0,.8, .2,.15,0,.8]);ink.details.set([.03,.4,1,.5, .03,3,1,.5]);
+ ink.memory.set([.2,.15,0,.05]);ink.tints.set([1,.1,.05,1]);
+ for(let i=1;i<=120;i++)ink.update(i/60,{energy:0,ratio:1.6});
+ assert.ok(Math.hypot(ink.drops[0]-.2,ink.drops[1]-.15)>.002);assert.ok(Math.abs(ink.drops[4]-.2)<1e-7&&Math.abs(ink.drops[5]-.15)<1e-7);
+ assert.ok(Math.hypot(ink.memory[0]-.2,ink.memory[1]-.15)>.002);
+ assert.ok(Math.hypot(ink.memory[0]-ink.drops[0],ink.memory[1]-ink.drops[1])<.004,'nearby pigment shares one current');
+ assert.deepEqual([...ink.tints.subarray(0,4)],[1,Math.fround(.1),Math.fround(.05),1]);
+});
+
+test('Contour receives a continuing clock and audible pause state on both shared runtimes',()=>{
+ const old=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:false});
+ try{
+  const r=new Reactor({paused:false,currentTime:4});r.visualSync.active=true;r.clock=4;const playing=r.visualState(.1);
+  r.audio.paused=true;r.visualSync.active=false;r.clock=4.1;const paused=r.visualState(.1);
+  assert.equal(paused.spectrumClock,playing.spectrumClock);assert.ok(paused.contourClock>playing.contourClock);assert.equal(paused.contourActive,false);assert.equal(paused.contourHold,false);
+  r.frozen=true;assert.equal(r.visualState(.1).contourHold,true);r.frozen=false;r.visualPending=true;assert.equal(r.visualState(.1).contourHold,true);
+ }finally{globalThis.matchMedia=old;}
 });
 
 test('all rain families enter from above the frame with one speed and enough time to dry',()=>{

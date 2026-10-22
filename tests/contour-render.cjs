@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);delete d.astraClock;delete d.astraActive;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.astraClock;delete d.astraActive;delete d.contourClock;delete d.contourActive;delete d.contourHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
@@ -86,13 +86,21 @@ app.whenReady().then(async()=>{
   const early=measure(.9),late=measure(1.5),expired=measure(3.5);gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return {early,late,expired};
  })()`);
  if(report.ripples.early.energy<.000001||report.ripples.late.radius<report.ripples.early.radius+.04||report.ripples.expired.energy>.000001)throw Error('Impact ripples fail to expand and settle: '+JSON.stringify(report.ripples));
+ report.fluidMarks=await run(`(async()=>{
+  const {ContourMotion,CONTOUR_INK_WIDTH}=await import('/contour-motion.js'),fixture=new ContourMotion(),gl=gpu.gl,target=gpu.target(256,256),floating=gpu.hdr,range=floating?1:255;
+  fixture.drops.set([0,0,0,.9]);fixture.details.set([.22,.6,2,.37]);fixture.tints.set([1,.04,.02,1]);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,gpu.inkTexture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,fixture.data);
+  const paint=water=>{gpu.bind(target);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gpu.use(gpu.contourDrops,{u_inkTime:2,u_waterTime:water,u_inkStage:0,u_ratio:1,u_resolution:[256,256]});gpu.texture(gpu.contourDrops,'u_inkData',gpu.inkTexture,9);gl.drawArraysInstanced(gl.TRIANGLES,0,6,1);const p=floating?new Float32Array(256*256*4):new Uint8Array(256*256*4);gl.readPixels(0,0,256,256,gl.RGBA,floating?gl.FLOAT:gl.UNSIGNED_BYTE,p);return p;};
+  const before=paint(0),after=paint(5),sum=p=>p.reduce((a,v,i)=>a+(i%4<3?1-v/range:0),0);const result={deformation:distance(before,after)/range,pigmentRatio:sum(after)/sum(before)};
+  gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return result;
+ })()`);
+ if(report.fluidMarks.deformation<.0001||report.fluidMarks.pigmentRatio<.75||report.fluidMarks.pigmentRatio>1.25)throw Error('Water surface fails to deform the pigment gently: '+JSON.stringify(report.fluidMarks));
  report.shadows=await run(`(()=>{
   const gl=gpu.gl,target=gpu.target(512,512),floating=gpu.hdr,range=floating?1:255;
-  const paint=time=>{gpu.bind(target);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gpu.use(gpu.contourShadows,{u_inkTime:time,u_ratio:1.6,u_inkMaterial:[.4,.6,.3,.2]});gl.drawArraysInstanced(gl.TRIANGLES,0,6,52);const p=floating?new Float32Array(512*512*4):new Uint8Array(512*512*4);gl.readPixels(0,0,512,512,gl.RGBA,floating?gl.FLOAT:gl.UNSIGNED_BYTE,p);return p;};
-  const before=paint(0),after=paint(8);let mean=0,center=0,n=0;for(let y=0;y<512;y++)for(let x=0;x<512;x++){const v=before[(y*512+x)*4]/range;mean+=v;if(x>175&&x<337&&y>100&&y<410){center+=v;n++;}}
+  const paint=time=>{gpu.bind(target);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gpu.use(gpu.contourShadows,{u_waterTime:time,u_ratio:1.6,u_inkMaterial:[.4,.6,.3,.2]});gl.drawArraysInstanced(gl.TRIANGLES,0,6,64);const p=floating?new Float32Array(512*512*4):new Uint8Array(512*512*4);gl.readPixels(0,0,512,512,gl.RGBA,floating?gl.FLOAT:gl.UNSIGNED_BYTE,p);return p;};
+  const before=paint(0),after=paint(8);let mean=0,center=0,n=0;for(let y=0;y<512;y++)for(let x=0;x<512;x++){const v=before[(y*512+x)*4]/range;mean+=v;if(x>100&&x<235&&y>128&&y<320){center+=v;n++;}}
   const result={mean:mean/(512*512),center:center/n,wind:distance(before,after)/range};gl.deleteTexture(target.texture);gl.deleteFramebuffer(target.frame);gpu.draw(input);return result;
  })()`);
- if(report.shadows.mean<.95||report.shadows.mean>.999||report.shadows.center<.985||report.shadows.wind<.0001)throw Error('Leaf shadows do not remain soft, peripheral and moving: '+JSON.stringify(report.shadows));
+ if(report.shadows.mean<.92||report.shadows.mean>.995||report.shadows.center<.97||report.shadows.wind<.0001)throw Error('Leaf shadows do not remain soft, peripheral and moving: '+JSON.stringify(report.shadows));
  report.materials=await run(`(async()=>{
   const {ContourMotion,CONTOUR_INK_WIDTH}=await import('/contour-motion.js'),gl=gpu.gl,fixture=new ContourMotion(),target=gpu.target(256,256),floating=gpu.hdr,range=floating?1:255;
   const upload=()=>{gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,gpu.inkTexture);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,CONTOUR_INK_WIDTH,4,gl.RGBA,gl.FLOAT,fixture.data);};
@@ -123,10 +131,10 @@ app.whenReady().then(async()=>{
   const gl=gpu.gl,bloom=d.appearance.bloom;gpu.draw(input);const lit=pixels();d.appearance.bloom=0;gpu.draw(input);const bloomDifference=distance(lit,pixels());d.appearance.bloom=bloom;
   const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);let skip=false;gpu.use=(p,u)=>{skip=p===gpu.contourDrops||(p===gpu.contourBrush&&u.u_inkLayer===1);use(p,u);};gl.drawArrays=(...args)=>{if(!skip)draw(...args);};gl.drawArraysInstanced=(...args)=>{if(!skip)instanced(...args);};
   gpu.draw(input);const black=pixels(0),halo=pixels(1);let emission=0,glow=0;for(let i=0;i<black.length;i+=4)emission+=black[i+3];for(let i=0;i<halo.length;i+=4)glow+=halo[i]+halo[i+1]+halo[i+2];
-  gpu.use=use;gl.drawArrays=draw;gl.drawArraysInstanced=instanced;gpu.draw(input);const paper=pixels(3);let paperMean=0;for(let i=0;i<paper.length;i+=4)paperMean+=(paper[i]+paper[i+1]+paper[i+2])/3;paperMean/=paper.length/4;
-  return {bloomDifference,blackEmission:emission,blackGlow:glow,paperMean};
+  gpu.use=use;gl.drawArrays=draw;gl.drawArraysInstanced=instanced;gpu.draw(input);const paper=pixels(3);let paperMean=0,paperWhite=0;for(let i=0;i<paper.length;i+=4){const value=(paper[i]+paper[i+1]+paper[i+2])/3;paperMean+=value;paperWhite=Math.max(paperWhite,value);}paperMean/=paper.length/4;
+  return {bloomDifference,blackEmission:emission,blackGlow:glow,paperMean,paperWhite};
  })()`);
- if(report.light.bloomDifference<.03||report.light.blackEmission!==0||report.light.blackGlow!==0||report.light.paperMean<.92||report.light.paperMean>.98)throw Error('Ink glow isolation failed: '+JSON.stringify(report.light));
+ if(report.light.bloomDifference<.03||report.light.blackEmission!==0||report.light.blackGlow!==0||report.light.paperMean<.88||report.light.paperMean>.98||report.light.paperWhite<.94)throw Error('Ink glow isolation failed: '+JSON.stringify(report.light));
  await run('step(3.025)');await shot('splash');
  report.palette=await run(`(()=>{const before=[...gpu.contour.accent];d.colors=[[.02,.65,.9],[.03,.4,.8],[.02,.5,.8]];for(let i=1;i<=180;i++)step(3.025+i/60);return {before,after:[...gpu.contour.accent]};})()`);await shot('cool-ink');
  if(report.palette.after[2]<report.palette.before[2]+.2)throw Error('Palette has no visible range');
@@ -143,6 +151,20 @@ app.whenReady().then(async()=>{
  for(const [name,seconds]of [['rain-built-up',14],['continuous-gesture',31]]){
   await run(`while(d.spectrumClock<${seconds})step(d.spectrumClock+1/30);`);await shot(name);
  }
+ report.pauseSettling=await run(`(async()=>{
+  const {ContourMotion}=await import('/contour-motion.js'),saved={ink:gpu.contour,clock:d.contourClock,active:d.contourActive,hold:d.contourHold,features:input.features,time:input.time};
+  gpu.contour=new ContourMotion();d.contourClock=0;d.contourActive=true;d.contourHold=false;input.features={...input.features,onset:0,loudness:.8};
+  gpu.draw(input);for(let i=1;i<=240;i++){d.contourClock=i/60;input.time=i/60;gpu.draw(input);}
+  const emitted=gpu.contour.emitted,water=gpu.contour.waterTime,oldPose=gpu.contour.spectrum[8],before=pixels();d.contourActive=false;
+  d.contourClock+=1/60;input.time+=1/60;gpu.draw(input);const first=distance(before,pixels());
+  for(let i=2;i<=480;i++){d.contourClock=4+i/60;input.time=d.contourClock;gpu.draw(input);}
+  const still=pixels(),restMotion=gpu.contour.motion,coasted=gpu.contour.waterTime-water,newPose=gpu.contour.spectrum[8];
+  for(let i=1;i<=120;i++){d.contourClock+=1/60;input.time=d.contourClock;gpu.draw(input);}const settled=distance(still,pixels());
+  d.contourActive=true;d.contourHold=true;const held=pixels();for(let i=1;i<=30;i++){d.contourClock+=1/60;input.time=d.contourClock;gpu.draw(input);}const freeze=distance(held,pixels());
+  const result={first,coasted,restMotion,settled,freeze,noNewRain:gpu.contour.emitted===emitted,poseRatio:newPose/Math.max(.001,oldPose)};
+  gpu.contour=saved.ink;if(saved.clock===undefined)delete d.contourClock;else d.contourClock=saved.clock;if(saved.active===undefined)delete d.contourActive;else d.contourActive=saved.active;if(saved.hold===undefined)delete d.contourHold;else d.contourHold=saved.hold;input.features=saved.features;input.time=saved.time;gpu.draw(input);return result;
+ })()`);
+ if(report.pauseSettling.first<=.001||report.pauseSettling.first>4||report.pauseSettling.coasted<.5||report.pauseSettling.restMotion!==0||report.pauseSettling.settled!==0||report.pauseSettling.freeze!==0||!report.pauseSettling.noNewRain||report.pauseSettling.poseRatio>.001)throw Error('Audible pause does not coast into stillness: '+JSON.stringify(report.pauseSettling));
  report.performance=[];
  for(const [name,w,h,quality,mobile]of [['desktop',1280,800,'high',false],['phone',412,915,'eco',true]]){
   win.setSize(w,h);await run(`gpu.mobile=${mobile};input.width=${w};input.height=${h};input.quality='${quality}';d.portraitScene=${mobile};gpu.draw(input);`);

@@ -121,7 +121,7 @@ void main(){
 
 export const CONTOUR_DROPS_VERTEX=`#version 300 es
 precision highp float;
-uniform highp sampler2D u_inkData;uniform float u_inkTime,u_ratio,u_inkStage;uniform vec2 u_resolution;
+uniform highp sampler2D u_inkData;uniform float u_inkTime,u_waterTime,u_ratio,u_inkStage;uniform vec2 u_resolution;
 out vec2 v_uv;out vec4 v_drop,v_tint,v_link;out float v_part,v_seed;
 void main(){
  int corner=gl_VertexID%6,part=u_inkStage>1.5?18:gl_VertexID/6,index=gl_InstanceID+(u_inkStage>.5&&u_inkStage<1.5?64:0);
@@ -146,7 +146,9 @@ void main(){
   live*=1.-step(fall,age);opacity=kind<.5?.48:.90;
  }else if(part<2){
   float growth=1.-exp(-impact*7.);
-  size=vec2(radius*mix(.34,1.,growth))*(part==1?1.7:1.);
+  float diffusion=1.+.16*(1.-exp(-impact*.55)),strain=sin(event.x*3.+event.y*2.+u_waterTime*.22)*.10;
+  size=vec2(radius*mix(.34,1.,growth))*(part==1?1.7:1.)*diffusion*vec2(1.+strain,1./(1.+strain));
+  float turn=sin(u_waterTime*.19+seed*6.)*.18;axis=vec2(cos(turn),sin(turn));
   if(!memory)live*=smoothstep(0.,.035,wet)*(1.-smoothstep(3.4,5.45,wet));
   opacity=part==1?.15:kind>1.5?.86:.72;
  }else if(part==11){
@@ -175,6 +177,7 @@ void main(){
 
 export const CONTOUR_DROPS_FRAGMENT=`#version 300 es
 precision highp float;in vec2 v_uv;in vec4 v_drop,v_tint,v_link;in float v_part,v_seed;out vec4 fragColor;
+uniform float u_waterTime;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);}
 void main(){
@@ -191,12 +194,13 @@ void main(){
   fragColor=vec4(signal>0.?vec3(1.,.995,.975):vec3(.40,.46,.45),abs(signal)*v_drop.x);return;
  }
  float spread=1.-exp(-age*1.5),fiber=noise(vec2(angle*22.+v_seed*91.,r*13.));
- float edge=.67+sin(angle*2.+v_seed*11.)*.09+sin(angle*3.-v_seed*19.)*.055+sin(angle*7.+v_seed*13.)*.035;
- edge+=(fiber-.5)*(.025+spread*.13)+sin(angle*67.+v_seed*31.)*.015*spread;
+ float current=u_waterTime*.23;
+ float edge=.67+sin(angle*2.+v_seed*11.+current)*.075+sin(angle*3.-v_seed*19.-current*.7)*.045+sin(angle*7.+v_seed*13.)*.020;
+ edge+=(fiber-.5)*(.020+spread*.045)+sin(angle*67.+v_seed*31.)*.006*spread;
  if(v_part>9.5&&v_part<10.5)edge=.60;
- float ink=(1.-smoothstep(edge-.065,edge+.065,r))*v_drop.x;
+ float ink=(1.-smoothstep(edge-.085,edge+.085,r))*v_drop.x;
  float tooth=hash(floor(gl_FragCoord.xy)),tide=exp(-pow((r-edge+.040)/.045,2.))*spread;
- ink*=.65+tooth*(.12+(1.-wet)*.24)+tide*.8;
+ ink*=.82+tooth*.10+tide*.48;
  if(v_part>9.5&&v_part<10.5){
   float bulb=sqrt(max(0.,1.-pow((p.y+.15)/.90,2.)))*.59;
   float taper=1.-smoothstep(-.20,.85,p.y)*.72;
@@ -228,24 +232,32 @@ void main(){
 // are illumination on the paper, not ink branches growing out of the gesture.
 export const CONTOUR_SHADOW_VERTEX=`#version 300 es
 precision highp float;
-uniform float u_inkTime,u_ratio;uniform vec4 u_inkMaterial;
+uniform float u_waterTime,u_ratio;uniform vec4 u_inkMaterial;
 out vec2 v_uv;out vec3 v_shadow;
 float hash(float n){return fract(sin(n*127.1+19.3)*43758.5453);}
 void main(){
- int corner=gl_VertexID%6,canopy=gl_InstanceID/26,leaf=gl_InstanceID%26;
+ int corner=gl_VertexID%6,canopy=gl_InstanceID/16,leaf=gl_InstanceID%16;
  vec2 quad=corner==0?vec2(-1,-1):corner==1?vec2(1,-1):corner==2?vec2(-1,1):corner==3?vec2(-1,1):corner==4?vec2(1,-1):vec2(1,1);
- float side=canopy==0?-1.:1.,seed=hash(float(gl_InstanceID)+13.);
- float wind=u_inkTime*.24,breath=sin(wind+float(canopy)*2.3)*.04+sin(wind*.61)*.025;
- vec2 start=vec2(side*u_ratio*1.04,1.12),end=vec2(side*u_ratio*(canopy==0?.58:.66),canopy==0?.28:-.24);
- end+=vec2(breath*(1.+u_inkMaterial.y*.15),sin(wind*.83+side)*.025);
+ float group=float(canopy),seed=hash(float(gl_InstanceID)+31.);
+ float wind=u_waterTime*.23,breath=sin(wind+group*1.7)*.035+sin(wind*.57+group)*.022;
+ vec2 start,end;
+ if(canopy==0){start=vec2(1.25*u_ratio,1.12);end=vec2(.27*u_ratio,-.65);}
+ else if(canopy==1){start=vec2(-1.08*u_ratio,1.28);end=vec2(-.77*u_ratio,.30);}
+ else if(canopy==2){start=vec2(.78*u_ratio,1.42);end=vec2(.34*u_ratio,.56);}
+ else{start=vec2(1.32*u_ratio,.20);end=vec2(.78*u_ratio,-.98);}
+ end+=vec2(breath,sin(wind*.83+group)*.026);
  vec2 direction=normalize(end-start),p,axis;vec2 size;
- if(leaf==0){p=(start+end)*.5;axis=direction;size=vec2(length(end-start)*.5,.004);v_shadow=vec3(.035,1.,.5);}
+ if(leaf==0){p=(start+end)*.5;axis=direction;size=vec2(length(end-start)*.5,.014);v_shadow=vec3(.065,1.,.9);}
  else{
-  float t=.09+float((leaf-1)/2)*.067,signSide=leaf%2==0?-1.:1.;
-  float angle=atan(direction.y,direction.x)+signSide*(.65+seed*.43)+sin(wind*1.4+seed*9.)*.12*t;
-  axis=vec2(cos(angle),sin(angle));size=vec2(.082+seed*.075,.046+hash(seed*37.)*.026);
-  p=mix(start,end,t)+axis*size.x*.75+vec2(breath*.3,sin(wind+t*3.+seed)*.009)*t;
-  v_shadow=vec3(.10+seed*.045,0.,.18+seed*.10);
+  // Irregular overlapping clusters, with broad palmate leaves at varied depths.
+  float t=.10+float(leaf-1)/14.*.80+(hash(seed*13.)-.5)*.12;
+  float a=hash(float(leaf)+group*41.)*6.28318;
+  float angle=atan(direction.y,direction.x)+(seed-.5)*2.9+sin(wind*1.2+seed*9.)*.07;
+  axis=vec2(cos(angle),sin(angle));float depth=hash(seed*71.);
+  size=vec2(.15+seed*.105,.15+seed*.105)*mix(1.,1.35,step(.5,group)*step(group,2.5));
+  p=mix(start,end,t)+vec2(cos(a),sin(a))*(.035+hash(seed*29.)*.09);
+  p+=vec2(breath*.4,sin(wind+t*3.+seed)*.012)*t;
+  v_shadow=vec3(.18+seed*.10,0.,.24+depth*.20);
  }
  p+=axis*quad.x*size.x+vec2(-axis.y,axis.x)*quad.y*size.y;
  gl_Position=vec4(p.x/u_ratio,p.y,0.,1.);v_uv=quad;
@@ -256,12 +268,17 @@ precision highp float;
 in vec2 v_uv;in vec3 v_shadow;out vec4 fragColor;
 void main(){
  vec2 p=v_uv;float mask;
- if(v_shadow.y>.5)mask=(1.-smoothstep(.05,1.,abs(p.y)))*(1.-smoothstep(.91,1.,abs(p.x)));
+ if(v_shadow.y>.5)mask=(1.-smoothstep(.0,1.,abs(p.y)))*(1.-smoothstep(.85,1.,abs(p.x)));
  else{
-  float silhouette=.76*pow(max(0.,1.-p.x*p.x),.74);
-  mask=(1.-smoothstep(-v_shadow.z,v_shadow.z,abs(p.y)-silhouette))*(1.-smoothstep(.83,1.,abs(p.x)));
+  float a=atan(p.y,p.x)-1.57079633,r=length(p);
+  float silhouette=.53+.15*cos(a*5.)+.045*cos(a*3.);
+  float soft=v_shadow.z;
+  mask=1.-smoothstep(silhouette-soft,silhouette+soft,r);
+  // The small stem merges into the defocus, rather than becoming a crisp vein.
+  float stem=exp(-pow(p.x/.10,2.))*(1.-smoothstep(.42,.95,-p.y))*step(p.y,0.);
+  mask=max(mask,stem*.3);
  }
- fragColor=vec4(.46,.49,.46,mask*v_shadow.x);
+ fragColor=vec4(.39,.38,.37,mask*v_shadow.x);
 }`;
 
 export const CONTOUR_PAPER=`#version 300 es
