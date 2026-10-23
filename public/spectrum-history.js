@@ -40,3 +40,18 @@ export class FluxMotion {
     return this;
   }
 }
+
+// Afterglow retains its road, skyline phase and old echoes between songs.
+// Audio changes eased targets; a quiet scene keeps a very slow ambient drift.
+export class AfterglowMotion extends FluxMotion {
+ constructor(){super();this.world=new Float64Array(4);this.movement=1;}
+ update(clock,options={}){
+  super.update(clock,options);if(!this.dt)return this;
+  const dt=this.dt,speed=Number.isFinite(options.movement)?Math.max(0,Math.min(4,options.movement)):1;
+  this.movement+=(speed-this.movement)*(1-Math.exp(-dt/.6));
+  const energy=this.roles[0]*.45+this.roles[1]*.30+this.roles[2]*.25,coast=.025+this.activity*.975;
+  const rates=[.45+energy*.55,1.4+energy*3.2,.15+energy*.35,.16+energy*.2];
+  for(let i=0;i<4;i++)this.world[i]+=dt*rates[i]*this.movement*coast;
+  this.historyClock+=dt*.02*(1-this.activity);return this;
+ }
+}

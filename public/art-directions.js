@@ -1,7 +1,6 @@
 // Display identities are independent of track identity, playback and saved audio analysis.
 export const ART_DIRECTIONS=Object.freeze([
  {id:'resonance',name:'Resonance',note:'The original living ribbon and flowing atmosphere.',index:0},
- {id:'noctiluca',name:'Noctiluca',note:'Deep open water. Silver schools turn, scatter and open around shafts of sunlight.',index:1},
  {id:'afterglow',name:'Afterglow',note:'A glowing pixel synthwave drive with shaded palms, musical city windows and mirrored echoes. The camera stays fixed; tune the CRT texture below.',index:2},
  {id:'astra',name:'Astra',note:'A living star. Frequency orbits, solar flares and comet trails answer the music.',index:3},
  {id:'contour',name:'Contour',note:'A living brushstroke on white paper. Moving pigment, gentle rain ripples and soft leaf shadows on white paper.',index:4},

@@ -38,6 +38,7 @@ test('a fresh installation serves the entire frontend module graph, including up
     assert.ok(visited.has('/lyric-highlight.js'), 'Word highlighting must be served, including nested timing imports');
     assert.ok(visited.has('/music-edition.js'), 'Music only composition must be available on first launch');
     assert.ok(visited.has('/afterglow-palms.js'), 'The generated palm atlas dependency must be served on first launch');
+    for(const file of ['noctiluca-shaders.js','fish-school.js','art-direction-shaders.js'])assert.equal((await fetch(service.url+'/'+file)).status,404,'Removed visual assets must not be served');
     assert.equal((await fetch(service.url+'/music-edition.css')).status,200);
     assert.ok(visited.size > 40, 'The complete scene and interface dependencies must be followed');
     for (const forbidden of ['/config.json', '/server.mjs', '/package.json', '/data/library.sqlite']) {
@@ -73,5 +74,9 @@ test('Android includes every startup module in its merged web assets', async () 
   assert.ok(visited.has('/lyric-highlight.js'));
   assert.ok(visited.has('/music-edition.js'));
   assert.ok(visited.has('/afterglow-palms.js'));
+  for(const file of ['noctiluca-shaders.js','fish-school.js','art-direction-shaders.js']){
+    const assets=process.env.RESONANCE_TEST_ANDROID_ASSETS||fileURLToPath(new URL('../android/shared/',import.meta.url));
+    await assert.rejects(fs.access(path.join(assets,file)),{code:'ENOENT'},'Removed visual assets must not ship in Android');
+  }
   assert.ok(visited.size > 40);
 });

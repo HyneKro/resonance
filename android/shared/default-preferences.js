@@ -41,8 +41,6 @@ export const DEFAULT_PREFERENCES=Object.freeze({
   "retroScan": 0.45,
   "retroPhosphor": 0.25,
   "retroColor": 0.45,
-  "schoolOpening": 0.65,
-  "oceanRays": 1,
   "aerialFluid": 0.8,
   "aerialShade": 0,
   "dynamicVisuals": true,

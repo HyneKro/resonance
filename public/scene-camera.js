@@ -3,17 +3,10 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAMERA_SPEED={min:.2,max:20,default:2.22};
 export const AERIAL_CAMERA=Object.freeze({min:-.08,max:1.25});
 export const CAMERA_ZOOM=Object.freeze({max:3,focalLength:1.9});
-// Fit the complete Flux box at every orbit angle. Exploration is a separate
-// dolly through that volume, so it can deliberately leave the fitted framing.
-export function fluxCameraDistance(pose=[0,0,0,0],{aspect=1.6,scale=1,movement=1,explore=0}={}){
- const turn=(a,b,r)=>[a*Math.cos(r)+b*Math.sin(r),b*Math.cos(r)-a*Math.sin(r)];
- const size=clamp(scale,.55,1.45),fitX=Math.min(1,aspect/.95),motion=clamp(movement,0,4),lens=1.9*1.03;
- let distance=0;
- for(const x of [-3.6,3.6])for(const y of [-1.8-motion*.55,1.7+motion*.96])for(const z of [-5.4,5.1]){
-  let a=x*size*fitX,b=y*size,c=z*size;
-  [a,c]=turn(a,c,pose[0]);[b,c]=turn(b,c,pose[1]);[a,b]=turn(a,b,pose[3]);
-  distance=Math.max(distance,c+Math.max(lens*Math.abs(a)/Math.max(.1,aspect)/.86,lens*Math.abs(b)/.82)+.25);
- }
+// Keep a fixed orbit radius. Reframing for each angle felt like a constrained
+// orbit and moved the viewer during a drag. Exploration remains an explicit dolly.
+export function fluxCameraDistance(pose=[0,0,0,0],{aspect=1.6,scale=1,explore=0}={}){
+ const distance=13.8*clamp(scale,.55,1.45)*Math.max(1,.95/Math.max(.1,aspect));
  return Math.max(.65,distance+(pose[2]||0)*.26-(distance-.7)*clamp(explore,0,1));
 }
 // Smooth unwrapped angles in double precision, then reduce only the values

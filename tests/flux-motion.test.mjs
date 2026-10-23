@@ -31,3 +31,8 @@ test('Flux overview adapts to portrait and large scale while exploration can ent
  for(let i=0;i<120;i++)c.update(1/60);assert.ok(c.exploration.value>.99);const held=c.exploration.value;c.update(.1,{frozen:true});assert.equal(c.exploration.value,held);
  c.reset();for(let i=0;i<120;i++)c.update(1/60);assert.ok(c.exploration.value<.001);assert.equal(c.exploreTarget,0);
 });
+test('Flux orbit radius stays fixed through unrestricted rotations and music movement changes',()=>{
+ const radius=fluxCameraDistance();
+ for(const yaw of [-20,-3,0,1.5,3,20])for(const pitch of [-10,-1.5,0,1.5,10])assert.equal(fluxCameraDistance([yaw,pitch,0,.3],{movement:3.5}),radius);
+ const c=new SceneCamera();c.drag(7000,-5000);for(let i=0;i<180;i++)c.update(1/60);assert.ok(c.pose[0].value>34&&c.pose[1].value<-24);
+});

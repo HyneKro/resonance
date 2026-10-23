@@ -55,29 +55,41 @@ void main(){
   float id=floor(cityX/unit),r=hash(id+21.+l*87.),w=unit*(.72+r*.22),x=mod(cityX,unit)-unit*.5;
   float base=-.016-l*.006,h=.05+pow(hash(id+41.+l*143.),1.8)*(.095+l*.025);
   h*=1.+.22*smoothstep(.08,.35,abs(p.x));float by=y-base,roof=by/h;
-  float kind=floor(r*5.),width=w;
+  float kind=floor(r*7.),width=w;
   if(kind<1.)width*=1.-step(.73,roof)*.16-step(.89,roof)*.22;
   else if(kind<2.)width*=1.-step(.82,roof)*.28;
   else if(kind<3.)width*=1.-smoothstep(.80,1.,roof)*.66;
   else if(kind<4.)width*=1.-step(.92,roof)*.12;
+  else if(kind<5.)width*=1.-step(.58,roof)*.12-step(.76,roof)*.16-step(.90,roof)*.13;
+  else if(kind<6.)width*=1.-smoothstep(.65,1.,roof)*.32;
   float body=step(abs(x),width*.5)*step(by,h)*step(0.,by);
+  if(kind>5.5)body*=1.-step(.67,roof)*(1.-step(w*.12,abs(x)));
+  float penthouse=step(abs(x+w*.12),w*.23)*step(h,by)*step(by,h+.008+r*.012)*step(.56,r);
+  float roofRail=aa(abs(by-h-.003),.0004)*step(abs(x),width*.48)*step(.35,r);
   float antenna=aa(abs(x-w*.18),.0005)*step(h,by)*step(by,h+.009+r*.019)*step(.55,r);
   vec3 trim=mix(cool,hot,r),building=mix(vec3(.002,.002,.012),hot*.026+cool*.012,l/3.);
+  float sideFace=smoothstep(w*.11,w*.16,x),verticalShade=.35+.65*sin(clamp(roof,0.,1.)*PI*.75);
+  building*=mix(1.45,.48,sideFace)*verticalShade;
   float edge=aa(abs(abs(x)-width*.5),.00065)+aa(abs(by-h),.0007);
   float cornice=aa(abs(fract(by/(.015+r*.016))-.5),.035)*step(.35,r);
   float mullion=aa(abs(fract((x+w*.5)/(.007+r*.006))-.5),.035);
-  building+=trim*(edge*(.35+l*.09)+cornice*.035+mullion*.025);
-  vec2 windowUV=vec2((x+w*.5)/(.0035+l*.0007),by/(.005+l*.0012)),wc=floor(windowUV),wp=fract(windowUV);
+  float balcony=aa(abs(fract(by/(.010+r*.009))-.45),.045)*step(.38,roof)*step(r,.56);
+  float ribs=aa(abs(fract((x+w*.5)/(w*.25))-.5),.035)*step(.60,r);
+  building+=trim*(edge*(.35+l*.09)+cornice*.065+mullion*.035+balcony*.10+ribs*.065);
+  vec2 windowUV=vec2((x+w*.5)/(.0031+l*.00065+r*.0007),by/(.0044+l*.0012)),wc=floor(windowUV),wp=fract(windowUV);
   float pane=step(.18,wp.x)*step(wp.x,.64)*step(.20,wp.y)*step(wp.y,.68);
   float identity=random2(wc+id*7.+l*20.),clock=u_world.x*.055+identity*8.,era=floor(clock),blend=smoothstep(.14,.86,fract(clock));
   float occupancy=mix(step(.40,hash(identity*671.+era)),step(.40,hash(identity*671.+era+1.)),blend);
   float frequency=clamp(p.x*.56+.5,0.,1.),note=band(frequency),light=lamp(frequency);
-  float waveRow=.035+note*.105,signal=exp(-abs(by-waveRow)*230.)*(.12+light*.8);
-  building+=mix(gold,cool,identity)*pane*(occupancy*(.085+l*.035)+signal*(.7+l*.2));
+  float waveRow=.030+note*.115,signal=exp(-abs(by-waveRow)*200.)*(.10+light*.95);
+  float echo=exp(-abs(by-waveRow*.73)*290.)*light*.22,fill=step(by,waveRow)*light*.055;
+  float frame=aa(abs(wp.x-.70),.035)*step(.10,wp.y)*step(wp.y,.78);
+  building+=mix(gold,cool,identity)*pane*(occupancy*(.085+l*.035)+signal*(.9+l*.2)+echo+fill)*mix(1.,.50,sideFace);
+  building+=trim*frame*.014;
   float signFace=step(abs(x+w*.30),w*.055)*step(h*.45,by)*step(by,h*.82)*step(.73,r);
   float signPixels=step(.35,fract(by*950.))*step(.25,fract(x*1800.));
   building+=hot*signFace*signPixels*(.35+.3*u_roles.z);
-  color=mix(color,building,body);color=mix(color,trim*.55,antenna);
+  color=mix(color,building,body);color=mix(color,trim*.075+vec3(.006),penthouse);color+=trim*roofRail*.12;color=mix(color,trim*.55,antenna);
  }
  // The road is an infinite plane with perspective-correct, antialiased grid.
  if(y<0.){
@@ -171,31 +183,34 @@ export const AFTERGLOW_PALM_VERTEX=`#version 300 es
 precision highp float;
 ${DRIVE}
 ${PROJECT}
-out vec2 v_uv;out float v_id,v_depth;
+out vec2 v_uv;flat out float v_id,v_depth;
 void main(){
- int corner=gl_VertexID%6;float id=float(gl_VertexID/6),side=mod(id,2.)*2.-1.,slot=floor(id/2.);
+ int corner=gl_VertexID%6;float id=float(gl_VertexID/6),side=mod(id,2.)*2.-1.,rank=19.-floor(id/2.);
  vec2 o=corner==0?vec2(0,0):corner==1?vec2(1,0):corner==2?vec2(0,1):corner==3?vec2(0,1):corner==4?vec2(1,0):vec2(1,1);
- float depth=1.+mod(slot*8.+hash(slot+8.)*2.-speedClock(),160.),height=3.3+hash(slot+51.)*1.7;
+ float travel=speedClock()/8.,slot=mod(rank+floor(travel),20.);
+ float depth=1.+(rank+1.-fract(travel))*8.+hash(slot+8.)*1.5,height=3.3+hash(slot+51.)*1.7;
  vec3 p=vec3(side*(3.2+hash(slot+19.)*.4)+(o.x-.5)*height*1.3,(o.y)*height,depth);
- v_uv=o;v_id=id;v_depth=depth;driveProject(p);
+ v_uv=o;v_id=slot*2.+mod(id,2.);v_depth=depth;driveProject(p);
 }`;
 export const AFTERGLOW_PALM_FRAGMENT=`#version 300 es
 precision highp float;
 ${DRIVE}
 uniform sampler2D u_palmAtlas;
-in vec2 v_uv;in float v_id,v_depth;out vec4 fragColor;
+in vec2 v_uv;flat in float v_id,v_depth;out vec4 fragColor;
 void main(){
  vec2 p=v_uv;p.x+=sin(u_world.x*.24+v_id*.75)*.012*pow(p.y,2.);
  float variant=mod(v_id,4.);vec2 uv=vec2((clamp(p.x,.002,.998)+variant)*.25,1.-p.y);
- float shape=texture(u_palmAtlas,uv).a;if(shape<.18)discard;
- vec2 texel=1./vec2(textureSize(u_palmAtlas,0));
- float inner=texture(u_palmAtlas,uv+texel*vec2(-1.5,0.)).a*texture(u_palmAtlas,uv+texel*vec2(0.,1.5)).a;
+ vec2 dx=dFdx(uv),dy=dFdy(uv),texel=1./vec2(textureSize(u_palmAtlas,0));
+ float shape=textureGrad(u_palmAtlas,uv,dx,dy).a;
+ float inner=textureGrad(u_palmAtlas,uv+texel*vec2(-1.5,0.),dx,dy).a*textureGrad(u_palmAtlas,uv+texel*vec2(0.,1.5),dx,dy).a;
  float rim=clamp(shape-inner,0.,1.);
- float rings=.65+.35*step(.45,fract(p.y*82.+p.x*8.));
+ float rib=p.y*82.+p.x*8.,rings=.82+.18*sin(rib*6.2831853)*(1.-smoothstep(.3,1.,fwidth(rib)));
  vec3 gradient=mix(pink()*.045,cyan()*.075,smoothstep(.1,.9,p.y));
  gradient+=amber()*.020*(1.-abs(p.x-.5)*2.)*p.y;
  vec3 color=gradient*rings*(.7+.35*u_roles.z)+mix(cyan(),pink(),mod(v_id,2.))*rim*(.22+.20*lamp(fract(v_id*.13)));
- color*=exp(-v_depth*.007);fragColor=vec4(color*shape,1.);
+ color*=exp(-v_depth*.007);float fade=smoothstep(1.,4.,v_depth)*(1.-smoothstep(135.,165.,v_depth));
+ // Transparent coverage remains continuous, including subpixel leaflets.
+ fragColor=vec4(color,shape*fade);
 }`;
 
 export const AFTERGLOW_DUST_VERTEX=`#version 300 es
@@ -203,19 +218,21 @@ precision highp float;
 ${DRIVE}
 ${PROJECT}
 uniform float u_pixel,u_density,u_tail;
-in vec4 a_seed;out vec3 v_color;out float v_alpha,v_kind;
+in vec4 a_seed;out vec3 v_color,v_motePosition;out vec2 v_moteUV;out float v_alpha,v_kind;
 void main(){
- float clock=u_world.x-u_tail*.12,travel=speedClock()-u_tail*.28;
+ float clock=u_world.x,travel=speedClock()-u_tail*.40;
  float depth=1.5+fract(a_seed.z-travel*.003)*80.;
  vec3 p=vec3((a_seed.x-.5)*24.,.25+a_seed.y*6.,depth);
- p.x+=sin(clock*.22+a_seed.y*30.)*.4-u_tail*(.035+.055*u_roles.x);p.y+=sin(clock*.17+a_seed.w*19.)*.09;driveProject(p);
+ p.x+=sin(clock*.22+a_seed.y*30.)*.4;p.y+=sin(clock*.17+a_seed.w*19.)*.09;
+ int corner=gl_VertexID%6;vec2 q=corner==0?vec2(-1,-1):corner==1?vec2(1,-1):corner==2?vec2(-1,1):corner==3?vec2(-1,1):corner==4?vec2(1,-1):vec2(1,1);
+ float size=(.014+a_seed.w*.010)*u_particle.y/(1.+u_tail*.16);
+ p+=vec3(q.x*size,0.,q.y*size*2.);v_motePosition=p;v_moteUV=q;driveProject(p);
  float fade=smoothstep(1.5,8.,depth)*(1.-smoothstep(55.,82.,depth));
  float sound=lamp(a_seed.y);v_alpha=(.07+.23*u_roles.w+.45*sound+.12*u_roles.y)*fade*u_density*exp(-u_tail*.65);
  v_color=mix(pink(),cyan(),a_seed.w)*(1.5+sound*1.4);v_kind=u_tail>0.?0.:step(.78,a_seed.w);
- gl_PointSize=clamp(u_pixel*u_particle.y*(1.6+23./depth)*(1.+sound*.6)/(1.+u_tail*.16),1.,9.);
 }`;
 export const AFTERGLOW_DUST_FRAGMENT=`#version 300 es
 precision mediump float;
-in vec3 v_color;in float v_alpha,v_kind;out vec4 fragColor;
-void main(){vec2 p=abs(gl_PointCoord*2.-1.);float shape=v_kind>.5?step(min(p.x,p.y),.28):step(max(p.x,p.y),.76);if(shape<.5)discard;fragColor=vec4(v_color*v_alpha,0.);}
+in vec3 v_color;in vec2 v_moteUV;in float v_alpha,v_kind;out vec4 fragColor;
+void main(){vec2 p=abs(v_moteUV);float edge=v_kind>.5?min(p.x,p.y)-.28:max(p.x,p.y)-.76;float shape=1.-smoothstep(-fwidth(edge),fwidth(edge),edge);fragColor=vec4(v_color*v_alpha*shape,0.);}
 `;

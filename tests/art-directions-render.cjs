@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);delete d.astraClock;delete d.astraActive;delete d.contourClock;delete d.contourActive;delete d.contourHold;delete d.synapseClock;delete d.synapseActive;delete d.synapseHold;delete d.fluxClock;delete d.fluxActive;delete d.fluxHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.afterglowClock;delete d.afterglowActive;delete d.afterglowHold;delete d.astraClock;delete d.astraActive;delete d.contourClock;delete d.contourActive;delete d.contourHold;delete d.synapseClock;delete d.synapseActive;delete d.synapseHold;delete d.fluxClock;delete d.fluxActive;delete d.fluxHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -27,10 +27,10 @@ app.whenReady().then(async()=>{
   d.spectrumClock=(gpu.spectrumHistory.height-1)/30;
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
- for(const [index,name]of ['resonance','noctiluca','afterglow','astra','contour','flux','aerial','synapse'].entries()){
+ for(const [index,name]of [[0,'resonance'],[2,'afterglow'],[3,'astra'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
   await run(`renderStyle(${index})`);await new Promise(r=>setTimeout(r,120));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
- for(const [style,name]of [[1,'noctiluca'],[2,'afterglow'],[3,'astra'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
+ for(const [style,name]of [[2,'afterglow'],[3,'astra'],[4,'contour'],[5,'flux'],[6,'aerial'],[7,'synapse']]){
   for(const [phase,time,level]of [['quiet',4,0],['attack',4,.9],['later',16,.5]]){
    await run(`window.savedRoles??=d.roles;input.time=${time};d.roles={bass:${level},lead:${level},drums:${level},texture:${level},shimmer:${level}};renderStyle(${style})`);
    await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,name+'-'+phase+'.png'),(await win.webContents.capturePage()).toPNG());
@@ -67,38 +67,24 @@ app.whenReady().then(async()=>{
 
  await run(`window.desktopInput={width:input.width,height:input.height,quality:input.quality};gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;renderStyle(4);`);
  win.setSize(412,915);await new Promise(r=>setTimeout(r,80));await run('renderStyle(4)');await new Promise(r=>setTimeout(r,60));fs.writeFileSync(path.join(out,'contour-phone.png'),(await win.webContents.capturePage()).toPNG());
- await run('renderStyle(1)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'noctiluca-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(3)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'astra-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(7)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'synapse-phone.png'),(await win.webContents.capturePage()).toPNG());
  await run('renderStyle(6)');await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(out,'aerial-phone.png'),(await win.webContents.capturePage()).toPNG());
  win.setSize(1440,1000);await run(`Object.assign(input,desktopInput);d.portraitScene=false;gpu.mobile=false;`);
  const result=await run(`(async()=>{
-  const report=[];gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
+  const report={};gpu.mobile=true;input.width=412;input.height=915;input.quality='eco';d.portraitScene=true;
   const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);
   gpu.use=(p,u)=>{current=Object.keys(gpu).find(k=>gpu[k]===p)||'?';use(p,u);};gl.drawArrays=(mode,start,count)=>{counts[current]=(counts[current]||0)+count;draw(mode,start,count);};gl.drawArraysInstanced=(mode,start,count,instances)=>{counts[current]=(counts[current]||0)+count*instances;instanced(mode,start,count,instances);};
-  for(let style=0;style<=7;style++){
+  for(const style of [0,2,3,4,5,6,7]){
    const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;if(style===1||style===2||style===5||style===7)d.spectrumClock+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
-   samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report.push({style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]});
+   samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report[style]={style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]};
   }
   // Verify the actual render targets, not only shader source or controls.
   function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
   function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
-  for(let style=1;style<=7;style++){
-   const settle=()=>{if(style===3||style===4||style===5||style===7)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
+  for(const style of [2,3,4,5,6,7]){
+   const settle=()=>{if(style===2||style===3||style===4||style===5||style===7)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);settle();renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
-   if(style===1){
-    const savedClock=d.spectrumClock,savedCamera=d.camera,savedFeatures=input.features,savedTrack=d.trackId;
-    const fixed=gpu.school.texture.slice(),steps=gpu.school.steps;
-    renderStyle(1);if(gpu.school.steps!==steps||fixed.some((v,i)=>v!==gpu.school.texture[i]))throw Error('Paused school moved');
-    input.reduced=true;d.spectrumClock+=.1;renderStyle(1);if(gpu.school.steps!==steps)throw Error('Reduced school swims');input.reduced=false;
-    const before=energy();for(let i=0;i<30;i++){d.spectrumClock+=1/30;renderStyle(1);}if(Math.abs(energy()-before)<1)throw Error('School lacks visible motion');
-    const back=energy(3);d.appearance.oceanRays=0;renderStyle(1);if(!(energy(3)<back))throw Error('Sun shafts control has no effect');d.appearance.oceanRays=1;
-    const original=energy();d.camera=[.3,-.2,0,0];renderStyle(1);if(Math.abs(energy()-original)<1)throw Error('Ocean camera lacks depth');
-    d.trackId='ocean-new-track';renderStyle(1);if(gpu.school.phase!==0)throw Error('New track retains old school state');
-    if(gpu.canvas.width>=gpu.canvas.height)throw Error('Ocean phone orientation is sideways');
-    d.spectrumClock=savedClock;d.camera=savedCamera;input.features=savedFeatures;d.trackId=savedTrack;renderStyle(1);
-    Object.assign(report[style],{schoolFrozen:true,reducedMotionHeld:true,schoolSwims:true,sunShaftControl:true,trackResets:true,cameraDepth:true,uprightPhone:true});
-   }
    if(style===4){
     const fixed=gpu.contour.time,savedCamera=d.camera,savedRotation=d.rotationClock;
     const rendered=energy();d.camera=[1.2,-.8,.7,2];d.rotationClock=40;renderStyle(4);
@@ -154,7 +140,7 @@ app.whenReady().then(async()=>{
     input.time=originalTime;d.camera=originalCamera;renderStyle(3);
     report[style].orbitalTravel=true;report[style].frozenClockStable=true;report[style].cameraDepth=true;
    }
-   if(style===2){d.roles={};renderStyle(style);const quiet=coverage();d.roles={bass:.9};renderStyle(style);if(Math.abs(coverage()-quiet)<1)throw Error('Terrain only changes brightness, not silhouette');report[style].terrainDeforms=true;d.roles=saved;}
+   if(style===2){d.roles={};settle();renderStyle(style);const quiet=coverage();d.roles={bass:.9};settle();renderStyle(style);if(Math.abs(coverage()-quiet)<1)throw Error('Terrain only changes brightness, not silhouette');report[style].terrainDeforms=true;d.roles=saved;}
   }
   {
    const savedFeatures=input.features,savedCamera=d.camera;d.camera=[0,0,0,0];
@@ -170,7 +156,7 @@ app.whenReady().then(async()=>{
    report[5].frequencyOrder=true;report[5].silentSpectrumEmpty=true;
    input.features=savedFeatures;d.camera=savedCamera;
   }
-  const loss=gl.getExtension('WEBGL_lose_context');if(loss){loss.loseContext();await new Promise(r=>setTimeout(r,100));loss.restoreContext();for(let i=0;i<200&&(gpu.lost||!gpu.ready);i++)await new Promise(r=>setTimeout(r,50));await gpu.preparing;gpu.draw(input);await gpu.warming;if(!gpu.draw(input)||gpu.failed||gl.getError())throw Error('Context recovery failed');report.push({contextRecovery:true});}
+  const loss=gl.getExtension('WEBGL_lose_context');if(loss){loss.loseContext();await new Promise(r=>setTimeout(r,100));loss.restoreContext();for(let i=0;i<200&&(gpu.lost||!gpu.ready);i++)await new Promise(r=>setTimeout(r,50));await gpu.preparing;gpu.draw(input);await gpu.warming;if(!gpu.draw(input)||gpu.failed||gl.getError())throw Error('Context recovery failed');report.contextRecovery=true;}
   gpu.dispose();return report;
  })()`);
  if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'render-report.json'),JSON.stringify(result,null,2));log(JSON.stringify(result));

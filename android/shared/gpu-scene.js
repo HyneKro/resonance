@@ -1,20 +1,17 @@
 import {AstraMotion} from './astra-motion.js';
-import {NOCTILUCA_BACKGROUND,NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT,NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT} from './noctiluca-shaders.js';
 import {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,ASTRA_BACKGROUND} from './astra-shaders.js';
 import {ContourMotion,contourLettering,CONTOUR_INK_WIDTH} from './contour-motion.js';
 import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
 import {AerialPhysics} from './aerial-physics.js';
 import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND} from './aerial-shaders.js';
-import {ART_VERTEX,ART_FRAGMENT,ART_BACKGROUND,ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT} from './art-direction-shaders.js';
 import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
 import {artDirection,ART_DIRECTIONS} from './art-directions.js';
 import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
 import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND,SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT} from './synapse-shaders.js';
-import {SpectrumHistory,FluxMotion} from './spectrum-history.js';
+import {SpectrumHistory,FluxMotion,AfterglowMotion} from './spectrum-history.js';
 import {AFTERGLOW_BACKGROUND,AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT,AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT,AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT} from './afterglow-shaders.js';
 import {createAfterglowPalms} from './afterglow-palms.js';
 import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT,FLUX_DUST_VERTEX} from './flux-shaders.js';
-import {FishSchool} from './fish-school.js';
 import {compileSceneProgram} from './shader-loader.js';
 import {cameraUniform,fluxCameraDistance} from './scene-camera.js';
 import {ScenePreparation} from './scene-preparation.js';
@@ -44,7 +41,7 @@ export class GPUScene {
   async setup(generation){
     const gl=this.gl,work=this.work;await work.checkpoint();
     this.hdr=!!gl.getExtension('EXT_color_buffer_float');
-    const specs=[['roadBackground',QUAD,AFTERGLOW_BACKGROUND],['roadTerrain',AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT],['roadPalms',AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT],['roadDust',AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT],['oceanBackground',QUAD,NOCTILUCA_BACKGROUND],['oceanFish',NOCTILUCA_FISH_VERTEX,NOCTILUCA_FISH_FRAGMENT],['oceanSnow',NOCTILUCA_SNOW_VERTEX,NOCTILUCA_SNOW_FRAGMENT],['astraPaths',ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT],['astraBodies',ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT],['astraDust',ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT],['astraBackground',QUAD,ASTRA_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourShadows',CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['artSurface',ART_SURFACE_VERTEX,ART_SURFACE_FRAGMENT],['artPoints',ART_VERTEX,ART_FRAGMENT],['artBackground',QUAD,ART_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
+    const specs=[['roadBackground',QUAD,AFTERGLOW_BACKGROUND],['roadTerrain',AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT],['roadPalms',AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT],['roadDust',AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT],['astraPaths',ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT],['astraBodies',ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT],['astraDust',ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT],['astraBackground',QUAD,ASTRA_BACKGROUND],['contourBrush',CONTOUR_VERTEX,CONTOUR_FRAGMENT],['contourDrops',CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT],['contourShadows',CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT],['contourPaper',QUAD,CONTOUR_PAPER],['aerialSurface',AERIAL_VERTEX,AERIAL_FRAGMENT],['aerialBackground',QUAD,AERIAL_BACKGROUND],['fluxTrace',FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT],['fluxDust',FLUX_DUST_VERTEX,FLUX_FRAGMENT],['fluxPoints',FLUX_VERTEX,FLUX_FRAGMENT],['fluxBackground',QUAD,FLUX_BACKGROUND],['nebula',QUAD,NEBULA_LIVE],['nebulaParticles',NEBULA_VERTEX,NEBULA_FRAGMENT],['particles',PARTICLE_VERTEX,PARTICLE_FRAGMENT],['blur',QUAD,BLOOM],['finish',QUAD,FINISH],['spectral',SPECTRAL_VERTEX,PARTICLE_FRAGMENT],['ribbonSpectrum',RIBBON_SPECTRUM_VERTEX,RIBBON_SPECTRUM_FRAGMENT],['cells',CELL_VERTEX,CELL_FRAGMENT],['birthProgram',BIRTH_UPDATE,FLOW_FRAGMENT,['nextBirth']],['flowUpdate',FLOW_UPDATE,FLOW_FRAGMENT,['nextPosition','nextVelocity','nextBirth']],['flowDraw',FLOW_VERTEX,PARTICLE_FRAGMENT]];
     for(const [name,vertex,fragment,varyings]of specs){this[name]=await compileSceneProgram(gl,vertex,fragment,varyings,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});}
     for(const [name,vertex,fragment]of [['synapseThreads',SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT],['synapseNodes',SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT],['synapseFacets',SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT],['synapseBackground',QUAD,SYNAPSE_BACKGROUND]])this[name]=await compileSceneProgram(gl,vertex,fragment,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.astra??=new AstraMotion();this.astra.suspend();
@@ -76,17 +73,12 @@ export class GPUScene {
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.aerial??=new AerialPhysics(this.mobile?16:24);this.aerial.suspend();
-    this.school??=new FishSchool(this.mobile?160:384);
-    this.school.suspend();this.schoolTexture=gl.createTexture();this.schoolWidth=this.school.count;gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,this.school.count,2,0,gl.RGBA,gl.FLOAT,this.school.texture);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.spectrumHistory??=new SpectrumHistory(512);this.spectrumHistory.suspend();this.fluxMotion??=new FluxMotion();this.fluxMotion.suspend();
     this.roadPalmAtlas=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadPalmAtlas);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,createAfterglowPalms(this.mobile?128:256));
-    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);await work.checkpoint();
-    this.roadHistory??=new SpectrumHistory();this.roadHistory.suspend();this.roadHistoryVersion=-1;
+    this.roadHistory??=new SpectrumHistory();this.roadHistory.suspend();this.roadMotion??=new AfterglowMotion();this.roadMotion.suspend();this.roadHistoryVersion=-1;
     this.roadHistoryTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadHistoryTexture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,48,128,0,gl.RED,gl.UNSIGNED_BYTE,this.roadHistory.data);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
@@ -143,6 +135,11 @@ export class GPUScene {
     const birth=gl.getAttribLocation(program.program,'a_birth');
     if(birth>=0){gl.bindBuffer(gl.ARRAY_BUFFER,this.births.buffers[this.births.current]);gl.enableVertexAttribArray(birth);gl.vertexAttribPointer(birth,4,gl.FLOAT,false,0,0);}
     gl.drawArrays(gl.POINTS,0,count);gl.disableVertexAttribArray(a);if(birth>=0)gl.disableVertexAttribArray(birth);
+  }
+  roadMotes(count){
+    const gl=this.gl,a=gl.getAttribLocation(this.roadDust.program,'a_seed');gl.bindBuffer(gl.ARRAY_BUFFER,this.seeds);
+    gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,4,gl.FLOAT,false,0,0);gl.vertexAttribDivisor(a,1);
+    gl.drawArraysInstanced(gl.TRIANGLES,0,6,count);gl.vertexAttribDivisor(a,0);gl.disableVertexAttribArray(a);
   }
   updateBirths(uniforms,count=Math.floor(this.maxParticles*.42)){
     const gl=this.gl;
@@ -231,11 +228,10 @@ export class GPUScene {
       const recipe=identity.recipe||Array(8).fill(.5);
       this.kaleidoscopeWeights??=new Float32Array(KALEIDOSCOPE_MODES.length+1);
       if(!d.kaleidoscopeWeights){this.kaleidoscopeWeights.fill(0);this.kaleidoscopeWeights[d.kaleidoscope===true?kaleidoscopeIndex(d.kaleidoscopeMode)+1:0]=1;}
-      const style=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1};
+      const selected=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1},style=ART_DIRECTIONS.some(a=>a.index===selected.index)?selected:{...selected,index:0};
       if(style.index!==4)this.contour.suspend();
-      if(style.index!==1)this.school.suspend();
       if(style.index!==5){this.spectrumHistory.suspend();this.fluxMotion.suspend();}
-      if(style.index!==2)this.roadHistory.suspend();
+      if(style.index!==2){this.roadHistory.suspend();this.roadMotion.suspend();}
       if(style.index!==6)this.aerial.suspend();
       if(style.index!==7)this.synapse.suspend();
       if(style.index!==3)this.astra.suspend();
@@ -272,22 +268,6 @@ export class GPUScene {
         this.points(this.ribbonSpectrum,count);
       }yield;
 
-      }else if(style.index===1){
-        const count=this.mobile?160:384;
-        if(this.school.count!==count)this.school=new FishSchool(count);
-        if(this.schoolTrack!==d.trackId){this.school.reset();this.schoolTrack=d.trackId;}
-        const data=this.school.update(d.spectrumClock??time,{...roles,onset:features.onset},{reduced,movement:a.motionAmount,beat:a.beatMotion,opening:a.schoolOpening,turbulence:a.turbulence});
-        gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.schoolTexture);
-        if(this.schoolWidth!==count){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,count,2,0,gl.RGBA,gl.FLOAT,data);this.schoolWidth=count;}
-        else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,count,2,gl.RGBA,gl.FLOAT,data);
-        const followers=Math.max(2,Math.round((this.mobile?5:8)*(.5+a.filigree*.5))),detail=this.mobile?7:10;
-        const ocean={...uniforms,u_ocean:[this.school.phase,this.school.hit,a.oceanRays,this.mobile?1:0],u_schoolCount:count,u_followers:followers,u_fishDetail:detail,u_movement:reduced?0:a.motionAmount,u_spectrumLight:d.spectrumLight||this.emptySpectrum};
-        this.bind(nebula);this.use(this.oceanBackground,ocean);this.quadDraw(this.oceanBackground);yield;
-        this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
-        this.use(this.oceanFish,ocean);this.texture(this.oceanFish,'u_school',this.schoolTexture,4);
-        gl.drawArraysInstanced(gl.TRIANGLES,0,detail*6*6+15,count*followers);yield;
-        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        this.use(this.oceanSnow,ocean);this.points(this.oceanSnow,warmup?32:Math.round((this.mobile?650:1800)*Math.min(1.5,a.orbit)));yield;
       }else if(style.index===7){
         const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges,facets]=this.synapseTextures[count];
         // Track changes keep position, velocity, palette and in-flight waves.
@@ -399,36 +379,27 @@ export class GPUScene {
           this.texture(this.fluxPoints,'u_history',this.historyTexture,5);this.points(this.fluxPoints,Math.floor(count*(layer===0?1:layer===1?.40:.35)));yield;
         }
       }else if(style.index===2){
-        const history=this.roadHistory;
-        if(this.roadHistoryTrack!==d.trackId){history.reset();this.roadHistoryTrack=d.trackId;}
-        if(reduced)history.suspend();else history.update(d.spectrumClock??time,features.spectrum);
+        const history=this.roadHistory,motion=this.roadMotion;
+        if(this.roadHistoryTrack!==d.trackId){motion.beginTrack();this.roadHistoryTrack=d.trackId;}
+        motion.update(d.afterglowClock??d.spectrumClock??time,{active:d.afterglowActive!==false,hold:d.afterglowHold===true,reduced,movement:a.motionAmount,spectrum:features.spectrum,lights:d.spectrumLight,roles,palette:uniforms.u_palette});
+        if(motion.dt)history.update(motion.historyClock,motion.spectrum);
         if(this.roadHistoryVersion!==history.version){
           gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.roadHistoryTexture);
           gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.roadHistoryVersion=history.version;
         }
-        uniforms.u_light=[a.bloom*(1.65+uniforms.u_roles[0]*.45+uniforms.u_roles[1]*.25),a.glow,reduced?0:a.flash,a.contrast];
-        const road={...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_retro:[a.retroScan,a.retroPhosphor,a.retroColor],u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        uniforms.u_world=Array.from(motion.world);uniforms.u_roles=motion.roles;uniforms.u_spectrum=motion.spectrum;uniforms.u_movement=reduced?.1:motion.movement;
+        [uniforms.u_colorA,uniforms.u_colorB,uniforms.u_colorC]=[motion.palette.subarray(0,3),motion.palette.subarray(3,6),motion.palette.subarray(6,9)];
+        uniforms.u_light=[a.bloom*(1.65+motion.roles[0]*.45+motion.roles[1]*.25),a.glow,reduced?0:a.flash,a.contrast];
+        const road={...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_retro:[a.retroScan,a.retroPhosphor,a.retroColor],u_spectrumLight:motion.lights};
         this.bind(nebula);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         this.use(this.roadBackground,road);this.quadDraw(this.roadBackground);yield;
         gl.enable(gl.DEPTH_TEST);this.use(this.roadTerrain,road);this.texture(this.roadTerrain,'u_history',this.roadHistoryTexture,5);
         gl.drawArrays(gl.TRIANGLES,0,2*48*128*6);yield;
+        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
         this.use(this.roadPalms,road);this.texture(this.roadPalms,'u_palmAtlas',this.roadPalmAtlas,6);gl.drawArrays(gl.TRIANGLES,0,40*6);yield;
-        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        for(let tail=this.mobile?3:4;tail>=0;tail--){this.use(this.roadDust,{...road,u_density:1,u_tail:tail});this.points(this.roadDust,warmup?16:Math.round((this.mobile?160:520)*a.orbit));}yield;
-      }else{
-        this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h],u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.quadDraw(this.artBackground);yield;
-        this.bind(scene);gl.clearColor(0,0,0,style.index===4?1:0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        if(style.index>0){
-          if(style.index!==4){gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);}
-          const parts=style.index===2?[[0,2*32*128*6]]:[[0,4*256*6]];
-          for(const [part,vertices]of parts){this.use(this.artSurface,{...uniforms,u_artPart:part,u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.texture(this.artSurface,'u_school',this.schoolTexture,4);gl.drawArrays(gl.TRIANGLES,0,vertices);yield;}
-          gl.depthMask(false);gl.enable(gl.BLEND);
-        }
-        const fraction=style.index===1?.12:style.index===2?.06:.20;
-        const count=Math.floor(budget*fraction),density=Math.min(3,131072*fraction/count)*Math.pow(h/900,1.2);
-        for(const layer of [0,1]){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:layer,u_spectrumLight:this.emptySpectrum});this.points(this.artPoints,count);yield;}
-        if(d.spectrumLight?.some(x=>x>0)){this.use(this.artPoints,{...uniforms,u_density:density,u_layer:2,u_spectrumLight:d.spectrumLight});this.points(this.artPoints,Math.floor(count*.55));yield;}
+        gl.blendFunc(gl.ONE,gl.ONE);
+        for(let tail=this.mobile?3:4;tail>=0;tail--){this.use(this.roadDust,{...road,u_density:1,u_tail:tail});this.roadMotes(warmup?16:Math.round((this.mobile?160:520)*a.orbit));}yield;
       }
       gl.depthMask(true);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
       // Downsample and extract emissive light before the separable bloom passes.

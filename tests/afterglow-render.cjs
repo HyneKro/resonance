@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.afterglowClock;delete d.afterglowActive;delete d.afterglowHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -33,7 +33,7 @@ app.whenReady().then(async()=>{
  await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{
   let x=0;for(const [band,speed]of [[6,.8],[16,-.4],[29,.6],[40,-.7]])x+=(.3+.35*Math.sin(t*speed+band)**2)*Math.exp(-Math.pow((k-band-Math.sin(t*speed)*2)/2.6,2));return Math.min(.9,x);
  });gpu.roadHistory.reset();gpu.roadHistoryTrack=d.trackId;for(let i=0;i<128;i++)gpu.roadHistory.update(i/30,sampleSpectrum(i/30));
- d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};d.spectrumLight=Float32Array.from(input.features.spectrum,x=>x*.7);input.time=8;d.roles={bass:.55,lead:.5,drums:.45,texture:.2};renderStyle(2);
+ d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};d.spectrumLight=Float32Array.from(input.features.spectrum,x=>x*.7);input.time=8;d.roles={bass:.55,lead:.5,drums:.45,texture:.2};for(let i=0;i<150;i++){d.spectrumClock+=1/60;renderStyle(2);}
  window.pixels=()=>{const gl=gpu.gl;gpu.bind(null);const data=new Uint8Array(gpu.canvas.width*gpu.canvas.height*4);gl.readPixels(0,0,gpu.canvas.width,gpu.canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,data);return data;};
  window.difference=(a,b)=>a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0)/a.length;
  window.fixed=pixels();d.camera=[2.2,-.6,-2.4,1.2];d.cameraFocalLength=1.1;renderStyle(2);if(difference(fixed,pixels())>.001)throw Error('Drive camera is not fixed');
@@ -46,7 +46,7 @@ app.whenReady().then(async()=>{
  report.neon=await run(`(()=>{const sum=p=>p.reduce((s,v,i)=>i%4===3?s:s+v,0);renderStyle(2);const on=sum(pixels()),saved=d.appearance.bloom;d.appearance.bloom=0;renderStyle(2);const off=sum(pixels());d.appearance.bloom=saved;renderStyle(2);return {on,off,ratio:on/off};})()`);
  if(report.neon.ratio<1.08)throw Error('Afterglow neon spill is too weak: '+JSON.stringify(report.neon));
  report.city=await run(`(()=>{
-  const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadBackground,world=d.artMotion.slice(),zero=new Float32Array(48),loud=new Float32Array(48).fill(1);
+  const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadBackground,world=Array.from(gpu.roadMotion.world),zero=new Float32Array(48),loud=new Float32Array(48).fill(1);
   const draw=(clock,spectrum,lights)=>{gpu.bind(t);gpu.use(program,{u_world:[clock,world[1],world[2],world[3]],u_spectrum:spectrum,u_spectrumLight:lights});gpu.quadDraw(program);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p;};
   const a=draw(world[0],zero,zero),b=draw(world[0]+.05,zero,zero),c=draw(world[0]+30,zero,zero),s=draw(world[0],loud,loud);let near=0,long=0,sound=0,count=0;
   for(let y=Math.floor(t.h*.52);y<t.h*.68;y++)for(let x=0;x<t.w;x++){if(Math.abs(x/t.w-.5)<.20)continue;for(let k=0;k<3;k++){const i=(y*t.w+x)*4+k;near+=Math.abs(a[i]-b[i]);long+=Math.abs(a[i]-c[i]);sound+=Math.abs(a[i]-s[i]);count++;}}
@@ -55,16 +55,28 @@ app.whenReady().then(async()=>{
  if(report.city.slowChange<.0002||report.city.slowChange<report.city.shortChange*20||report.city.spectrumChange<.0003)throw Error('City windows do not evolve slowly and follow frequencies: '+JSON.stringify(report.city));
  report.wind=await run(`(()=>{
   const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadDust;
-  const draw=(tail,light)=>{gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gpu.use(program,{u_tail:tail,u_spectrumLight:new Float32Array(48).fill(light)});gpu.points(program,520);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p.reduce((s,v,i)=>i%4===3?s:s+v,0);};
+  const draw=(tail,light)=>{gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gpu.use(program,{u_tail:tail,u_spectrumLight:new Float32Array(48).fill(light)});gpu.roadMotes(520);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p.reduce((s,v,i)=>i%4===3?s:s+v,0);};
   const quiet=draw(0,0),active=draw(0,1),tail=draw(3,1);renderStyle(2);return {quiet,active,tail};
  })()`);
  if(report.wind.active<report.wind.quiet*2||report.wind.tail<=0)throw Error('Pixel wind is not reactive or has no trailing pixels');
+ report.particlePlane=await run(fs.readFileSync(path.join(root,'tests/afterglow-mote-probe.js'),'utf8'));
+ if(report.particlePlane.heightRange>1e-6||report.particlePlane.trailSideways>1e-6||report.particlePlane.width<=0||report.particlePlane.trailDepth<=0)throw Error('Particles or trails are not parallel to the road: '+JSON.stringify(report.particlePlane));
+ report.palmContinuity=await run(`(()=>{
+  const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadPalms,world=Array.from(gpu.roadMotion.world);const samples=[];let previous=null,previousEnergy=0,jump=0,min=Infinity,max=0;
+  for(let frame=0;frame<18;frame++){
+   gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+   gpu.use(program,{u_world:[world[0]+frame/240,world[1]+frame/80,world[2],world[3]]});gpu.texture(program,'u_palmAtlas',gpu.roadPalmAtlas,6);gl.drawArrays(gl.TRIANGLES,0,240);
+   const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);let sum=0,delta=0;for(let i=0;i<p.length;i+=4){sum+=p[i]+p[i+1]+p[i+2];if(previous)delta+=Math.abs(p[i]-previous[i])+Math.abs(p[i+1]-previous[i+1])+Math.abs(p[i+2]-previous[i+2]);}
+   samples.push(sum);min=Math.min(min,sum);max=Math.max(max,sum);if(previous)jump=Math.max(jump,Math.abs(sum-previousEnergy)/Math.max(1,previousEnergy));previous=p;previousEnergy=sum;
+  }renderStyle(2);return {min,max,jump,samples,world};
+ })()`);
+ if(report.palmContinuity.min<=0||report.palmContinuity.jump>.12)throw Error('Palm coverage flickers during small movement: '+JSON.stringify(report.palmContinuity));
  for(const [name,scan,phosphor]of [['clean',0,0],['scanlines',1,0],['phosphor',0,1]]){
   const delta=await run(`d.appearance.retroScan=${scan};d.appearance.retroPhosphor=${phosphor};renderStyle(2);difference(fixed,pixels());`);
   if(delta<.2)throw Error('CRT control does not change the rendered image: '+name);report[name]=delta;await shot(name);
  }
  report.crtAnimation=await run(`(()=>{
-  const vary=enabled=>{d.appearance.retroScan=enabled?.65:0;d.appearance.retroPhosphor=enabled?.25:0;renderStyle(2);const before=pixels();gpu.bind(null);gpu.use(gpu.finish,{u_world:[d.artMotion[0]+2,...d.artMotion.slice(1)]});gpu.quadDraw(gpu.finish);return difference(before,pixels());};
+  const vary=enabled=>{d.appearance.retroScan=enabled?.65:0;d.appearance.retroPhosphor=enabled?.25:0;renderStyle(2);const before=pixels();gpu.bind(null);gpu.use(gpu.finish,{u_world:[gpu.roadMotion.world[0]+2,...Array.from(gpu.roadMotion.world).slice(1)]});gpu.quadDraw(gpu.finish);return difference(before,pixels());};
   const on=vary(true),off=vary(false);return {on,off};
  })()`);
  if(report.crtAnimation.on<.2||report.crtAnimation.off>.001)throw Error('CRT does not animate independently or clean mode still has effects');
@@ -72,14 +84,23 @@ app.whenReady().then(async()=>{
  await shot('music-colours');report.paletteControl=true;
  await run(`d.colors=palette;d.appearance.retroColor=.45;renderStyle(2);window.withEcho=pixels();gpu.roadHistory.reset();renderStyle(2);if(difference(withEcho,pixels())<.2)throw Error('Terrain ignores earlier music');
  for(let i=0;i<128;i++)gpu.roadHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=127/30;
- d.trackId='new-drive';renderStyle(2);if(gpu.roadHistory.head!==0||gpu.roadHistory.data.slice(48).some(x=>x))throw Error('New track carries previous echoes');
+ const carried=gpu.roadHistory.data.slice(),carriedHead=gpu.roadHistory.head;d.trackId='new-drive';renderStyle(2);if(gpu.roadHistory.head!==carriedHead||carried.some((v,i)=>v!==gpu.roadHistory.data[i]))throw Error('New track clears previous echoes');
  for(let i=1;i<=128;i++)gpu.roadHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=128/30;renderStyle(2);
- window.beforeTravel=pixels();input.time+=.3;renderStyle(2);if(difference(beforeTravel,pixels())<1)throw Error('Road does not travel');void 0;`);
- Object.assign(report,{realHistory:true,trackReset:true,roadTravel:true});
+ window.beforeTravel=pixels();for(let i=0;i<18;i++){d.spectrumClock+=1/60;renderStyle(2);}if(difference(beforeTravel,pixels())<1)throw Error('Road does not travel');void 0;`);
+ Object.assign(report,{realHistory:true,trackContinuity:true,roadTravel:true});
  // Isolate the terrain to check its actual left/right silhouette and brightness.
  report.mirrorError=await run(`(()=>{const gl=gpu.gl,t=gpu.targets[0];gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.useProgram(gpu.roadTerrain.program);gl.drawArrays(gl.TRIANGLES,0,2*48*128*6);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);let error=0,total=0;for(let y=0;y<t.h;y++)for(let x=0;x<t.w/2;x++){const a=(y*t.w+x)*4,b=(y*t.w+t.w-1-x)*4;for(let c=0;c<4;c++){error+=Math.abs(p[a+c]-p[b+c]);total+=Math.abs(p[a+c]);}}gl.disable(gl.DEPTH_TEST);return error/Math.max(total,1);})()`);
  if(report.mirrorError>.025)throw Error('Terrain is not mirrored: '+report.mirrorError);
  await run(`renderStyle(2);`);await shot('echoes');
+ report.transitions=await run(`(()=>{
+  const advance=(seconds,active)=>{d.afterglowActive=active;for(let i=0;i<seconds*60;i++){d.spectrumClock+=1/60;renderStyle(2);}};
+  advance(2,true);const m=gpu.roadMotion,activity=m.activity,start=m.world[1];advance(1,false);const afterOne=m.activity;advance(6,false);const atRest=m.world[1],settled=m.activity;advance(1,false);const idleTravel=m.world[1]-atRest;
+  const h=gpu.roadHistory,history=h.data.slice(),head=h.head,world=Array.from(m.world),palette=m.palette.slice();d.trackId='afterglow-skip';d.colors=[[.1,.8,.05],[.7,.05,.9],[.1,.7,.8]];renderStyle(2);
+  const retained=head===h.head&&history.every((x,i)=>x===h.data[i])&&world.every((x,i)=>x===m.world[i]);advance(.1,true);let colorStep=0;for(let i=0;i<18;i++)colorStep=Math.max(colorStep,Math.abs(m.palette[i]-palette[i]));
+  const held=Array.from(m.world);d.afterglowHold=true;d.spectrumClock+=.1;renderStyle(2);const freezeHeld=held.every((x,i)=>x===m.world[i]);d.afterglowHold=false;delete d.afterglowActive;
+  return {activity,afterOne,settled,idleTravel,retained,colorStep,freezeHeld,advanced:m.world[1]>start};
+ })()`);
+ if(report.transitions.afterOne<.15||report.transitions.settled>.01||report.transitions.idleTravel<=0||report.transitions.idleTravel>.10||!report.transitions.retained||report.transitions.colorStep>.12||!report.transitions.freezeHeld)throw Error('Afterglow playback transitions are abrupt: '+JSON.stringify(report.transitions));
  report.performance=[];
  for(const [name,w,h,quality,mobile]of [['desktop',1280,800,'high',false],['phone',412,915,'eco',true]]){
   win.setSize(w,h);await run(`gpu.mobile=${mobile};input.width=${w};input.height=${h};input.quality='${quality}';d.portraitScene=${mobile};renderStyle(2);`);

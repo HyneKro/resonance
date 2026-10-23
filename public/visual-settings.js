@@ -4,7 +4,6 @@ import {DEFAULT_PREFERENCES} from './default-preferences.js';
 export const VISUAL_SETTINGS={
  ...SPECTRUM_SETTINGS,
  retroScan:{label:'CRT scanlines',min:0,max:1,value:.45},retroPhosphor:{label:'Phosphor dots',min:0,max:1,value:.25},retroColor:{label:'Music colours',min:0,max:1,value:.45},
- schoolOpening:{label:'School opening',min:0,max:1,value:.65},oceanRays:{label:'Sun shafts',min:0,max:2,value:1},
  aerialFluid:{label:'Liquid merging',min:0,max:1,value:.8},aerialShade:{label:'Studio darkness',min:0,max:1,value:0},
  bloom:{label:'Bloom',min:0,max:2.5,value:.35},glow:{label:'Glow radius',min:0,max:2,value:.45},flash:{label:'Musical flashes',min:0,max:2,value:.10},contrast:{label:'Contrast',min:.7,max:1.8,value:1.12},
  bgScale:{label:'Cloud scale',min:.5,max:1.8,value:1},bgSpeed:{label:'Current speed',min:.2,max:2,value:1},turbulence:{label:'Turbulence',min:0,max:2,value:1},textureDetail:{label:'Fine texture',min:0,max:1.5,value:1},
