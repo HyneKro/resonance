@@ -104,12 +104,12 @@ void main(){
   color+=hot*exp(-abs(abs(x)-2.35)*4.)*.10*fade;
   float dashed=aa(abs(x),.030)*step(.63,fract(z/4.));
   color+=gold*dashed*.65*fade;
-  // Discrete arcade markers, broken pixels and outward-facing road chevrons.
+  // Discrete arcade markers and broken pixels follow the road's perspective.
   vec2 tile=vec2(abs(x)*5.,z*1.5);vec2 tp=fract(tile);float bit=step(.28,tp.x)*step(tp.x,.73)*step(.2,tp.y)*step(tp.y,.58);
   float shoulderBits=step(1.92,abs(x))*step(abs(x),2.23)*step(.48,hash(floor(z*1.5)));
   color+=cool*bit*shoulderBits*(.13+.40*u_roles.y)*fade;
-  float chevron=aa(abs(abs(x)-(.45+abs(fract(z/12.)-.5)*.65)),.045)*step(.82,fract(z/12.))*road;
-  color+=hot*chevron*(.20+.28*u_roles.y)*fade;
+  float laneMarker=aa(abs(abs(x)-.72),.045)*step(.82,fract(z/12.))*road;
+  color+=hot*laneMarker*(.20+.28*u_roles.y)*fade;
   // Broken sunset reflection across the asphalt, not a flat opaque glow.
   float reflection=exp(-x*x/(.16+depth*.014))*exp(-depth*.015)*road;
   float reflectionBits=.45+.55*hash(floor(z*2.)+floor(x*14.)*19.);
