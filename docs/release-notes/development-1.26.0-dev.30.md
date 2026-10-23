@@ -1,0 +1,9 @@
+# Flux: keep scrolling for volume
+
+Development test builds: Windows **1.26.0-dev.30** and Android **0.26.0-dev.30** (versionCode 96).
+
+In **Visuals → Style → Flux**, use **Explore zoom** to move into the particles and **Fit view** to smoothly return to the complete wave. Removed Flux's scroll-to-zoom handler: scrolling over the scene now adjusts only volume, including while Visuals stays open. Updated the short control hint. Android retains the same dedicated slider and Fit view button, with its existing touch gestures.
+
+Verification: **549 shared tests** and **134 Android JVM tests** passed; Android lint reports zero errors and nine existing warnings. The Flux graphics audit exercises the real listening controls together with exploration, verifying that scrolling adjusts volume without changing zoom, the slider works, Fit view resets exploration, and other scenes remain isolated. It also verifies the shared echo plane, seven overview angles, close particle views, playback/palette transitions, longer history, delayed debris, bloom, black background and phone composition. Both extracted startup module graphs pass. Shared visual/control assets match both distributables byte-for-byte, and a clean Windows installation reaches the empty-library welcome screen in approximately 10.7 seconds. Android retains package `music.resonance.mobile` and its existing signing certificate; no physical Android device testing was available.
+
+Existing development installations: **Settings → App updates → Check for updates**. Windows applies the update when you choose to restart. Android updates the existing app with system confirmation; do not uninstall. First-time development users need the one-time development ZIP/APK installation. Ordinary releases and public download buttons remain unchanged.

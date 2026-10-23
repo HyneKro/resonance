@@ -31,11 +31,16 @@ app.whenReady().then(async()=>{
  detail.plane=await run(fs.readFileSync(path.join(root,'tests/flux-surface-probe.js'),'utf8'));
  if(Math.abs(detail.plane.baselineHeight+.48)>1e-6||detail.plane.baselineRange>1e-6||detail.plane.pairedDepthError>1e-6||detail.plane.mirrorError>1e-6)throw Error('Flux echo separates from the common plane: '+JSON.stringify(detail.plane));
  detail.controls=await run(`(async()=>{
-  const {SceneCamera,installFluxExploreControls}=await import('/scene-camera.js');const room=document.body,controls=document.createElement('div');controls.hidden=true;controls.innerHTML='<input type="range" min="0" max="1" step=".01" data-flux-zoom><button data-flux-fit>Fit view</button>';room.append(controls);
-  const controller={camera:new SceneCamera(),artDirection:'flux',rollercoaster:true,cameraZoom:true};let fitted=0;installFluxExploreControls({room,reactor:controller,onFit:()=>fitted++});
+  const {SceneCamera,installFluxExploreControls}=await import('/scene-camera.js'),{installListeningControls}=await import('/listening-controls.js');
+  const room=document.body,controls=document.createElement('div');room.id='listening-room';controls.hidden=true;
+  controls.innerHTML='<input type="range" min="0" max="1" step=".01" data-flux-zoom><button data-flux-fit>Fit view</button><div id="volume-panel" hidden></div><button id="volume-details"></button><input id="volume-exact" type="number"><div id="gesture-hud" hidden><span id="gesture-label"></span><span id="gesture-level"></span></div><input id="volume"><input id="room-volume"><input id="precise-volume"><span id="volume-percent"></span><button id="volume-mute"></button><button id="volume-down"></button><button id="volume-up"></button><dialog id="dialog"></dialog>';room.append(controls);
+  const controller={camera:new SceneCamera(),artDirection:'flux',rollercoaster:true,cameraZoom:true},audio=Object.assign(new EventTarget(),{volume:.5,muted:false});let fitted=0;
+  installFluxExploreControls({reactor:controller,onFit:()=>fitted++});
+  installListeningControls({audio,savePlayer:()=>{},nextTrack:()=>{},safe:fn=>fn,libraryOpen:()=>{},icon:()=>''});
   const slider=controls.querySelector('input');slider.value='.6';slider.dispatchEvent(new Event('input',{bubbles:true}));const sliderWorks=controller.camera.exploreTarget===.6;
-  const wheel=new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true});gpu.canvas.dispatchEvent(wheel);const wheelWorks=wheel.defaultPrevented&&controller.camera.exploreTarget>.69;
-  controls.querySelector('button').click();const fitWorks=controller.camera.exploreTarget===0&&!controller.rollercoaster&&!controller.cameraZoom&&fitted===1;controller.artDirection='astra';gpu.canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));const isolated=controller.camera.exploreTarget===0;controls.remove();return {sliderWorks,wheelWorks,fitWorks,isolated};
+  document.body.classList.add('visual-settings-open');const wheel=new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true});gpu.canvas.dispatchEvent(wheel);
+  const wheelVolumeWorks=wheel.defaultPrevented&&audio.volume===.52,wheelPreservesZoom=controller.camera.exploreTarget===.6;document.body.classList.remove('visual-settings-open');
+  controls.querySelector('[data-flux-fit]').click();const fitWorks=controller.camera.exploreTarget===0&&!controller.rollercoaster&&!controller.cameraZoom&&fitted===1;controller.artDirection='astra';gpu.canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));const isolated=controller.camera.exploreTarget===0&&audio.volume===.54;controls.remove();room.removeAttribute('id');return {sliderWorks,wheelVolumeWorks,wheelPreservesZoom,fitWorks,isolated};
  })()`);
  if(Object.values(detail.controls).some(x=>!x))throw Error('Flux exploration controls failed: '+JSON.stringify(detail.controls));
  await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{

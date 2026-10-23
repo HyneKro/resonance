@@ -54,14 +54,10 @@ export class SceneCamera {
   return this.pose.map((p,i)=>{if(reduced){p.value=target[i];p.velocity=0;return p.value;}const value=p.update(target[i],i===2?zoomDt:dt);if(grounded&&i===1&&(value<AERIAL_CAMERA.min||value>AERIAL_CAMERA.max)){p.value=clamp(value,AERIAL_CAMERA.min,AERIAL_CAMERA.max);p.velocity=0;}return p.value;});
  }
 }
-export function installFluxExploreControls({room,reactor,onFit=()=>{}}){
+export function installFluxExploreControls({reactor,onFit=()=>{}}){
  const sync=()=>document.querySelectorAll('[data-flux-zoom]').forEach(e=>e.value=reactor.camera.exploreTarget);
  document.addEventListener('input',e=>{if(!e.target.matches('[data-flux-zoom]'))return;reactor.camera.setExplore(e.target.value);reactor.needsFrame=true;sync();});
  document.addEventListener('click',e=>{if(!e.target.closest('[data-flux-fit]'))return;reactor.camera.reset();reactor.rollercoaster=false;reactor.cameraZoom=false;reactor.needsFrame=true;sync();onFit();});
- room.addEventListener('wheel',e=>{
-  if(room.hidden||reactor.musicOnly||reactor.artDirection!=='flux'||document.querySelector('dialog[open]')||e.target.closest('button,input,select,textarea,a,.visual-tools,.room-dock,.room-top,.app-shell,.dance-companion,.constellation'))return;
-  e.preventDefault();reactor.camera.setExplore(reactor.camera.exploreTarget-e.deltaY*(e.deltaMode===1?.025:.001));reactor.needsFrame=true;sync();
- },{passive:false});
 }
 export function installCameraControls({reactor}){
  const room=document.querySelector('#listening-room');let drag=null,moved=false;
