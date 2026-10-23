@@ -40,7 +40,7 @@ app.whenReady().then(async()=>{
  report.glow=await run(`(()=>{const energy=()=>pixels().reduce((s,v,i)=>i%4===3?s:s+v,0);renderStyle(6);const on=energy(),bloom=d.appearance.bloom;d.appearance.bloom=0;renderStyle(6);const off=energy();d.appearance.bloom=bloom;renderStyle(6);return {on,off,ratio:on/off};})()`);
  if(report.glow.ratio<1.03)throw Error('Emissive light has no visible bloom: '+JSON.stringify(report.glow));
  report.geometry=await run(fs.readFileSync(path.join(root,'tests/aerial-surface-probe.js'),'utf8'));
- if(report.geometry.deformation<.12||report.geometry.birthRadius>.0001||report.geometry.deathRadius>.0001||report.geometry.peakRadius<.005||report.geometry.maxRadiusStep>.004)throw Error('Sphere deformation or lifetime continuity failed: '+JSON.stringify(report.geometry));
+ if(report.geometry.spectralColour<.6||report.geometry.sixthTone<.4||report.geometry.deformation<.12||report.geometry.birthRadius>.0001||report.geometry.deathRadius>.0001||report.geometry.peakRadius<.005||report.geometry.maxRadiusStep>.004)throw Error('Sphere deformation or lifetime continuity failed: '+JSON.stringify(report.geometry));
  for(const [name,camera]of [['low',[0,-.46,0,0]],['side',[1.6,.2,0,0]],['high',[-1.5,1.1,0,0]]]){
   const delta=await run(`renderStyle(6);window.before=pixels();d.camera=${JSON.stringify(camera)};renderStyle(6);difference(before,pixels())`);if(delta<2)throw Error('Orbit has no depth: '+name);await shot(name);
  }
@@ -55,6 +55,19 @@ app.whenReady().then(async()=>{
  })()`);
  if(!report.transitions.retained||report.transitions.colorStep>.08||report.transitions.changed<3||report.transitions.coasting<.2||report.transitions.idle<=0||report.transitions.idle>.08||!report.transitions.held||!report.transitions.reduced||report.transitions.bursts<1)throw Error('Aerial transitions are abrupt: '+JSON.stringify(report.transitions));
  await shot('music-colours');
+ report.continuity=await run(`(()=>{
+  const saved={width:input.width,height:input.height,features:input.features,roles:d.roles};input.width=512;input.height=320;renderStyle(6);
+  let previous=pixels(),positions=gpu.aerial.rendered.slice(),hit=gpu.aerialMotion.hit,maxFrame=0,maxBody=0,maxHit=0;
+  for(let frame=0;frame<180;frame++){
+   const t=frame/60,pulse=t%.48<.035?1:0,center=frame<60?8:frame<120?36:19,spectrum=Float32Array.from({length:48},(_,k)=>.8*Math.exp(-Math.pow((k-center)/3,2)));
+   d.roles={bass:.6,lead:.7,drums:pulse};input.features={...saved.features,spectrum,harmonic:spectrum,percussive:Float32Array.from(spectrum,x=>x*pulse),onset:pulse};d.spectrumClock+=1/60;if(frame===60||frame===120)d.trackId='continuity-'+frame;renderStyle(6);
+   const next=pixels();maxFrame=Math.max(maxFrame,difference(previous,next));previous=next;
+   const m=gpu.aerialMotion,p=gpu.aerial.rendered;maxHit=Math.max(maxHit,Math.abs(m.hit-hit));hit=m.hit;
+   for(let j=0;j<gpu.aerial.count;j++){const k=j*4;maxBody=Math.max(maxBody,Math.hypot(p[k]-positions[k],p[k+1]-positions[k+1],p[k+2]-positions[k+2]));}positions.set(p);
+  }
+  Object.assign(input,saved);d.roles=saved.roles;renderStyle(6);return {maxFrame,maxBody,maxHit};
+ })()`);
+ if(report.continuity.maxFrame>4||report.continuity.maxBody>.055||report.continuity.maxHit>.09)throw Error('Abrupt musical frame: '+JSON.stringify(report.continuity));
  report.performance=[];
  for(const [name,w,h,quality,mobile]of [['desktop',1280,800,'high',false],['phone',412,915,'eco',true]]){
   win.setSize(w,h);await run(`gpu.mobile=${mobile};input.width=${w};input.height=${h};input.quality='${quality}';d.portraitScene=${mobile};advance(1);`);

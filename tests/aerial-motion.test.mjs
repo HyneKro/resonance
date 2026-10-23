@@ -36,3 +36,29 @@ test('a full burst pool skips a release instead of teleporting visible bubbles',
  const origins=m.bursts.slice();m.update(.01,{...playing,onset:1});assert.equal(m.emitted,0);
  for(let i=0;i<48;i++)if(i%4!==3)assert.equal(m.bursts[i],origins[i]);
 });
+
+test('percussion drives a continuous response instead of a one-frame radius jump',()=>{
+ const m=new AerialMotion(),world=new AerialPhysics();let previous=0,largest=0,largestBody=0,positions=world.rendered.slice();
+ for(let i=0;i<1800;i++){
+  const t=i/60,pulse=t%.48<.035?1:0;m.update(t,{...playing,onset:pulse,roles:{bass:.6,lead:.7,drums:pulse}});
+  largest=Math.max(largest,Math.abs(m.hit-previous));previous=m.hit;
+  world.update(m.simulationClock,{bass:m.roles[0],lead:m.roles[2],drums:m.roles[1],onset:m.hit},{continuous:true,detail:m.detail});
+  for(let j=0;j<24;j++){const k=j*4;largestBody=Math.max(largestBody,Math.hypot(...[0,1,2].map(a=>world.rendered[k+a]-positions[k+a])));}positions.set(world.rendered);
+ }
+ assert.ok(largest<.08,'The old instantaneous hit was 1.0');assert.ok(largestBody<.04);assert.ok(m.emitted>10);
+});
+
+test('local frequency, harmonic and percussion envelopes retain different band identities',()=>{
+ const m=new AerialMotion(),spectrum=new Float32Array(48),harmonic=new Float32Array(48),percussive=new Float32Array(48);spectrum[8]=.8;harmonic[8]=.9;percussive[36]=.9;
+ const options={...playing,spectrum,harmonic,percussive};m.update(0,options);advance(m,2,options);
+ assert.ok(m.detail[4*4]>.5);assert.ok(m.detail[4*4+1]>.45);assert.ok(m.detail[18*4+2]>.5);
+ assert.ok(m.detail[4*4+2]<.001);assert.ok(m.detail[18*4+1]<.001);
+ const before=m.detail.slice();m.beginTrack();assert.deepEqual(m.detail,before);
+});
+
+test('spectral colour balance changes strongly with timbre while silence holds its hue',()=>{
+ const tone=band=>{const m=new AerialMotion(),s=new Float32Array(48);s[band]=1;const o={...playing,spectrum:s};m.update(0,o);advance(m,4,o);return m;};
+ const low=tone(4),high=tone(40);assert.ok(high.tone[0]-low.tone[0]>.7);
+ const hue=low.tone[0];advance(low,4,{...playing,active:false});assert.ok(Math.abs(low.tone[0]-hue)<.01);
+ const held=[...high.tone,...high.detail];advance(high,1,{...playing,reduced:true});assert.deepEqual([...high.tone,...high.detail],held);
+});
