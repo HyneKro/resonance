@@ -28,7 +28,7 @@ public final class DownloadService extends Service {
         JSONObject job=ResonanceApp.instance.library.setting("downloadJob");String kind=job.optString("kind");JSONObject data=job.optJSONObject("data")==null?new JSONObject():job.optJSONObject("data");long operation=intent.getLongExtra("operation",0);handler.post(progress);
         ResonanceApp.instance.io.execute(()->{
             Downloads downloads=ResonanceApp.instance.downloads;
-            try{if(operation!=job.optLong("operation")||operation==0)throw new java.io.IOException("The update request expired. Please try again.");if("check".equals(kind))downloads.check(data.optString("sourceId"));else if("update".equals(kind))downloads.updateEngine();else downloads.download(DownloadSelection.resolve(data.optJSONArray("selected"),downloads.preview));}
+            try{if(operation!=job.optLong("operation")||operation==0)throw new java.io.IOException("The update request expired. Please try again.");if("check".equals(kind))downloads.check(data.optString("sourceId"));else if("update".equals(kind))downloads.updateEngine();else downloads.download(DownloadSelection.resolve(data.optJSONArray("selected"),downloads.pending()));}
             catch(Exception e){downloads.fail(e);}
             finally{handler.post(()->{busy=false;active=false;handler.removeCallbacks(progress);if(wake!=null&&wake.isHeld())wake.release();stopForeground(STOP_FOREGROUND_REMOVE);getSystemService(NotificationManager.class).notify(20,notification(false));stopSelf(id);});}
         });

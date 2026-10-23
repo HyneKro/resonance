@@ -99,7 +99,7 @@ public final class MainActivity extends Activity {
             }
             case "defaultDestination":lib.setting("downloadDestination",new JSONObject());return Json.object("ok",true);
             case "source":{String type=data.optString("type");if(!type.equals("youtube")&&!type.equals("spotify")&&!type.equals("deezer"))throw new IOException("Choose a local folder with the Android picker");Json.put(data,"url",Downloads.playlist(data.optString("url"),type));return lib.source(data);}
-            case "disconnect":lib.disconnect(data.optString("id"));return Json.object("ok",true);
+            case "disconnect":app.downloads.disconnectSource(data.optString("id"));return Json.object("ok",true);
             case "edit":return lib.edit(data);
             case "playlist":return lib.savePlaylist(data);
             case "deletePlaylist":lib.deletePlaylist(data.optString("id"));return Json.object("ok",true);
@@ -136,7 +136,7 @@ public final class MainActivity extends Activity {
             case "lyricsSave":return app.lyrics.save(data.optString("id"),data.getJSONObject("record"));
             case "lyricsSearch":return app.research.lyricsSearch(lib.track(data.optString("id")));
             case "syncCheck":return startDownloadJob("check",data);
-            case "syncPreview":return app.downloads.preview;
+            case "syncPreview":return app.downloads.pending();
             case "syncMatch":return app.downloads.matches(data);
             case "syncChooseMatch":return app.downloads.selectMatch(data.optString("key"),data.optString("videoId"));
             case "syncDownload":return startDownloadJob("download",data);

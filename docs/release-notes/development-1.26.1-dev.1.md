@@ -1,0 +1,14 @@
+# Mobile catalogue matching and download queue recovery
+
+Windows **1.26.1-dev.1** and Android **0.26.1-dev.1** (versionCode **105**), isolated development channel.
+
+- Android now searches for YouTube recordings automatically when checking Spotify or Deezer playlists, using the PC ranking rules. Proposed recordings can be selected directly and remain unchecked until chosen. The row shows the proposed title, uploader, duration and match score. **Review recording** opens cached choices; custom searches remain available.
+- Search progress is visible song by song. Cached searches avoid repeating work, reviewed choices survive checks, and temporary search restrictions stop further matching requests in that pass. No audio downloads until the user starts Downloads. Spotify/Deezer remain song-list providers; this is not direct audio downloading from those services.
+- Disconnecting a source clears its ready/skipped rows and stored queued selections. A transfer belonging to that source is interrupted using a source-specific process ID. Removed items cannot block remaining connected playlists or be reinserted by an older scan result. Saved audio stays in the library.
+- Orphaned entries from previously removed sources are filtered on restore. Mixed stale selections retain valid songs instead of rejecting the entire batch. The native preview is authoritative for recording IDs.
+
+Verification: 560 shared tests and 151 Android JVM tests passed. Android builds and lint passed (zero errors; nine existing warnings), and the ARM64 APK retains the installed app's signing identity. Isolated UI checks cover automatic matching, manual review, source removal during a mixed batch and preserving saved music. Native tests cover cancellation, caching, ranking, removal before/during work and stale selections. A live anonymous metadata read/search of the supplied 15-song Spotify playlist returned candidates for all 15; Android and PC produced identical candidate ordering and scores. Audio availability for every candidate is not implied by this metadata check. No physical Android device was available.
+
+Both extracted artifacts passed the complete frontend startup module graph checks. The clean Windows ZIP reached the welcome screen with an empty isolated library in 12.7 seconds and no console errors. Upload-hash, frozen-updater compatibility and update-channel checks are required before completing publication. The Windows build carries the unchanged PC workflow alongside these mobile corrections.
+
+Install through **Settings → App updates** in a development installation. Ordinary installations do not cross channels automatically; the development ZIP/APK needs a one-time manual installation for testing. Android updates the existing app with the same package/signature; do not uninstall. The live releases and download page stay unchanged pending approval of this batch.

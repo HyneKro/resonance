@@ -27,7 +27,7 @@ final class DownloadFailures {
         for(int i=0;i<next.length();i++){
             JSONObject entry=new JSONObject(next.getJSONObject(i).toString()),old=failed.get(identity(entry));
             JSONObject choice=reviewed.get(entry.optString("sourceId")+":"+identity(entry));
-            if(choice!=null){for(String field:List.of("youtubeId","alternativeSelected","alternativeKind","selected"))if(choice.has(field))entry.put(field,choice.opt(field));}
+            if(choice!=null){for(String field:List.of("youtubeId","alternativeSelected","alternativeKind","selected","matchedTitle","matchedChannel","matchedDuration","matchScore"))if(choice.has(field))entry.put(field,choice.opt(field));}
             if(old!=null){for(String field:List.of("skipReason","skippedAt","failedVideoId"))entry.put(field,old.opt(field));entry.put("selected",false);}
             result.put(entry);
         }return result;

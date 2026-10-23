@@ -1,6 +1,6 @@
 {
   "name": "resonance-music",
-  "version": "1.26.0",
+  "version": "1.26.1-dev.1",
   "description": "An expressive local music library and audio-reactive player.",
   "main": "electron/main.cjs",
   "scripts": {

@@ -44,4 +44,16 @@ public class DownloadBatchTest {
         Work work=new Work(){public void skipped(JSONObject item,String reason) throws Exception {throw new IOException("Database full");}};
         assertThrows(IOException.class,()->new DownloadBatch().run(songs("bad","last"),()->false,work));assertEquals(List.of("bad"),work.attempted);
     }
+    @Test public void removedSourceDoesNotRunPreflightOrBlockOtherDownloads() throws Exception {
+        DownloadBatch batch=new DownloadBatch();Work work=new Work(){public boolean include(JSONObject item){return !item.optString("title").equals("gone");}public void before(){}};
+        batch.run(songs("gone","kept","gone"),()->false,work);assertEquals(List.of("kept"),work.attempted);assertEquals(1,batch.saved);assertEquals(2,batch.removed);assertEquals(3,batch.processed);assertEquals(0,batch.skipped);
+    }
+    @Test public void sourceRemovedDuringTransferContinuesOtherPlaylist() throws Exception {
+        DownloadBatch batch=new DownloadBatch();Work work=new Work(){public void download(JSONObject item) throws Exception {if(item.optString("title").equals("gone"))throw new DownloadBatch.SourceRemoved();super.download(item);}};
+        batch.run(songs("gone","kept"),()->false,work);assertEquals(List.of("kept"),work.saved);assertEquals(1,batch.removed);assertEquals(1,batch.saved);assertEquals(0,batch.skipped);
+    }
+    @Test public void removalDuringPreflightPreventsTransfer() throws Exception {
+        AtomicBoolean removed=new AtomicBoolean();DownloadBatch batch=new DownloadBatch();Work work=new Work(){public boolean include(JSONObject item){return !removed.get();}public void before(){removed.set(true);}};
+        batch.run(songs("gone"),()->false,work);assertTrue(work.attempted.isEmpty());assertEquals(1,batch.removed);assertFalse(batch.summary().contains("ready in Library"));
+    }
 }

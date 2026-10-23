@@ -11,12 +11,12 @@ final class DownloadSelection {
         JSONArray result=new JSONArray();Set<String> seen=new HashSet<>();
         for(int i=0;i<choices.length();i++){
             JSONObject choice=choices.getJSONObject(i);String key=choice.optString("key");JSONObject original=indexed.get(key);
-            if(original==null)throw new IOException("The song list changed. Check your selection and try again.");
+            if(original==null)continue;
             if(!seen.add(key))continue;
             JSONObject item=new JSONObject(original.toString());String video=choice.optString("youtubeId",item.optString("youtubeId"));
             if(!video.matches("[A-Za-z0-9_-]{11}"))throw new IOException("Choose a recording for each selected song first.");
-            if(!item.optString("type").equals("spotify")&&!video.equals(item.optString("youtubeId")))throw new IOException("The selected recording no longer matches the playlist.");
+            if(!video.equals(item.optString("youtubeId")))throw new IOException("The selected recording no longer matches the playlist.");
             item.put("youtubeId",video);result.put(item);
-        }return result;
+        }if(result.length()==0)throw new IOException("The selected songs are no longer waiting. Reopen Downloads to refresh the list.");return result;
     }
 }
