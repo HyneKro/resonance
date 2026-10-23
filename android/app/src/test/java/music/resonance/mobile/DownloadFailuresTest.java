@@ -21,5 +21,14 @@ public class DownloadFailuresTest {
         assertEquals("Restricted",DownloadFailures.preserve(new JSONArray().put(marked),new JSONArray().put(entry)).getJSONObject(0).getString("skipReason"));
     }
     @Test public void recordingRestrictionsAnd403CanBeSkipped(){assertFalse(DownloadFailures.pausesBatch("ERROR: Video unavailable"));assertFalse(DownloadFailures.pausesBatch("HTTP Error 403: Forbidden"));assertFalse(DownloadFailures.pausesBatch("Sign in to confirm your age"));}
+    @Test public void catalogueRecordingChoicesSurviveReorderedChecksWithinTheirSource() throws Exception {
+        for(String provider:new String[]{"spotify","deezer"}){
+            JSONObject chosen=Json.object("key","s:0","sourceId","s","type",provider,provider+"Id","track123","youtubeId","AAAAAAAAAAA","selected",true,"alternativeSelected",true);
+            JSONObject reordered=Json.object("key","s:9","sourceId","s","type",provider,provider+"Id","track123","youtubeId","","selected",false);
+            JSONObject otherSource=new JSONObject(reordered.toString()).put("sourceId","other").put("key","other:0");
+            JSONArray result=DownloadFailures.preserve(new JSONArray().put(chosen),new JSONArray().put(reordered).put(otherSource));
+            assertEquals("AAAAAAAAAAA",result.getJSONObject(0).getString("youtubeId"));assertTrue(result.getJSONObject(0).getBoolean("selected"));assertEquals("s:9",result.getJSONObject(0).getString("key"));assertEquals("",result.getJSONObject(1).getString("youtubeId"));assertEquals("",reordered.getString("youtubeId"));
+        }
+    }
     @Test public void systemicFailuresPauseInsteadOfSkippingWholeLibrary(){for(String s:new String[]{"HTTP Error 429","Sign in to confirm you’re not a bot","Connection timed out","No space left on device","Permission denied","ffmpeg not found"})assertTrue(s,DownloadFailures.pausesBatch(s));}
 }

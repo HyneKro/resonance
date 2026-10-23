@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';
-import {spotifyPlaylistId,parseSpotifyPlaylist,spotifyCandidates,spotifyEntries} from '../spotify.mjs';import {PlaylistSync} from '../sync.mjs';import {validateSource} from '../sources.mjs';import {startServer} from '../server.mjs';
+import {spotifyPlaylistId,parseSpotifyPlaylist,readSpotifyPlaylist,spotifyCandidates,spotifyEntries} from '../spotify.mjs';import {PlaylistSync} from '../sync.mjs';import {validateSource} from '../sources.mjs';import {startServer} from '../server.mjs';
 const id='4rArRoeiRH1x8yQWrmU4Bz',tid='5o3DSHw1ORhM3lWxqGRvEf',track={spotifyId:tid,title:'All Blues',artist:'Miles Davis',duration:692,playlistIndex:1,spotifyUrl:'https://open.spotify.com/track/'+tid};
 test('Spotify source URLs are strictly public playlist URLs, validate writable folders and reject duplicates',async()=>{
  const url='https://open.spotify.com/playlist/'+id;assert.equal(spotifyPlaylistId(url+'?si=test'),id);assert.equal(spotifyPlaylistId('https://open.spotify.com/intl-fr/playlist/'+id),id);
@@ -10,11 +10,16 @@ test('Spotify public parser preserves original order and artist names, ignores p
  const item={uri:'spotify:track:'+tid,title:'All Blues',subtitle:'Miles Davis',duration:692000,audioPreview:{url:'https://never-download.test/preview'}};
  const html=items=>'<script id="__NEXT_DATA__" type="application/json">'+JSON.stringify({props:{pageProps:{state:{data:{entity:{id,type:'playlist',title:'Jazz',trackList:items}}}}}})+'</script>';
  const p=parseSpotifyPlaylist(html([item,{uri:'spotify:episode:'+tid,title:'Talk'},item]),id);assert.equal(p.tracks.length,2);assert.equal(p.tracks[1].playlistIndex,3);assert.equal(p.tracks[0].duration,692);assert.equal(p.tracks[0].audioPreview,undefined);assert.equal(p.limited,false);assert.equal(p.skipped,1);
- assert.equal(parseSpotifyPlaylist(html(Array(100).fill(item)),id).limited,true);assert.throws(()=>parseSpotifyPlaylist('<html>Login</html>',id),/private/);
+ assert.equal(parseSpotifyPlaylist(html(Array(100).fill(item)),id).limited,true);assert.throws(()=>parseSpotifyPlaylist('<html>Login</html>',id),/private/i);
 });
 test('YouTube match ranking favors artist, title and duration and flags different versions',()=>{
  const candidates=spotifyCandidates(track,[{id:'aaaaaaaaaaa',title:'Miles Davis - All Blues (Official Audio)',channel:'Miles Davis',duration:694},{id:'bbbbbbbbbbb',title:'All Blues (live)',channel:'Miles Davis',duration:692},{id:'ccccccccccc',title:'All Blues',channel:'Another artist',duration:692}]);
  assert.equal(candidates[0].id,'aaaaaaaaaaa');assert.equal(candidates[0].score,100);assert.ok(candidates.find(c=>c.id==='bbbbbbbbbbb').score<=60);
+});
+test('Spotify access failures explain public access without claiming every failure is private',async()=>{
+ for(const status of [403,404,429,503])await assert.rejects(readSpotifyPlaylist(id,{fetchImpl:async()=>new Response('',{status})}),error=>error.message.includes(String(status))&&error.message.includes('Make public')&&error.message.includes('temporarily unavailable'));
+ const html='<script id="__NEXT_DATA__">'+JSON.stringify({props:{pageProps:{state:{data:{entity:{id,type:'playlist',trackList:[null,{uri:'spotify:episode:'+tid,title:'Talk'}]}}}}}})+'</script>';
+ assert.throws(()=>parseSpotifyPlaylist(html,id),/empty, private/);
 });
 test('Spotify checks reuse cached searches and leave every new recording unchecked for review',async()=>{
  const settings=new Map(),lib={root:process.cwd(),getSetting:k=>settings.get(k),setSetting:(k,v)=>settings.set(k,v),list:()=>[],config:{sources:[{id:'s',type:'spotify',playlist:id}]}};const sync=new PlaylistSync(lib);let calls=0;

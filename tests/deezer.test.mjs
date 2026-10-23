@@ -60,6 +60,6 @@ test('Deezer review, cache, saved identity and API requests stay separate from S
  }finally{app.server.closeAllConnections();await new Promise(r=>app.server.close(r));app.lib.close();}
 });
 test('Deezer review uses the correct source and keeps unchecked choices stable',()=>{
- const entry={provider:'deezer',deezerId:'123',id:'aaaaaaaaaaa',sourceId:'s',title:'Song',channel:'Artist',duration:180,status:'review',candidates:[]};const format={esc:String,duration:String};
+ const entry={provider:'deezer',deezerId:'123',id:'aaaaaaaaaaa',sourceId:'s',title:'Song',channel:'Artist',duration:180,status:'review',candidates:[{id:'aaaaaaaaaaa',title:'Song',channel:'Artist',duration:180,score:100}]};const format={esc:String,duration:String};
  const html=syncEntryMarkup(entry,null,{name:'Deezer songs'},0,format);assert.match(html,/data-provider="deezer"/);assert.match(html,/deezer.com\/track\/123/);assert.doesNotMatch(html,/checked|Spotify/);assert.match(syncComparisonMarkup(entry,null,format),/Deezer entry/);assert.equal(syncEntryKey(entry),syncEntryKey({...entry,id:'bbbbbbbbbbb'}));
 });

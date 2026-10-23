@@ -1,4 +1,5 @@
 import {normalize,searchTitle,searchArtist,matchScore} from './metadata.mjs';
+const accessHelp='Only public playlists can be read without signing in. Private playlists are not supported. In Spotify, open the playlist’s ⋯ menu → Make public, then check again. A public link may also be temporarily unavailable.';
 export function spotifyPlaylistId(value){
  let url;try{url=new URL(String(value||'').trim());}catch{throw Error('Paste a public Spotify playlist link.');}
  const id=url.pathname.match(/^\/(?:intl-[a-z-]+\/)?playlist\/([A-Za-z0-9]{22})\/?$/)?.[1];
@@ -6,20 +7,20 @@ export function spotifyPlaylistId(value){
 }
 export function parseSpotifyPlaylist(html,id){
  const text=html.match(/<script\b[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];let entity;
- try{entity=JSON.parse(text).props.pageProps.state.data.entity;}catch{throw Error('Spotify did not expose this playlist. It may be private or temporarily unavailable.');}
- if(entity?.type!=='playlist'||entity.id!==id||!Array.isArray(entity.trackList))throw Error('Spotify returned an unsupported playlist page.');
+ try{entity=JSON.parse(text).props.pageProps.state.data.entity;}catch{throw Error('Spotify did not expose this playlist. '+accessHelp);}
+ if(entity?.type!=='playlist'||entity.id!==id||!Array.isArray(entity.trackList))throw Error('Spotify returned an unsupported playlist page. '+accessHelp);
  const tracks=entity.trackList.flatMap((t,index)=>{
-  const trackId=t.uri?.match(/^spotify:track:([A-Za-z0-9]{22})$/)?.[1];
+  const trackId=t?.uri?.match(/^spotify:track:([A-Za-z0-9]{22})$/)?.[1];
   if(!trackId||typeof t.title!=='string'||!t.title.trim())return [];
   return [{spotifyId:trackId,title:t.title.slice(0,500),artist:String(t.subtitle||'').replaceAll('\u00a0',' ').slice(0,500),duration:Number.isFinite(t.duration)?t.duration/1000:0,playlistIndex:index+1,spotifyUrl:'https://open.spotify.com/track/'+trackId}];
  });
- if(!tracks.length)throw Error('No public music tracks were exposed by Spotify. Private tracks and podcast episodes cannot be imported.');
+ if(!tracks.length)throw Error('No music tracks were exposed by Spotify. The playlist may be empty, private or contain only unsupported entries. '+accessHelp);
  return {title:String(entity.title||entity.name||'Spotify playlist').slice(0,200),tracks,url:'https://open.spotify.com/playlist/'+id,limited:entity.trackList.length>=100,skipped:entity.trackList.length-tracks.length};
 }
 export async function readSpotifyPlaylist(id,{fetchImpl=fetch,signal}={}){
  if(!/^[A-Za-z0-9]{22}$/.test(id))throw Error('Invalid Spotify playlist.');
  const response=await fetchImpl('https://open.spotify.com/embed/playlist/'+id,{signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000),redirect:'error',headers:{'User-Agent':'Resonance/1.0','Accept':'text/html'}});
- if(!response.ok)throw Error(`Spotify playlist unavailable (${response.status}). Check that it is public and try again later.`);
+ if(!response.ok)throw Error(`Spotify playlist unavailable (${response.status}). `+accessHelp);
  if(Number(response.headers.get('content-length'))>5e6)throw Error('Spotify response is too large.');
  const reader=response.body.getReader(),chunks=[];let size=0;try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>5e6)throw Error('Spotify response is too large.');chunks.push(value);}}finally{await reader.cancel();}
  return parseSpotifyPlaylist(Buffer.concat(chunks).toString('utf8'),id);

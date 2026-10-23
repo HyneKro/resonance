@@ -21,11 +21,13 @@ final class DownloadFailures {
         }return result;
     }
     static JSONArray preserve(JSONArray previous,JSONArray next) throws JSONException {
-        Map<String,JSONObject> failed=new HashMap<>();
-        for(int i=0;i<previous.length();i++){JSONObject item=previous.getJSONObject(i);if(!item.optString("skipReason").isEmpty())failed.put(identity(item),item);}
+        Map<String,JSONObject> failed=new HashMap<>(),reviewed=new HashMap<>();
+        for(int i=0;i<previous.length();i++){JSONObject item=previous.getJSONObject(i);if(!item.optString("skipReason").isEmpty())failed.put(identity(item),item);if(List.of("spotify","deezer").contains(item.optString("type"))&&item.optString("youtubeId").matches("[A-Za-z0-9_-]{11}"))reviewed.put(item.optString("sourceId")+":"+identity(item),item);}
         JSONArray result=new JSONArray();
         for(int i=0;i<next.length();i++){
             JSONObject entry=new JSONObject(next.getJSONObject(i).toString()),old=failed.get(identity(entry));
+            JSONObject choice=reviewed.get(entry.optString("sourceId")+":"+identity(entry));
+            if(choice!=null){for(String field:List.of("youtubeId","alternativeSelected","alternativeKind","selected"))if(choice.has(field))entry.put(field,choice.opt(field));}
             if(old!=null){for(String field:List.of("skipReason","skippedAt","failedVideoId"))entry.put(field,old.opt(field));entry.put("selected",false);}
             result.put(entry);
         }return result;

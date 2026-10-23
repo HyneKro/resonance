@@ -51,11 +51,8 @@ public final class Downloads {
                         JSONObject result=DeezerPlaylist.load(DeezerPlaylist.id(source.optString("url")),Research::json,()->cancelled);entries=result.getJSONArray("tracks");playlistName=result.optString("title",playlistName);
                     }else if(type.equals("spotify")){
                         String key=playlist(source.optString("url"),type).replaceAll(".*/playlist/([A-Za-z0-9]{22}).*","$1");
-                        String html=new String(Research.get("https://open.spotify.com/embed/playlist/"+key,5_000_000),StandardCharsets.UTF_8);
-                        Matcher match=Pattern.compile("<script[^>]*id=\"__NEXT_DATA__\"[^>]*>([\\s\\S]*?)</script>").matcher(html);
-                        if(!match.find())throw new IOException("Spotify did not expose this public playlist");
-                        JSONObject entity=new JSONObject(match.group(1)).getJSONObject("props").getJSONObject("pageProps").getJSONObject("state").getJSONObject("data").getJSONObject("entity");
-                        entries=entity.getJSONArray("trackList");playlistName=entity.optString("title",playlistName);
+                        JSONObject result=SpotifyPlaylist.load(key,url->new String(Research.get(url,5_000_000),StandardCharsets.UTF_8));
+                        entries=result.getJSONArray("tracks");playlistName=result.optString("title",playlistName);
                     }else{
                         YoutubeDLRequest req=new YoutubeDLRequest(playlist(source.optString("url"),type));req.addOption("--flat-playlist");req.addOption("--dump-single-json");req.addOption("--skip-download");req.addOption("--yes-playlist");req.addOption("--extractor-retries","3");req.addOption("--socket-timeout","20");req.addOption("--retries","2");YoutubeDLResponse response=executeResponse(req);JSONObject result=new JSONObject(response.getOut());entries=PlaylistScan.completeEntries(result,response.getErr());playlistName=result.optString("title",playlistName);
                     }
