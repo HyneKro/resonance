@@ -41,6 +41,18 @@ app.whenReady().then(async()=>{
  if(report.glow.ratio<1.03)throw Error('Emissive light has no visible bloom: '+JSON.stringify(report.glow));
  report.geometry=await run(fs.readFileSync(path.join(root,'tests/aerial-surface-probe.js'),'utf8'));
  if(report.geometry.spectralColour<.6||report.geometry.sixthTone<.4||report.geometry.deformation<.12||report.geometry.birthRadius>.0001||report.geometry.deathRadius>.0001||report.geometry.peakRadius<.005||report.geometry.maxRadiusStep>.004)throw Error('Sphere deformation or lifetime continuity failed: '+JSON.stringify(report.geometry));
+ report.currents=await run(fs.readFileSync(path.join(root,'tests/aerial-currents-probe.js'),'utf8'));
+ if(report.currents.longSessionStep>.002||report.currents.smallAdvance<.0001||report.currents.smallAdvance>.008||report.currents.wrapStep>.003)throw Error('Current phase snaps or does not move: '+JSON.stringify(report.currents));
+ report.currentLight=await run(`(()=>{
+  const gl=gpu.gl,t=gpu.targets[0],program=gpu.aerialCurrents;
+  const draw=percussion=>{const notes=new Float32Array(96).fill(.4);for(let i=0;i<24;i++)notes[i*4+2]=percussion;
+   gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+   gpu.use(program,{u_studio:[3600,0,1,0],u_currentPhase:new Float32Array(24).fill(1),u_aerialBands:notes});gl.drawArrays(gl.TRIANGLES,0,30*96*6);
+   const data=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,data);return data;};
+  const a=draw(.30),b=draw(.31);let change=0,energy=0;for(let i=0;i<a.length;i++){if(i%4===3)continue;change+=Math.abs(a[i]-b[i]);energy+=a[i];}
+  gl.disable(gl.BLEND);gl.depthMask(true);renderStyle(6);return {relativeChange:change/Math.max(1,energy),energy};
+ })()`);
+ if(report.currentLight.energy<=0||report.currentLight.relativeChange>.12)throw Error('Small percussion changes flicker the currents: '+JSON.stringify(report.currentLight));
  for(const [name,camera]of [['low',[0,-.46,0,0]],['side',[1.6,.2,0,0]],['high',[-1.5,1.1,0,0]]]){
   const delta=await run(`renderStyle(6);window.before=pixels();d.camera=${JSON.stringify(camera)};renderStyle(6);difference(before,pixels())`);if(delta<2)throw Error('Orbit has no depth: '+name);await shot(name);
  }

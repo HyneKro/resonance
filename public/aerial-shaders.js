@@ -4,6 +4,7 @@ const STUDIO=`
 uniform vec4 u_spheres[24];uniform float u_sphereCount,u_fluidPass;
 uniform vec4 u_camera,u_roles,u_light,u_studio,u_particle;uniform vec2 u_resolution;
 uniform vec4 u_bursts[12],u_aerialBands[24],u_aerialTone;uniform float u_burstPower[12],u_beadCount,u_beadDensity,u_currentSegments,u_currentGlobal;
+uniform float u_currentPhase[24],u_contacts[24];
 uniform vec2 u_aerial;uniform vec3 u_colorA,u_colorB,u_colorC,u_palette[6];uniform float u_focalLength,u_particleStyle,u_intensity,u_spectrumLight[48],u_spectrum[48],u_energy;
 mat2 turn(float a){return mat2(cos(a),sin(a),-sin(a),cos(a));}
 float tilt(){return clamp(u_camera.y,-.46,1.25)+.25;}
@@ -28,7 +29,8 @@ vec3 pigment(float id){
 }
 vec3 paper(){return mix(vec3(.016,.018,.022),vec3(.0015,.002,.003),u_aerial.y);}
 float band(float id){return detail(id).x;}
-vec3 shape(int id){if(id>=24)return vec3(1.);float i=float(id),t=u_studio.x;vec4 d=detail(i);vec3 q=sin(vec3(i*1.7,i*2.3+2.,i*.7+4.)+t*vec3(1.3,1.1,.9)+d.y*1.8);vec3 axes=vec3(1.)+q*(.018+d.x*.23+d.z*.08)+vec3(-.04,.08,-.04)*u_roles.x;axes.y=min(axes.y,max(.1,(u_spheres[id].y+1.8)/u_spheres[id].w));return axes;}
+float contact(float id){return u_contacts[int(id<24.?id:mod(id-24.,u_sphereCount))];}
+vec3 shape(int id){if(id>=24)return vec3(1.);float i=float(id),t=u_studio.x;vec4 d=detail(i);vec3 q=sin(vec3(i*1.7,i*2.3+2.,i*.7+4.)+t*vec3(1.3,1.1,.9)+d.y*1.8);vec3 axes=vec3(1.)+q*(.018+d.x*.23+d.z*.08)+vec3(-.04,.08,-.04)*u_roles.x+vec3(.035,-.075,.035)*contact(i);axes.y=min(axes.y,max(.1,(u_spheres[id].y+1.8)/u_spheres[id].w));return axes;}
 float envelope(float age,float life){return smoothstep(0.,.42,age)*(1.-smoothstep(life-1.,life,age));}
 float beadFade(int id){
  if(id<24)return 1.;float i=float(id-24);
@@ -91,8 +93,9 @@ vec3 surface(vec3 p,vec3 n,vec3 rd,int id){
  color+=(id<4?1.:0.)*(.5+.5*cos(vec3(0.,2.1,4.2)+nv*9.+flow*.6))*(.03+f*.22);
  vec3 tint=pigment(float(id));float reactive=b*2.5+notes.z*1.4+u_roles.x*.6+u_roles.z*.45+u_studio.y*.7*u_light.z;
  float filaments=pow(.5+.5*sin(flow*3.+local.y*35.-t*2.2+notes.y*5.),16.);
- float cells=pow(noise(local*42.+vec3(t*.3,-t*.4,t*.2)),8.),wave=pressure(p);
- color+=tint*(f*f*(.10+reactive*.55)+stone*vein*(.03+b*.65)+filaments*(.025+notes.y*.18)+cells*notes.z*2.+wave*(.25+f*.9));
+ float cells=pow(noise(local*42.+vec3(t*.3,-t*.4,t*.2)),8.),wave=pressure(p),impact=contact(float(id));
+ float latitude=pow(.5+.5*cos(n.y*20.+flow*.7),10.);
+ color+=tint*(f*f*(.10+reactive*.55)+stone*vein*(.03+b*.65)+filaments*(.025+notes.y*.18)+cells*notes.z*2.+wave*(.25+f*.9)+impact*(f*.7+latitude*.35+cells*.8));
  color=mix(color,tint*(.18+reactive*2.5)*(.48+.35*nv+filaments*.30)+vec3(spec)*.15,clamp(emissive,0.,1.));
  color+=base*u_roles.x*.18+refl*u_roles.y*.14;
  float grain=hash(floor(p.x*440.)+floor(p.y*440.)*17.+floor(p.z*440.)*31.);
@@ -124,7 +127,7 @@ ${STUDIO}
 void main(){
  int id=gl_VertexID/6,corner=gl_VertexID%6;v_id=id;
  vec2 q=corner==0?vec2(-1.,-1.):corner==1?vec2(1.,-1.):corner==2?vec2(-1.,1.):corner==3?vec2(-1.,1.):corner==4?vec2(1.,-1.):vec2(1.,1.);
- vec4 s=sphere(id);s.w*=1.38;
+ vec4 s=sphere(id);s.w*=1.46;
  if(u_fluidPass>.5){vec3 lo=vec3(100.),hi=vec3(-100.);for(int i=0;i<4;i++){lo=min(lo,u_spheres[i].xyz-u_spheres[i].w-.3);hi=max(hi,u_spheres[i].xyz+u_spheres[i].w+.3);}s=vec4((lo+hi)*.5,length(hi-lo)*.5);}
  vec3 c=view(s.xyz)-camera();float depth=-c.z,bound=s.w*lens()/max(.2,depth-s.w)*(1.+length(c.xy)/max(.2,depth));
  vec2 xy=c.xy*lens()/max(.2,depth)+q*bound;xy.y+=.025;xy.x/=u_resolution.x/u_resolution.y;gl_Position=vec4(xy,0.,1.);
@@ -150,11 +153,12 @@ void main(){
 export const AERIAL_CURRENT_VERTEX=`#version 300 es
 precision highp float;out vec2 v_current;flat out float v_stream;
 ${STUDIO}
-vec3 current(float id,float x){float t=u_studio.x;
- if(id>=u_currentGlobal){float strand=id-u_currentGlobal,body=floor(strand/2.);int i=int(body);vec4 s=u_spheres[i],d=detail(body);float angle=x*6.283+t*(.3+d.z*.9)+body*1.4,polar=.8+mod(strand,2.)*1.4+sin(angle*3.+t+d.y*3.)*(.14+d.x*.24);vec3 n=vec3(cos(angle)*sin(polar),cos(polar),sin(angle)*sin(polar));return s.xyz+n*shape(i)*(s.w*1.018+.012);}
- float angle=x*5.2+id*1.71+t*(.16+id*.013),r=1.6+id*.20+sin(x*12.+t+id)*(.18+u_roles.x*.30);return vec3(cos(angle)*r,-.25+sin(x*9.4+id*1.3+t*.38)*(.55+u_roles.z*.65),sin(angle)*r*.6);}
-void main(){int corner=gl_VertexID%6,segment=gl_VertexID/6;float stream=floor(float(segment)/u_currentSegments),index=mod(float(segment),u_currentSegments);float end=corner==1||corner==4||corner==5?1.:0.,side=corner==0||corner==1||corner==4?-1.:1.;float x=(index+end)/u_currentSegments;vec3 p=current(stream,x),tangent=normalize(current(stream,x+.001)-p),across=normalize(cross(tangent,normalize(eye()-p)));p+=across*side*(.0018+u_roles.x*.0015+band(stream)*.002);vec3 c=view(p)-camera();float depth=max(.1,-c.z);vec2 xy=c.xy*lens()/depth;xy.y+=.025;xy.x/=u_resolution.x/u_resolution.y;gl_Position=vec4(xy,1.002002-.2002002/depth,1.);v_current=vec2(x,side);v_stream=stream;}`;
+// Only integrated, periodic phases drive travel; music never multiplies elapsed time.
+vec3 current(float id,float x){
+ if(id>=u_currentGlobal){float strand=id-u_currentGlobal,body=floor(strand/2.);int i=int(body);float phase=u_currentPhase[i];vec4 s=u_spheres[i],d=detail(body);float angle=x*6.283+phase+body*1.4,polar=.8+mod(strand,2.)*1.4+sin(angle*3.+phase+d.y*.5)*(.12+d.x*.14);vec3 n=vec3(cos(angle)*sin(polar),cos(polar),sin(angle)*sin(polar));return s.xyz+n*shape(i)*(s.w*1.018+.012);}
+ float phase=u_currentPhase[int(id)],angle=x*5.2+id*1.71+phase,r=1.6+id*.20+sin(x*12.+phase*2.+id)*(.18+u_roles.x*.20);return vec3(cos(angle)*r,-.25+sin(x*9.4+id*1.3+phase*2.)*(.55+u_roles.z*.45),sin(angle)*r*.6);}
+void main(){int corner=gl_VertexID%6,segment=gl_VertexID/6;float stream=floor(float(segment)/u_currentSegments),index=mod(float(segment),u_currentSegments);float end=corner==1||corner==4||corner==5?1.:0.,side=corner==0||corner==1||corner==4?-1.:1.;float x=(index+end)/u_currentSegments;vec3 p=current(stream,x),tangent=normalize(current(stream,x+.001)-p),across=normalize(cross(tangent,normalize(eye()-p)));vec3 c=view(p)-camera();float depth=max(.1,-c.z),width=max(.0018+u_roles.x*.0007+band(stream)*.0015,1.5*depth/(lens()*u_resolution.y));p+=across*side*width;c=view(p)-camera();vec2 xy=c.xy*lens()/depth;xy.y+=.025;xy.x/=u_resolution.x/u_resolution.y;gl_Position=vec4(xy,1.002002-.2002002/depth,1.);v_current=vec2(x,side);v_stream=stream;}`;
 export const AERIAL_CURRENT_FRAGMENT=`#version 300 es
 precision highp float;in vec2 v_current;flat in float v_stream;out vec4 fragColor;
 ${STUDIO}
-void main(){float body=v_stream<u_currentGlobal?v_stream:floor((v_stream-u_currentGlobal)/2.);vec4 d=detail(body);float pulse=pow(.5+.5*sin(v_current.x*26.-u_studio.x*(2.+d.z*3.)+v_stream),8.),fade=pow(max(0.,1.-v_current.y*v_current.y),1.5)*smoothstep(0.,.10,v_current.x)*(1.-smoothstep(.90,1.,v_current.x));vec3 color=pigment(body+2.)*(.025+pulse*(.25+d.x*2.4+d.z)+d.y*.18)*fade;fragColor=vec4(color,0.);}`;
+void main(){float body=v_stream<u_currentGlobal?v_stream:floor((v_stream-u_currentGlobal)/2.);vec4 d=detail(body);float phase=u_currentPhase[int(body)],pulse=pow(.5+.5*sin(v_current.x*18.-phase*2.+v_stream),3.),fade=(1.-smoothstep(.35,1.,abs(v_current.y)))*smoothstep(0.,.10,v_current.x)*(1.-smoothstep(.90,1.,v_current.x));vec3 color=pigment(body+2.)*(.06+pulse*(.18+d.x*1.25+d.z*.25)+d.y*.14)*fade;fragColor=vec4(color,0.);}`;

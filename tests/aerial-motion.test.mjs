@@ -42,10 +42,10 @@ test('percussion drives a continuous response instead of a one-frame radius jump
  for(let i=0;i<1800;i++){
   const t=i/60,pulse=t%.48<.035?1:0;m.update(t,{...playing,onset:pulse,roles:{bass:.6,lead:.7,drums:pulse}});
   largest=Math.max(largest,Math.abs(m.hit-previous));previous=m.hit;
-  world.update(m.simulationClock,{bass:m.roles[0],lead:m.roles[2],drums:m.roles[1],onset:m.hit},{continuous:true,detail:m.detail});
+  world.update(m.simulationClock,{bass:m.roles[0],lead:m.roles[2],drums:m.roles[1],onset:m.hit},{continuous:true,detail:m.detail,drive:m.drive});
   for(let j=0;j<24;j++){const k=j*4;largestBody=Math.max(largestBody,Math.hypot(...[0,1,2].map(a=>world.rendered[k+a]-positions[k+a])));}positions.set(world.rendered);
  }
- assert.ok(largest<.08,'The old instantaneous hit was 1.0');assert.ok(largestBody<.04);assert.ok(m.emitted>10);
+ assert.ok(largest<.08,'The old instantaneous hit was 1.0');assert.ok(largestBody<.05);assert.ok(m.emitted>10);
 });
 
 test('local frequency, harmonic and percussion envelopes retain different band identities',()=>{
@@ -61,4 +61,19 @@ test('spectral colour balance changes strongly with timbre while silence holds i
  const low=tone(4),high=tone(40);assert.ok(high.tone[0]-low.tone[0]>.7);
  const hue=low.tone[0];advance(low,4,{...playing,active:false});assert.ok(Math.abs(low.tone[0]-hue)<.01);
  const held=[...high.tone,...high.detail];advance(high,1,{...playing,reduced:true});assert.deepEqual([...high.tone,...high.detail],held);
+});
+
+test('currents integrate a slow musical phase and retain it through track changes and freeze',()=>{
+ const m=new AerialMotion();m.update(0,playing);advance(m,3);const before=m.currentPhase.slice();advance(m,1);
+ for(let i=0;i<24;i++)assert.ok(m.currentPhase[i]-before[i]>.04&&m.currentPhase[i]-before[i]<.12);
+ const held=m.currentPhase.slice();m.beginTrack();assert.deepEqual(m.currentPhase,held);advance(m,1,{...playing,hold:true});assert.deepEqual(m.currentPhase,held);
+ advance(m,8,{...playing,active:false});const resting=m.currentPhase.slice();advance(m,1,{...playing,active:false});for(let i=0;i<24;i++)assert.ok(m.currentPhase[i]-resting[i]>.01&&m.currentPhase[i]-resting[i]<.015);
+});
+
+test('bass excites short lift while loudness spreads the sculpture without a bass jump',()=>{
+ const m=new AerialMotion(),quiet={...playing,energy:0,roles:{}};m.update(0,quiet);advance(m,2,quiet);advance(m,.3,{...quiet,roles:{bass:.9}});
+ assert.ok(m.drive[0]>.6);assert.ok(m.drive[1]<.001);assert.ok(m.drive[3]<.9);
+ advance(m,3,{...quiet,roles:{bass:.9}});assert.ok(m.drive[0]<.06,'A held bass note must not repeatedly launch every sphere');
+ const loud=new AerialMotion();loud.update(0,quiet);advance(loud,.5,{...quiet,energy:.95});assert.ok(loud.drive[1]>.35&&loud.drive[2]>.5);assert.ok(loud.drive[0]<.001);
+ const held=loud.drive.slice();advance(loud,1,{...quiet,reduced:true});assert.deepEqual(loud.drive,held);advance(loud,5,{...quiet,active:false});assert.ok(loud.drive[1]<.01&&loud.drive[2]<.01&&loud.drive[3]>.99);
 });

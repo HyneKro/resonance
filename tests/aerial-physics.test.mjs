@@ -82,3 +82,22 @@ test('zero merging makes central lobes collide as solid bodies',()=>{
  const w=new AerialPhysics();w.update(0);for(let i=1;i<=1200;i++)w.update(i/120,{bass:.5,lead:.6,drums:i%60<4?1:0},{liquid:0});
  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const p=w.positions,a=i*4,b=j*4;assert.ok(Math.hypot(p[a]-p[b],p[a+1]-p[b+1],p[a+2]-p[b+2])>=(p[a+3]+p[b+3])*.97);}
 });
+
+test('controlled bass lifts and loudness pushes are visible, bounded and settle under gravity',()=>{
+ const make=()=>{const w=new AerialPhysics(8);for(let i=0;i<8;i++){const p=[(i%4-1.5)*1.2,-.55,Math.floor(i/4)*1.2-.6,.18];w.positions.set(p,i*4);w.anchors.set(p.slice(0,3),i*3);}w.previous.set(w.positions);w.rendered.set(w.positions);w.update(0);return w;};
+ const base=make(),jump=make(),spread=make();let lift=0,expansion=0;
+ for(let i=1;i<=120*6;i++){
+  const active=i>120&&i<=156;for(const [w,drive]of [[base,[0,0,0,1]],[jump,active?[.65,0,0,.65]:[0,0,0,1]],[spread,active?[0,.7,.6,1]:[0,0,0,1]]])w.update(i/120,{}, {continuous:true,drive});
+  if(i>120&&i<360){lift=Math.max(lift,jump.positions[17]-base.positions[17]);expansion=Math.max(expansion,Math.abs(spread.positions[16])-Math.abs(base.positions[16]));}
+ }
+ assert.ok(lift>.12&&lift<.65,`lift ${lift}`);assert.ok(expansion>.07&&expansion<.5,`expansion ${expansion}`);
+ assert.ok(Math.abs(jump.positions[17]-base.positions[17])<.06);assert.ok(Math.abs(spread.positions[16]-base.positions[16])<.06);
+ for(const w of [base,jump,spread])assert.ok(w.positions.every(Number.isFinite));
+});
+
+test('real contacts create a smooth material response instead of a one-frame flash',()=>{
+ const w=new AerialPhysics(8);w.positions.set([-.25,0,0,.2],16);w.positions.set([.10,0,0,.2],20);w.velocities[12]=1;w.velocities[15]=-1;w.update(0);w.update(1/120,{}, {continuous:true,liquid:0});
+ assert.ok(w.contacts[4]>0&&w.contacts[4]<.05);let previous=w.contacts.slice(),largest=0,peak=0;
+ for(let i=2;i<=120;i++){w.update(i/120,{}, {continuous:true,liquid:0});for(let j=0;j<8;j++){largest=Math.max(largest,Math.abs(w.contacts[j]-previous[j]));peak=Math.max(peak,w.contacts[j]);}previous.set(w.contacts);}
+ assert.ok(peak>.08);assert.ok(largest<.08);const held=w.contacts.slice();w.update(1.1,{}, {reduced:true});assert.deepEqual(w.contacts,held);w.reset();assert.ok(w.contacts.every(x=>x===0));
+});
