@@ -1,8 +1,9 @@
 import {COMMON} from './scene-shaders.js';
 
 const HISTORY=`float history(float lane,float age){
- float x=clamp(lane,0.,1.)*47.,row=max(0.,clamp(age,0.,1.)*126.-u_historyPhase);int i=int(x),r=int(row),head=int(u_historyHead);
- int a=(head-r+128)%128,b=(a+127)%128;
+ int height=textureSize(u_history,0).y;
+ float x=clamp(lane,0.,1.)*47.,row=max(0.,clamp(age,0.,1.)*float(height-2)-u_historyPhase);int i=int(x),r=int(row),head=int(u_historyHead);
+ int a=(head-r+height)%height,b=(a+height-1)%height;
  float young=mix(texelFetch(u_history,ivec2(i,a),0).r,texelFetch(u_history,ivec2(min(i+1,47),a),0).r,smoothstep(0.,1.,fract(x)));
  float old=mix(texelFetch(u_history,ivec2(i,b),0).r,texelFetch(u_history,ivec2(min(i+1,47),b),0).r,smoothstep(0.,1.,fract(x)));
  return mix(young,old,fract(row));
@@ -13,7 +14,7 @@ const HISTORY=`float history(float lane,float age){
 const PROJECTION=`
 vec3 fluxView(vec3 p){p.xz=rot(u_camera.x)*p.xz;p.yz=rot(u_camera.y)*p.yz;p.xy=rot(u_camera.w)*p.xy;return p;}
 vec4 fluxClip(vec3 p){
- p=fluxView(p);float depth=7.8+u_camera.z*.26-p.z;
+ p=fluxView(p);float depth=7.15+max(0.,clamp(u_particle.x,.55,1.45)-1.1)*3.5+u_camera.z*.26-p.z;
  return vec4(p.xy*vec2((1.9+(u_focalLength-1.9)*.1)*1.03/(u_resolution.x/u_resolution.y),(1.9+(u_focalLength-1.9)*.1)*1.03),depth*1.002002-.2002002,depth);
 }
 vec3 fluxFit(vec3 p){p.x*=min(1.,u_resolution.x/u_resolution.y/.95);return p*clamp(u_particle.x,.55,1.45);}
@@ -23,7 +24,7 @@ vec3 fluxTone(float lane,float amplitude){
  return mix(tone,vec3(.80,.95,1.),pow(amplitude,2.)*.38);
 }`;
 
-// Frequency remains left-to-right; depth is four seconds of measured audio.
+// Frequency remains left-to-right; depth is eight seconds of measured audio.
 // All filaments and particles share these coordinates.
 const SURFACE=`
 float fluxAmplitude(float lane,float level){return pow(level,.78)*smoothstep(0.,.045,lane)*(1.-smoothstep(.955,1.,lane));}
@@ -32,7 +33,7 @@ vec3 fluxSurface(float lane,float age,float amplitude,float underside){
  float swirl=sin(lane*17.-t*.30+age*9.+sin(lane*6.+t*.17))*.12+sin(lane*43.+age*19.-t*.4)*.024;
  float twist=sin(lane*15.+age*17.-t*.18)*(.015+amplitude*(.08+u_roles.z*.035))*u_movement;
  float y=mix(-.48+crest+swirl*amplitude*u_movement+age*.65,-.48-crest*.42-age*.17,underside)+twist;
- return vec3((lane-.5)*6.6+sin(age*6.+t*.12)*age*.16*u_movement,y,2.15-age*4.4-underside*.18);
+ return vec3((lane-.5)*6.6+sin(age*6.+t*.12)*age*.16*u_movement,y,2.5-age*5.-underside*.18);
 }`;
 
 export const FLUX_VERTEX=`#version 300 es
@@ -47,24 +48,27 @@ ${SURFACE}
 void main(){
  float lane=a_seed.x,seed=a_seed.w,t=u_fluxClock,age=pow(a_seed.y,1.45);
  float level=history(lane,age),amplitude=fluxAmplitude(lane,level);
- float underside=step(seed,.24),bright=.04+amplitude*.22,fade=.20+.80*pow(1.-age,1.5);
+ float underside=step(seed,.24),bright=.06+amplitude*.55,fade=.14+.86*pow(1.-age,.9);
  vec3 p=fluxSurface(lane,age,amplitude,underside);v_kind=0.;v_soft=0.;
  if(underside>.5)bright*=.40;
  if(u_layer<.5){
   float strand=floor(a_seed.z*38.);
   p.y+=sin(a_seed.z*TAU+lane*9.-t*.18)*(.028+amplitude*.12)*u_movement;
   float glint=pow(.5+.5*sin(lane*110.+strand*2.-t*.5),18.);
-  bright*=.50+glint*.7;bright+=pow(1.-age,28.)*amplitude*.10;
+  bright*=.55+glint*.9;bright+=pow(1.-age,28.)*amplitude*.25;
   v_kind=step(.975,seed);
  }else if(u_layer<1.5){
-  float lift=pow(a_seed.z,2.)*(.10+amplitude*(.6+u_roles.y*u_movement*.7));
+  // Fragments detach only behind the recent ridge and only from strong peaks.
+  // Their depth never advances ahead of the sample that emitted them.
+  float detach=smoothstep(.065+seed*.04,.17+seed*.04,age);
+  float lift=detach*pow(a_seed.z,2.)*(.05+amplitude*(.34+u_roles.y*u_movement*.20));
   p.y+=(seed>.5?1.:-1.)*lift;p.x+=sin(lane*37.+age*9.+t*.45)*lift*.16*u_movement;
-  p.z+=(seed-.5)*1.6;bright*=.14+.25*pow(seed,5.);v_kind=step(.90,seed);
+  p.z-=detach*a_seed.z*.28;bright*=(.12+.35*pow(seed,5.))*detach*step(.68,seed)*smoothstep(.18,.5,amplitude);v_kind=step(.90,seed);
  }else{
   lane=floor(lane*192.)/191.;age=floor(a_seed.y*32.)/32.;level=history(lane,age);amplitude=fluxAmplitude(lane,level);
   p=fluxSurface(lane,age,amplitude,0.);p.y=mix(-.48+age*.65,p.y,a_seed.z);
   float light=u_spectrumLight[int(clamp(lane,0.,1.)*47.)];
-  bright=(.010+amplitude*.023+light*.075)*(.4+u_roles.y*u_movement*.5);v_kind=2.;
+  bright=(.012+amplitude*.045+light*.13)*(.4+u_roles.y*u_movement*.5);v_kind=2.;
  }
  v_color=fluxTone(lane,amplitude);
  if(u_layer>.5&&u_layer<1.5&&seed>.91&&u_particleStyle>.5)v_color=mix(v_color,vec3(1.,.56,.25),.65);
@@ -88,18 +92,7 @@ void main(){vec2 p=gl_PointCoord*2.-1.;float r=length(p),a;
 export const FLUX_BACKGROUND=`#version 300 es
 precision highp float;
 in vec2 v_uv;out vec4 fragColor;
-uniform vec2 u_resolution;uniform vec3 u_colorA,u_colorB;uniform vec4 u_roles,u_camera;uniform float u_movement,u_focalLength;
-mat2 turn(float a){return mat2(cos(a),-sin(a),sin(a),cos(a));}
-void main(){
- vec2 p=(v_uv*2.-1.)*vec2(u_resolution.x/u_resolution.y,1.);
- vec3 ray=normalize(vec3(p/((1.9+(u_focalLength-1.9)*.1)*1.03),-1.));
- ray.xy=turn(-u_camera.w)*ray.xy;ray.yz=turn(-u_camera.y)*ray.yz;ray.xz=turn(-u_camera.x)*ray.xz;
- float veil=exp(-pow(ray.y+.07,2.)*24.)*(.5+.5*pow(abs(ray.z),3.));
- vec3 tint=mix(vec3(.025,.12,.18),u_colorA*.18,.45);
- vec3 color=vec3(.002,.004,.008)+tint*veil*(.13+u_roles.z*.025*u_movement);
- color+=u_colorB*.008*pow(max(0.,dot(ray,normalize(vec3(-.6,.3,-1.)))),8.);
- fragColor=vec4(color,1.);
-}`;
+void main(){fragColor=vec4(0.,0.,0.,1.);}`;
 
 // Sparse world-space motes are separate from measured history, leaving only
 // a quiet sense of space when silence clears the wave.
@@ -126,7 +119,7 @@ export const FLUX_TRACE_VERTEX=`#version 300 es
 precision highp float;
 ${COMMON}
 uniform highp sampler2D u_history;uniform float u_historyHead,u_historyPhase,u_fluxClock,u_traceRows,u_crossTrace;
-out vec3 v_color;out float v_alpha,v_edge;
+out vec3 v_color;out float v_alpha,v_edge;out vec2 v_detail;
 ${HISTORY}
 ${PROJECTION}
 ${SURFACE}
@@ -150,11 +143,17 @@ void main(){
  float lane=mix(lane0,lane1,o.x),age=mix(age0,age1,o.x),level=mix(level0,level1,o.x),amplitude=fluxAmplitude(lane,level);
  v_color=fluxTone(lane,amplitude);
  float visibility=smoothstep(.2,.8,min(a.w,b.w));
- v_alpha=(.055+amplitude*.34)*(.20+.80*pow(1.-age,2.))*smoothstep(.002,.04,level)*visibility;
+ v_alpha=(.09+amplitude*.85)*(.14+.86*pow(1.-age,1.2))*smoothstep(.002,.04,level)*visibility;
  v_alpha*=u_crossTrace>.5?.30:strand<2.?1.65:.6+.4*pow(.5+.5*sin(lane*60.+strand-u_fluxClock*.3),8.);
- v_alpha*=clamp(.7+u_light.y*.3,.3,1.4);v_edge=side;
+ v_alpha*=clamp(.7+u_light.y*.3,.3,1.4);v_edge=side;v_detail=vec2(lane,age);
 }`;
 export const FLUX_TRACE_FRAGMENT=`#version 300 es
-precision mediump float;
-in vec3 v_color;in float v_alpha,v_edge;out vec4 fragColor;
-void main(){float a=v_alpha*exp(-v_edge*v_edge*4.);fragColor=vec4(v_color*a,a);}`;
+precision highp float;
+in vec3 v_color;in float v_alpha,v_edge;in vec2 v_detail;out vec4 fragColor;
+uniform float u_fluxClock;uniform vec4 u_particle;
+void main(){
+ float core=exp(-v_edge*v_edge*24.),halo=exp(-v_edge*v_edge*3.);
+ float bead=pow(.5+.5*sin(v_detail.x*230.+v_detail.y*71.-u_fluxClock*2.4),28.);
+ float thread=.70+core*(.40+bead*.75*clamp(u_particle.w,0.,2.));
+ float a=v_alpha*halo*thread;fragColor=vec4(v_color*a+vec3(core*bead*v_alpha*.07),a);
+}`;

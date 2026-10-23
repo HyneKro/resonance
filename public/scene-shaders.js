@@ -363,7 +363,12 @@ if(u_artDirection>6.5){
  vec3 hue=pow(max(vec3(0.),radiance/max(.0001,peak)),vec3(.65));
  return mix(mapped,mapped*hue,smoothstep(.6,2.5,peak)*.45)+highlights;
 }
-if(u_artDirection>4.5&&u_artDirection<5.5)return pow(film(texture(u_image,uv).rgb+cloud+texture(u_bloom,uv).rgb*u_light.x*.65),vec3(.454545))+highlights;
+if(u_artDirection>4.5&&u_artDirection<5.5){
+ vec3 radiance=texture(u_image,uv).rgb+cloud+texture(u_bloom,uv).rgb*u_light.x*2.2;
+ float peak=max(radiance.r,max(radiance.g,radiance.b));vec3 mapped=pow(film(radiance),vec3(.454545));
+ vec3 hue=pow(max(vec3(0.),radiance/max(.0001,peak)),vec3(.65));
+ return mix(mapped,mapped*hue,smoothstep(.7,2.5,peak)*.35)+highlights;
+}
 if(u_artDirection>1.5&&u_artDirection<2.5)return pow(film(texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x*.75),vec3(.454545))+highlights;
 if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
 if(u_artDirection>3.5&&u_artDirection<4.5){
@@ -444,7 +449,7 @@ void main(){
 vec2 uv=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float r=length(uv);
  color*=1.-smoothstep(.4,.85,length(v_uv-.5))*((u_artDirection>3.5&&u_artDirection<4.5)||(u_artDirection>5.5&&u_artDirection<6.5)?.08:.4);
  float contrast=u_artDirection>.5?1.+(u_light.w-1.)*.20:u_light.w;
- color=clamp((color-.18)*contrast+.18,0.,mix(1.,1.8,u_hdrOutput));
+ color=u_artDirection>4.5&&u_artDirection<5.5?pow(max(color,vec3(0.)),vec3(contrast)):clamp((color-.18)*contrast+.18,0.,mix(1.,1.8,u_hdrOutput));
  color=mix(vec3(.015,.019,.028),color,u_styleOpacity);
  // Perceptual HDR transport keeps 204 code values below paper white.
  // The old linear-log transport collapsed dark gradients to a handful of steps.

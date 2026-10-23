@@ -23,8 +23,8 @@ app.whenReady().then(async()=>{
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
-  gpu.historyTrack=d.trackId;for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,Float32Array.from(features.spectrum,(x,k)=>x*(.6+.4*Math.sin(k*.35+i*.055)**2)));
-  d.spectrumClock=127/30;
+  gpu.historyTrack=d.trackId;for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,Float32Array.from(features.spectrum,(x,k)=>x*(.6+.4*Math.sin(k*.35+i*.055)**2)));
+  d.spectrumClock=(gpu.spectrumHistory.height-1)/30;
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
  for(const [index,name]of ['resonance','noctiluca','afterglow','astra','contour','flux','aerial','synapse'].entries()){
@@ -161,7 +161,7 @@ app.whenReady().then(async()=>{
    const centroid=(band)=>{
     const tone=new Float32Array(48);for(let k=0;k<48;k++)tone[k]=.8*Math.exp(-Math.pow((k-band)/2.,2.));
     input.features={...savedFeatures,spectrum:tone};gpu.spectrumHistory.reset();
-    for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,tone);d.spectrumClock=127/30;renderStyle(5);
+    for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,tone);d.spectrumClock=(gpu.spectrumHistory.height-1)/30;renderStyle(5);
     const target=gpu.targets[0];gpu.bind(target);const px=new Float32Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gl.FLOAT,px);
     let sum=0,x=0;for(let i=0;i<px.length;i+=4){const e=px[i]+px[i+1]+px[i+2];sum+=e;x+=e*((i/4)%target.w);}return {x:x/Math.max(.0001,sum),sum};
    };

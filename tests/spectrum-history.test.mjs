@@ -27,3 +27,17 @@ test('spectrogram sample cadence is independent of display FPS and rejects inval
  const h=new SpectrumHistory();h.update(0,[Infinity,NaN,-2,7]);assert.deepEqual(Array.from(h.data.slice(0,5)),[0,0,0,255,0]);
  assert.equal(h.update(NaN,[]),false);
 });
+
+test('Flux retains eight seconds of measured history without extending the road history',()=>{
+ const flux=new SpectrumHistory(256),road=new SpectrumHistory(),tone=new Float32Array(48);tone[19]=.9;
+ for(const h of [flux,road])h.update(0,tone);
+ const silent=new Float32Array(48);
+ for(let frame=1;frame<=180;frame++)for(const h of [flux,road])h.update(frame/30,silent);
+ assert.equal(flux.data.length,48*256);assert.equal(road.data.length,48*128);
+ assert.ok(flux.data.some(x=>x>0),'A six-second-old note must still be present');
+ assert.ok(road.data.every(x=>x===0),'The road keeps its existing history duration');
+ const held=flux.data.slice(),head=flux.head;flux.update(6,silent);assert.deepEqual(flux.data,held);assert.equal(flux.head,head);
+ for(let frame=181;frame<=285;frame++)flux.update(frame/30,silent);
+ assert.ok(flux.data.every(x=>x===0),'Silence eventually drains the entire longer trail');
+ assert.ok(flux.head>=0&&flux.head<256);
+});

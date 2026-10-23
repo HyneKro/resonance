@@ -23,17 +23,17 @@ app.whenReady().then(async()=>{
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
-  gpu.historyTrack=d.trackId;for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,Float32Array.from(features.spectrum,(x,k)=>x*(.6+.4*Math.sin(k*.35+i*.055)**2)));
-  d.spectrumClock=127/30;
+  gpu.historyTrack=d.trackId;for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,Float32Array.from(features.spectrum,(x,k)=>x*(.6+.4*Math.sin(k*.35+i*.055)**2)));
+  d.spectrumClock=(gpu.spectrumHistory.height-1)/30;
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
- const report=[];
+ const report=[],detail={};
  await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{
   let x=0;for(const [band,speed]of [[7,.8],[18,-.4],[30,.6],[41,-.7]])x+=(.30+.30*Math.sin(t*speed+band)**2)*Math.exp(-Math.pow((k-band-Math.sin(t*speed)*2)/2.6,2));
   return Math.min(.9,x);
  });gpu.spectrumHistory.reset();gpu.historyTrack=d.trackId;
- for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));
- d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};input.time=12;d.roles={bass:.55,lead:.5,drums:.45,texture:.2};
+ for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));
+ d.spectrumClock=(gpu.spectrumHistory.height-1)/30;input.features={...input.features,spectrum:sampleSpectrum((gpu.spectrumHistory.height-1)/30)};input.time=12;d.roles={bass:.55,lead:.5,drums:.45,texture:.2};
  window.measure=()=>{const gl=gpu.gl,t=gpu.targets[0];gpu.bind(t);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);let sum=0,edge=0,lit=0;for(let i=0;i<p.length;i+=4){const e=p[i]+p[i+1]+p[i+2],x=(i/4)%t.w,y=Math.floor(i/4/t.w);if(!Number.isFinite(e))throw Error('Nonfinite Flux');sum+=e;if(e>.025)lit++;if(x<2||y<2||x>=t.w-2||y>=t.h-2)edge+=e;}return {sum,lit,edgeFraction:edge/Math.max(sum,.001)};};void 0;`);
  for(const [name,camera]of [['front',[0,0,0,0]],['quarter',[.6,.38,0,0]],['side',[Math.PI/2,0,0,0]],['rear',[Math.PI,0,0,0]],['top',[0,Math.PI/2,0,0]],['below',[.5,-Math.PI/2,0,0]],['zoom',[.8,.6,-3.7,.1]]]){
   await run(`d.camera=${JSON.stringify(camera)};d.appearance.particleSpread=${name==='zoom'?1.6:1.15};d.cameraFocalLength=${name==='zoom'?1.23:1.9};renderStyle(5);`);
@@ -41,11 +41,30 @@ app.whenReady().then(async()=>{
   await new Promise(r=>setTimeout(r,65));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
  await run(`d.camera=[.6,.38,0,0];d.appearance.particleSpread=1.15;d.cameraFocalLength=1.9;renderStyle(5);window.fixed=measure();window.fixedHistory=gpu.spectrumHistory.data.slice();window.fixedHead=gpu.spectrumHistory.head;input.time+=300;gpu.draw(input);if(Math.abs(measure().sum-fixed.sum)>.01||fixedHistory.some((v,i)=>v!==gpu.spectrumHistory.data[i])||fixedHead!==gpu.spectrumHistory.head)throw Error('Flux reads wall time while paused');`);
+ detail.debris=await run(`(()=>{
+  const gl=gpu.gl,h=gpu.spectrumHistory,stored=h.data.slice(),head=h.head,draw=gl.drawArrays.bind(gl);
+  gl.drawArrays=(mode,first,count)=>{const program=gl.getParameter(gl.CURRENT_PROGRAM);if(program===gpu.fluxTrace.program)return;if(program===gpu.fluxPoints.program&&gl.getUniform(program,gpu.location(gpu.fluxPoints,'u_layer'))!==1)return;draw(mode,first,count);};
+  const fill=(start,end)=>{h.head=0;h.data.fill(0);for(let r=start;r<end;r++)h.data.fill(230,((h.height-r)%h.height)*48,((h.height-r)%h.height+1)*48);gpu.historyVersion=-1;renderStyle(5);return measure().sum;};
+  let recent,older;try{recent=fill(0,10);older=fill(58,88);}finally{gl.drawArrays=draw;h.data.set(stored);h.head=head;gpu.historyVersion=-1;renderStyle(5);}
+  return {recent,older};
+ })()`);
+ if(detail.debris.recent>.001||detail.debris.older<1)throw Error('Fragments must follow the wave: '+JSON.stringify(detail.debris));
+ detail.glow=await run(`(()=>{
+  const gl=gpu.gl,energy=()=>{gpu.bind(null);const p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return p.reduce((s,v,i)=>i%4===3?s:s+v,0);};
+  renderStyle(5);const on=energy(),saved=d.appearance.bloom;d.appearance.bloom=0;renderStyle(5);const off=energy();d.appearance.bloom=saved;renderStyle(5);return {on,off,ratio:on/off};
+ })()`);
+ if(detail.glow.ratio<1.08)throw Error('Flux halo is too restrained: '+JSON.stringify(detail.glow));
  await run(`window.backgroundEnergy=()=>{const t=gpu.targets[3],gl=gpu.gl;gpu.bind(t);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p.reduce((sum,v,i)=>i%4===3?sum:sum+v,0);};window.backLit=backgroundEnergy();d.appearance.orbit=0;renderStyle(5);if(!(backgroundEnergy()<backLit))throw Error('Orbiting dust setting ignored');`);
+ detail.blackBackground=await run('backgroundEnergy()');if(detail.blackBackground!==0)throw Error('Flux background is tinted');
+ detail.oldHistory=await run(`(()=>{
+  const h=gpu.spectrumHistory,tone=new Float32Array(48).fill(.8),zero=new Float32Array(48);h.reset();h.update(0,tone);
+  for(let i=1;i<=180;i++)h.update(i/30,i<15?tone:zero);d.spectrumClock=6;input.features={...input.features,spectrum:zero};renderStyle(5);return {seconds:6,height:h.height,...measure()};
+ })()`);
+ if(detail.oldHistory.height!==256||detail.oldHistory.lit<150)throw Error('Older frequency trail disappears: '+JSON.stringify(detail.oldHistory));
  await run(`input.features={...input.features,spectrum:new Float32Array(48)};gpu.spectrumHistory.reset();d.spectrumClock=0;renderStyle(5);if(measure().sum>.001)throw Error('Flux invents sound');`);
  // Portrait keeps its existing landscape composition; audit the real rotated canvas.
- win.setSize(412,915);await run(`gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;d.appearance.orbit=2;gpu.spectrumHistory.reset();for(let i=0;i<128;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=127/30;input.features={...input.features,spectrum:sampleSpectrum(127/30)};renderStyle(5);`);
+ win.setSize(412,915);await run(`gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;d.appearance.orbit=2;gpu.spectrumHistory.reset();for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=(gpu.spectrumHistory.height-1)/30;input.features={...input.features,spectrum:sampleSpectrum((gpu.spectrumHistory.height-1)/30)};renderStyle(5);`);
  await new Promise(r=>setTimeout(r,100));await run('renderStyle(5)');await new Promise(r=>setTimeout(r,100));fs.writeFileSync(path.join(out,'phone.png'),(await win.webContents.capturePage()).toPNG());
- if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({angles:report,pausedStable:true,silentSpectrumEmpty:true,dustControl:true},null,2));log('Flux orbit review passed');
+ if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({angles:report,...detail,pausedStable:true,silentSpectrumEmpty:true,dustControl:true},null,2));log('Flux orbit review passed');
 }).catch(e=>{log(e.stack);exitCode=1;}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close();}app.exit(exitCode);});
 setTimeout(()=>{app.exit(2);},180000).unref();
