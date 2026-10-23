@@ -32,39 +32,52 @@ void main(){
  vec2 p=(v_uv-.5)*vec2(u_resolution.x/u_resolution.y,1.);float horizon=.01,y=p.y-horizon;
  vec3 hot=pink(),cool=cyan(),gold=amber();
  vec3 color=mix(vec3(.0025,.0007,.014),hot*.045+cool*.009,exp(-abs(y)*8.));
- color+=hot*.038*exp(-abs(y-.055)*16.);
+ color+=hot*.075*exp(-abs(y-.055)*12.);
  // Broad atmospheric glow is separate from the crisp, progressively sliced disc.
  vec2 sunP=p-vec2(0.,.18);float radius=.205,sd=length(sunP);
- color+=hot*.075*exp(-sd*8.)+gold*.032*exp(-sd*4.);
+ float solar=1.+u_roles.z*.30*u_movement;
+ color+=(hot*.15*exp(-sd*5.5)+gold*.065*exp(-sd*3.2))*solar;
+ color+=mix(hot,gold,.35)*exp(-abs(sd-radius)*48.)*.18*solar;
  float disc=aa(max(0.,sd-radius),.0001)*step(sd,radius+.003);
  float slices=1.;if(sunP.y<.025){float row=(.025-sunP.y)*35.;float gap=.12+clamp(-sunP.y,0.,.23)*2.0;slices=smoothstep(gap,gap+max(.025,fwidth(row)),fract(row));}
  vec3 sunColor=mix(hot,gold,smoothstep(-.15,.15,sunP.y));sunColor=mix(sunColor,vec3(1.,.64,.13),smoothstep(.10,.21,sunP.y)*.25*(1.-u_retro.z*.5));
- color+=sunColor*disc*slices*(.60+u_roles.z*.15*u_movement);
+ color+=sunColor*disc*slices*(1.15+u_roles.z*.40*u_movement);
  // Stable star identities, with rare four-point glints and gentle musical twinkle.
  vec2 starGrid=p*vec2(125.,95.),cell=floor(starGrid),q=fract(starGrid)-.5;
  float seed=random2(cell),star=exp(-dot(q,q)*360.);
- float cross=exp(-abs(q.x)*160.-abs(q.y)*15.)+exp(-abs(q.y)*160.-abs(q.x)*15.);
- color+=mix(cool,vec3(.75,.61,1.),seed)*(star+cross*step(.986,seed)*.5)*step(.965,seed)*smoothstep(.035,.22,y)*(.18+.14*sin(u_world.x*.55+seed*91.)+.18*u_roles.w);
- // Three independent depth layers: stepped Art Deco crowns, roof antennas,
- // lit windows, cyan cornices and dark gaps. Forward travel gives slow parallax.
- for(int layer=0;layer<3;layer++){
-  float l=float(layer),scale=1.+.018*sin(u_world.y*.018+l),unit=(.036+l*.015)*scale;
-  float cityX=p.x/scale+sin(u_world.y*.012+l)*(.002+l*.002);
-  float id=floor(cityX/unit),r=hash(id+21.+l*87.),w=unit*(.63+r*.24),x=mod(cityX,unit)-unit*.5;
-  float base=-.008-l*.004,height=(.023+pow(hash(id+41.+l*143.),2.)*(.085+l*.035))*(1.+.35*smoothstep(.05,.45,abs(p.x)));
-  float tier=step(height*.72,y-base)+step(height*.88,y-base),width=w*(1.-tier*.15);
-  float body=step(abs(x),width*.5)*step(y,base+height)*step(base,y);
-  float antenna=aa(abs(x),.00045)*step(base+height,y)*step(y,base+height+.014*r)*step(.76,r);
-  float facade=.003+l*.002;
-  vec3 building=hot*facade+vec3(.001,.001,.004);
-  float edge=aa(abs(abs(x)-width*.5),.0005)+aa(abs(y-base-height),.0006);
-  building+=mix(cool,hot,step(.5,r))*edge*(.10+l*.035);
-  vec2 windowUV=vec2((x+w*.5)/.0042,(y-base)/.0065),windowCell=floor(windowUV),windowP=fract(windowUV);
-  float windows=step(.25,windowP.x)*step(windowP.x,.55)*step(.22,windowP.y)*step(windowP.y,.62)*step(.52,random2(windowCell+id*7.+l*20.));
-  float rows=aa(abs(fract((y-base)*160.)-.5),.035)*step(.58,r);
-  building+=mix(gold,cool,r)*windows*(.025+.055*lamp(fract(id*.071)))*(.65+l*.2);
-  building+=hot*rows*.018;
-  color=mix(color,building,body);color=mix(color,cool*.13,antenna);
+ float cross=step(abs(q.x),.052)*step(abs(q.y),.25)+step(abs(q.y),.052)*step(abs(q.x),.25);
+ color+=mix(cool,vec3(.75,.61,1.),seed)*(star+cross*step(.984,seed)*.7)*step(.963,seed)*smoothstep(.035,.22,y)*(.30+.13*sin(u_world.x*.55+seed*91.)+.35*u_roles.w);
+ // Four independently drifting city layers. Window identities stay stable;
+ // occupancy crossfades slowly, with a continuous spectral ribbon across town.
+ for(int layer=0;layer<4;layer++){
+  float l=float(layer),scale=1.+.025*sin(u_world.y*.009+l),unit=(.028+l*.014)*scale;
+  float cityX=p.x/scale+sin(u_world.y*.009+l)*(.003+l*.004);
+  float id=floor(cityX/unit),r=hash(id+21.+l*87.),w=unit*(.72+r*.22),x=mod(cityX,unit)-unit*.5;
+  float base=-.016-l*.006,h=.05+pow(hash(id+41.+l*143.),1.8)*(.095+l*.025);
+  h*=1.+.22*smoothstep(.08,.35,abs(p.x));float by=y-base,roof=by/h;
+  float kind=floor(r*5.),width=w;
+  if(kind<1.)width*=1.-step(.73,roof)*.16-step(.89,roof)*.22;
+  else if(kind<2.)width*=1.-step(.82,roof)*.28;
+  else if(kind<3.)width*=1.-smoothstep(.80,1.,roof)*.66;
+  else if(kind<4.)width*=1.-step(.92,roof)*.12;
+  float body=step(abs(x),width*.5)*step(by,h)*step(0.,by);
+  float antenna=aa(abs(x-w*.18),.0005)*step(h,by)*step(by,h+.009+r*.019)*step(.55,r);
+  vec3 trim=mix(cool,hot,r),building=mix(vec3(.002,.002,.012),hot*.026+cool*.012,l/3.);
+  float edge=aa(abs(abs(x)-width*.5),.00065)+aa(abs(by-h),.0007);
+  float cornice=aa(abs(fract(by/(.015+r*.016))-.5),.035)*step(.35,r);
+  float mullion=aa(abs(fract((x+w*.5)/(.007+r*.006))-.5),.035);
+  building+=trim*(edge*(.35+l*.09)+cornice*.035+mullion*.025);
+  vec2 windowUV=vec2((x+w*.5)/(.0035+l*.0007),by/(.005+l*.0012)),wc=floor(windowUV),wp=fract(windowUV);
+  float pane=step(.18,wp.x)*step(wp.x,.64)*step(.20,wp.y)*step(wp.y,.68);
+  float identity=random2(wc+id*7.+l*20.),clock=u_world.x*.055+identity*8.,era=floor(clock),blend=smoothstep(.14,.86,fract(clock));
+  float occupancy=mix(step(.40,hash(identity*671.+era)),step(.40,hash(identity*671.+era+1.)),blend);
+  float frequency=clamp(p.x*.56+.5,0.,1.),note=band(frequency),light=lamp(frequency);
+  float waveRow=.035+note*.105,signal=exp(-abs(by-waveRow)*230.)*(.12+light*.8);
+  building+=mix(gold,cool,identity)*pane*(occupancy*(.085+l*.035)+signal*(.7+l*.2));
+  float signFace=step(abs(x+w*.30),w*.055)*step(h*.45,by)*step(by,h*.82)*step(.73,r);
+  float signPixels=step(.35,fract(by*950.))*step(.25,fract(x*1800.));
+  building+=hot*signFace*signPixels*(.35+.3*u_roles.z);
+  color=mix(color,building,body);color=mix(color,trim*.55,antenna);
  }
  // The road is an infinite plane with perspective-correct, antialiased grid.
  if(y<0.){
@@ -73,18 +86,25 @@ void main(){
   float wire=1.-smoothstep(.3,1.25,min(edge.x,edge.y));
   float fade=1.-smoothstep(35.,140.,depth),road=1.-smoothstep(2.30,2.35,abs(x));
   color=vec3(.0015,.001,.007)+hot*.007*exp(-abs(x)*.65);
-  color+=mix(hot,cool,.24)*wire*(.10+.08*u_roles.y*u_particle.z)*fade;
+  color+=mix(hot,cool,.24)*wire*(.30+.32*u_roles.y*u_particle.z)*fade;
   float shoulder=exp(-abs(abs(x)-2.35)*42.);
-  color+=mix(hot,cool,.45)*shoulder*(.55+.40*u_roles.x*u_movement)*fade;
-  color+=hot*exp(-abs(abs(x)-2.35)*4.)*.028*fade;
-  float dashed=aa(abs(x),.022)*step(.64,fract(z/4.));
-  color+=gold*dashed*.22*fade;
+  color+=mix(hot,cool,.45)*shoulder*(1.5+1.1*u_roles.x*u_movement)*fade;
+  color+=hot*exp(-abs(abs(x)-2.35)*4.)*.10*fade;
+  float dashed=aa(abs(x),.030)*step(.63,fract(z/4.));
+  color+=gold*dashed*.65*fade;
+  // Discrete arcade markers, broken pixels and outward-facing road chevrons.
+  vec2 tile=vec2(abs(x)*5.,z*1.5);vec2 tp=fract(tile);float bit=step(.28,tp.x)*step(tp.x,.73)*step(.2,tp.y)*step(tp.y,.58);
+  float shoulderBits=step(1.92,abs(x))*step(abs(x),2.23)*step(.48,hash(floor(z*1.5)));
+  color+=cool*bit*shoulderBits*(.13+.40*u_roles.y)*fade;
+  float chevron=aa(abs(abs(x)-(.45+abs(fract(z/12.)-.5)*.65)),.045)*step(.82,fract(z/12.))*road;
+  color+=hot*chevron*(.20+.28*u_roles.y)*fade;
   // Broken sunset reflection across the asphalt, not a flat opaque glow.
   float reflection=exp(-x*x/(.16+depth*.014))*exp(-depth*.015)*road;
-  color+=mix(hot,gold,smoothstep(4.,70.,depth))*reflection*(.035+.025*sin(z*13.)*sin(x*23.+z))*(.55+.25*u_roles.z);
-  color+=hot*.045*exp(-abs(y)*40.);
+  float reflectionBits=.45+.55*hash(floor(z*2.)+floor(x*14.)*19.);
+  color+=mix(hot,gold,smoothstep(4.,70.,depth))*reflection*(.09+.06*reflectionBits)*(.65+.35*u_roles.z);
+  color+=hot*.08*exp(-abs(y)*40.);
  }
- color+=mix(hot,cool,.3)*exp(-abs(y)*130.)*.12;
+ color+=mix(hot,cool,.3)*exp(-abs(y)*130.)*.32;
  fragColor=vec4(color,0.);
 }`;
 
@@ -103,7 +123,11 @@ float terrain(float x,float z){
  float voice=mix(band(across),echoAt(across,age),smoothstep(1.,8.,z));
  float echo=echoAt(across,max(0.,age-.45))*.3+echoAt(across,max(0.,age-.9))*.12;
  float base=.18+.28*pow(.5+.5*sin(abs(x)*.52+sin((z+speedClock())*.07)),2.);
- return shoulder*(base+(voice+echo)*exp(-age*.26)*(2.1+u_roles.x*u_movement*3.8));
+ float height=shoulder*(base+(voice+echo)*exp(-age*.26)*(2.1+u_roles.x*u_movement*3.8));
+ // A curved bowl opens the view: foreground crests are foreshortened and
+ // fanned outward, while distant echoes remain tall enough to be read.
+ float near=1.-smoothstep(2.,36.,z);
+ return height*(1.-near*.67)/(1.+height*near*.17)+across*across*smoothstep(8.,55.,z)*.8;
 }
 `;
 
@@ -118,7 +142,8 @@ void main(){
  vec2 o=corner==0?vec2(0,0):corner==1?vec2(1,0):corner==2?vec2(0,1):corner==3?vec2(0,1):corner==4?vec2(1,0):vec2(1,1);
  float across=(float(at%48)+o.x)/48.,row=float(at/48)+o.y;
  float travel=speedClock(),z=.9+row*.75-mod(travel,.75),x=(side==0?-1.:1.)*(2.45+across*23.);
- v_position=vec3(x,terrain(x,z),z);v_grid=vec2(across*48.,row-floor(travel/.75));v_signal=band(across);
+ float height=terrain(x,z);x+=sign(x)*height*.65*(1.-smoothstep(4.,30.,z));
+ v_position=vec3(x,height,z);v_grid=vec2(across*48.,row-floor(travel/.75));v_signal=band(across);
  driveProject(v_position);
 }`;
 export const AFTERGLOW_TERRAIN_FRAGMENT=`#version 300 es
@@ -134,8 +159,10 @@ void main(){
  float across=clamp((abs(v_position.x)-2.45)/23.,0.,1.),fade=exp(-v_position.z*.018);
  vec3 tint=mix(cyan(),pink(),clamp(across*.8+v_position.y*.07,0.,1.));
  vec3 color=vec3(.0015,.001,.008)+pink()*(.002+facing*.003);
- color+=tint*(wire*(.16+lamp(across)*.45+u_roles.y*u_particle.z*.045)+facet*.028)*fade;
- color+=tint*pow(v_signal,3.)*.009*fade;
+ color+=tint*(wire*(.36+lamp(across)*.85+u_roles.y*u_particle.z*.11)+facet*.065)*fade;
+ vec2 pixel=fract(v_grid*vec2(4.,3.));float blocks=step(.22,pixel.x)*step(pixel.x,.70)*step(.25,pixel.y)*step(pixel.y,.65);
+ float selected=step(.86,hash(floor(v_grid.x*4.)+floor(v_grid.y*3.)*77.));
+ color+=mix(tint,amber(),.22)*blocks*selected*(.025+pow(v_signal,2.)*.19)*fade;
  color=mix(color,pink()*.015+cyan()*.004,smoothstep(48.,96.,v_position.z));
  fragColor=vec4(color,1.);
 }`;
@@ -150,56 +177,45 @@ void main(){
  vec2 o=corner==0?vec2(0,0):corner==1?vec2(1,0):corner==2?vec2(0,1):corner==3?vec2(0,1):corner==4?vec2(1,0):vec2(1,1);
  float depth=1.+mod(slot*8.+hash(slot+8.)*2.-speedClock(),160.),height=3.3+hash(slot+51.)*1.7;
  vec3 p=vec3(side*(3.2+hash(slot+19.)*.4)+(o.x-.5)*height*1.3,(o.y)*height,depth);
- v_uv=vec2(o.x*2.-1.,o.y);v_id=id;v_depth=depth;driveProject(p);
+ v_uv=o;v_id=id;v_depth=depth;driveProject(p);
 }`;
 export const AFTERGLOW_PALM_FRAGMENT=`#version 300 es
 precision highp float;
 ${DRIVE}
-${EDGES}
+uniform sampler2D u_palmAtlas;
 in vec2 v_uv;in float v_id,v_depth;out vec4 fragColor;
-float segment(vec2 p,vec2 a,vec2 b){vec2 d=b-a;return length(p-a-d*clamp(dot(p-a,d)/dot(d,d),0.,1.));}
 void main(){
- vec2 p=v_uv;float sway=sin(u_world.x*.22+floor(v_id/2.))*.025;
- vec2 crown=vec2(.12+sway,.75);float t=clamp(p.y/.75,0.,1.);
- float trunk=abs(p.x-crown.x*t*t),width=mix(.030,.012,t);
- float shape=aa(trunk,width)*step(p.y,.75);
- float rim=aa(abs(trunk-width),.004)*step(p.y,.75)*(.4+.6*step(p.x,crown.x*t*t));
- // Paired curved fronds, with separated tapered leaflets along every rib.
- if(p.y>.43)for(int f=0;f<10;f++){
-  float n=float(f),side=mod(n,2.)*2.-1.,row=floor(n/2.);
-  vec2 end=crown+vec2(side*(.82-row*.15),-.17+row*.11),bend=(crown+end)*.5+vec2(0.,.20-row*.025);
-  for(int j=0;j<7;j++){
-   float a=float(j)/7.,b=float(j+1)/7.;vec2 va=mix(mix(crown,bend,a),mix(bend,end,a),a),vb=mix(mix(crown,bend,b),mix(bend,end,b),b);
-   float spine=segment(p,va,vb);shape=max(shape,aa(spine,.007*(1.-a*.6)));
-   vec2 tip=vb+vec2(side*.05,-.13*(1.-b*.8));float leaf=segment(p,vb,tip);
-   float upper=segment(p,vb,vb+vec2(side*.025,.055*(1.-b)));
-   shape=max(shape,max(aa(leaf,.009*(1.-b*.8)),aa(upper,.007*(1.-b*.8))));rim=max(rim,aa(spine,.002)*.65);
-  }
- }
- if(shape<.04)discard;
- float rings=.5+.5*sin(p.y*125.+p.x*12.);
- vec3 color=vec3(.001,.0015,.004)+pink()*.006*rings;
- color+=mix(cyan(),pink(),mod(v_id,2.))*rim*(.022+.018*u_roles.z)*exp(-v_depth*.009);
- fragColor=vec4(color,1.);
+ vec2 p=v_uv;p.x+=sin(u_world.x*.24+v_id*.75)*.012*pow(p.y,2.);
+ float variant=mod(v_id,4.);vec2 uv=vec2((clamp(p.x,.002,.998)+variant)*.25,1.-p.y);
+ float shape=texture(u_palmAtlas,uv).a;if(shape<.18)discard;
+ vec2 texel=1./vec2(textureSize(u_palmAtlas,0));
+ float inner=texture(u_palmAtlas,uv+texel*vec2(-1.5,0.)).a*texture(u_palmAtlas,uv+texel*vec2(0.,1.5)).a;
+ float rim=clamp(shape-inner,0.,1.);
+ float rings=.65+.35*step(.45,fract(p.y*82.+p.x*8.));
+ vec3 gradient=mix(pink()*.045,cyan()*.075,smoothstep(.1,.9,p.y));
+ gradient+=amber()*.020*(1.-abs(p.x-.5)*2.)*p.y;
+ vec3 color=gradient*rings*(.7+.35*u_roles.z)+mix(cyan(),pink(),mod(v_id,2.))*rim*(.22+.20*lamp(fract(v_id*.13)));
+ color*=exp(-v_depth*.007);fragColor=vec4(color*shape,1.);
 }`;
 
 export const AFTERGLOW_DUST_VERTEX=`#version 300 es
 precision highp float;
 ${DRIVE}
 ${PROJECT}
-uniform float u_pixel,u_density;
-in vec4 a_seed;out vec3 v_color;out float v_alpha;
+uniform float u_pixel,u_density,u_tail;
+in vec4 a_seed;out vec3 v_color;out float v_alpha,v_kind;
 void main(){
- float depth=1.5+fract(a_seed.z-speedClock()*.003)*80.;
+ float clock=u_world.x-u_tail*.12,travel=speedClock()-u_tail*.28;
+ float depth=1.5+fract(a_seed.z-travel*.003)*80.;
  vec3 p=vec3((a_seed.x-.5)*24.,.25+a_seed.y*6.,depth);
- p.x+=sin(u_world.x*.12+a_seed.y*30.)*.12;driveProject(p);
+ p.x+=sin(clock*.22+a_seed.y*30.)*.4-u_tail*(.035+.055*u_roles.x);p.y+=sin(clock*.17+a_seed.w*19.)*.09;driveProject(p);
  float fade=smoothstep(1.5,8.,depth)*(1.-smoothstep(55.,82.,depth));
- v_alpha=(.012+.06*u_roles.w+.06*lamp(a_seed.y))*fade*u_density;
- v_color=mix(pink(),cyan(),a_seed.w);
- gl_PointSize=clamp(u_pixel*u_particle.y*(1.+16./depth),1.,5.);
+ float sound=lamp(a_seed.y);v_alpha=(.07+.23*u_roles.w+.45*sound+.12*u_roles.y)*fade*u_density*exp(-u_tail*.65);
+ v_color=mix(pink(),cyan(),a_seed.w)*(1.5+sound*1.4);v_kind=u_tail>0.?0.:step(.78,a_seed.w);
+ gl_PointSize=clamp(u_pixel*u_particle.y*(1.6+23./depth)*(1.+sound*.6)/(1.+u_tail*.16),1.,9.);
 }`;
 export const AFTERGLOW_DUST_FRAGMENT=`#version 300 es
 precision mediump float;
-in vec3 v_color;in float v_alpha;out vec4 fragColor;
-void main(){vec2 p=gl_PointCoord*2.-1.;float r=dot(p,p);if(r>1.)discard;float a=exp(-r*4.)*v_alpha;fragColor=vec4(v_color*a,0.);}
+in vec3 v_color;in float v_alpha,v_kind;out vec4 fragColor;
+void main(){vec2 p=abs(gl_PointCoord*2.-1.);float shape=v_kind>.5?step(min(p.x,p.y),.28):step(max(p.x,p.y),.76);if(shape<.5)discard;fragColor=vec4(v_color*v_alpha,0.);}
 `;

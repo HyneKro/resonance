@@ -12,6 +12,7 @@ import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
 import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND,SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT} from './synapse-shaders.js';
 import {SpectrumHistory,FluxMotion} from './spectrum-history.js';
 import {AFTERGLOW_BACKGROUND,AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT,AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT,AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT} from './afterglow-shaders.js';
+import {createAfterglowPalms} from './afterglow-palms.js';
 import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT,FLUX_DUST_VERTEX} from './flux-shaders.js';
 import {FishSchool} from './fish-school.js';
 import {compileSceneProgram} from './shader-loader.js';
@@ -81,6 +82,10 @@ export class GPUScene {
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     this.spectrumHistory??=new SpectrumHistory(512);this.spectrumHistory.suspend();this.fluxMotion??=new FluxMotion();this.fluxMotion.suspend();
+    this.roadPalmAtlas=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadPalmAtlas);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,createAfterglowPalms(this.mobile?128:256));
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);await work.checkpoint();
     this.roadHistory??=new SpectrumHistory();this.roadHistory.suspend();this.roadHistoryVersion=-1;
     this.roadHistoryTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadHistoryTexture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,48,128,0,gl.RED,gl.UNSIGNED_BYTE,this.roadHistory.data);
@@ -401,15 +406,16 @@ export class GPUScene {
           gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.roadHistoryTexture);
           gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,128,gl.RED,gl.UNSIGNED_BYTE,history.data);this.roadHistoryVersion=history.version;
         }
+        uniforms.u_light=[a.bloom*(1.65+uniforms.u_roles[0]*.45+uniforms.u_roles[1]*.25),a.glow,reduced?0:a.flash,a.contrast];
         const road={...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_retro:[a.retroScan,a.retroPhosphor,a.retroColor],u_spectrumLight:d.spectrumLight||this.emptySpectrum};
         this.bind(nebula);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         this.use(this.roadBackground,road);this.quadDraw(this.roadBackground);yield;
         gl.enable(gl.DEPTH_TEST);this.use(this.roadTerrain,road);this.texture(this.roadTerrain,'u_history',this.roadHistoryTexture,5);
         gl.drawArrays(gl.TRIANGLES,0,2*48*128*6);yield;
-        this.use(this.roadPalms,road);gl.drawArrays(gl.TRIANGLES,0,40*6);yield;
+        this.use(this.roadPalms,road);this.texture(this.roadPalms,'u_palmAtlas',this.roadPalmAtlas,6);gl.drawArrays(gl.TRIANGLES,0,40*6);yield;
         gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
-        this.use(this.roadDust,{...road,u_density:1});this.points(this.roadDust,warmup?16:Math.round((this.mobile?160:520)*a.orbit));yield;
+        for(let tail=this.mobile?3:4;tail>=0;tail--){this.use(this.roadDust,{...road,u_density:1,u_tail:tail});this.points(this.roadDust,warmup?16:Math.round((this.mobile?160:520)*a.orbit));}yield;
       }else{
         this.bind(nebula);this.use(this.artBackground,{...backUniforms,u_time:reduced?0:(d.backgroundClock??time),u_resolution:[nebula.w,nebula.h],u_spectrumLight:d.spectrumLight||this.emptySpectrum});this.quadDraw(this.artBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,style.index===4?1:0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
@@ -430,8 +436,8 @@ export class GPUScene {
       yield;
       // Astra's stronger light needs a smooth broad halo, not widely spaced
       // blur samples that repeat bright ring edges as ghost bands.
-      const glowRadius=style.index===7?Math.min(4.5,1.3+a.glow*1.8+this.synapse.activity*.7):style.index===5?Math.min(4,1.4+a.glow*1.8):style.index===3||style.index===4?Math.min(4,1+a.glow*1.5):1+a.glow*4;
-      for(let pass=0;pass<(style.index===3||style.index===4||style.index===5||style.index===7?2:1);pass++){
+      const glowRadius=style.index===7?Math.min(4.5,1.3+a.glow*1.8+this.synapse.activity*.7):style.index===5?Math.min(4,1.4+a.glow*1.8):style.index===2?Math.min(4,1.5+a.glow*1.7):style.index===3||style.index===4?Math.min(4,1+a.glow*1.5):1+a.glow*4;
+      for(let pass=0;pass<(style.index===2||style.index===3||style.index===4||style.index===5||style.index===7?2:1);pass++){
         this.bind(bloomB);this.use(this.blur,{u_direction:[glowRadius/bloomA.w,0],u_extract:0});this.texture(this.blur,'u_image',bloomA.texture);this.quadDraw(this.blur);
         this.bind(bloomA);this.use(this.blur,{u_direction:[0,glowRadius/bloomA.h],u_extract:0});this.texture(this.blur,'u_image',bloomB.texture);this.quadDraw(this.blur);
       }

@@ -345,7 +345,7 @@ if(u_extract>.5)color*=smoothstep(.12,.65,max(color.r,max(color.g,color.b)));
 fragColor=vec4(color,1.);}`;
 export const FINISH=`#version 300 es
 precision highp float;in vec2 v_uv;out vec4 fragColor;
-uniform vec3 u_retro,u_inkAccent;uniform vec4 u_world;
+uniform vec3 u_retro,u_inkAccent;uniform vec4 u_world,u_roles;
 uniform sampler2D u_image,u_bloom,u_nebula;uniform vec4 u_light;uniform vec2 u_resolution;uniform float u_kaleidoWeights[${KALEIDOSCOPE_MODES.length+1}],u_kaleidoMotion,u_hdrOutput,u_artDirection,u_styleOpacity;
 vec3 film(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
 vec3 composite(vec2 uv){vec3 color=texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x;
@@ -369,7 +369,15 @@ if(u_artDirection>4.5&&u_artDirection<5.5){
  vec3 hue=pow(max(vec3(0.),radiance/max(.0001,peak)),vec3(.65));
  return mix(mapped,mapped*hue,smoothstep(.7,2.5,peak)*.35)+highlights;
 }
-if(u_artDirection>1.5&&u_artDirection<2.5)return pow(film(texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x*.75),vec3(.454545))+highlights;
+if(u_artDirection>1.5&&u_artDirection<2.5){
+ // Let the broad halo spill around the sun without filling in its iconic cuts.
+ vec2 sun=(uv-.5)*vec2(u_resolution.x/u_resolution.y,1.)-vec2(0.,.18);
+ float bloomWeight=mix(.23,1.,smoothstep(.16,.215,length(sun)));
+ vec3 radiance=texture(u_image,uv).rgb+texture(u_bloom,uv).rgb*u_light.x*1.9*bloomWeight;
+ float peak=max(radiance.r,max(radiance.g,radiance.b));vec3 mapped=pow(film(radiance),vec3(.454545));
+ vec3 hue=pow(max(vec3(0.),radiance/max(.0001,peak)),vec3(.65));
+ return mix(mapped,mapped*hue,smoothstep(.65,2.4,peak)*.42)+highlights;
+}
 if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
 if(u_artDirection>3.5&&u_artDirection<4.5){
  vec4 ink=texture(u_image,uv);vec3 paper=cloud*exp(-ink.rgb*3.4);
@@ -423,17 +431,21 @@ void main(){
   // scanlines and a staggered RGB phosphor mask. Both controls at zero bypass it.
   float amount=max(u_retro.x,u_retro.y);vec2 p=v_uv*2.-1.;
   vec2 uv=.5+p*(1.+amount*.025*vec2(p.y*p.y,p.x*p.x))*.5;
-  float shift=u_retro.x*(.35+.65*dot(p,p))/u_resolution.x;
+  float heat=clamp((u_roles.x*.35+u_roles.y*.65)*u_light.z,0.,1.);
+  float roll=fract(v_uv.y-u_world.x*.035),beam=exp(-pow((roll-.5)*17.,2.));
+  uv.x+=u_retro.x*sin(v_uv.y*19.+u_world.x*.6)*(.12+heat*.25)/u_resolution.x;
+  float shift=u_retro.x*(.65+1.1*dot(p,p)+heat*1.2)*(1.+.15*sin(u_world.x*.5))/u_resolution.x;
   color=composite(uv);color.r=composite(uv+vec2(shift,0.)).r;color.b=composite(uv-vec2(shift,0.)).b;
-  float scan=.5+.5*cos(v_uv.y*u_resolution.y*2.0943951);
-  color*=1.-u_retro.x*.26*scan;
+  float scan=.5+.5*cos(v_uv.y*u_resolution.y*2.0943951+u_world.x*.75);
+  color*=1.-u_retro.x*(.40+heat*.12)*scan;
+  color*=1.+u_retro.x*(beam*.09-.025);
   vec2 pixel=v_uv*u_resolution;float row=floor(pixel.y/3.);
   float subpixel=mod(floor(pixel.x+mod(row,2.)*1.5),3.);
   vec3 mask=subpixel<1.?vec3(1.,.40,.40):subpixel<2.?vec3(.40,1.,.40):vec3(.40,.40,1.);
   float dotMask=.75+.25*sin(fract(pixel.y/3.)*3.14159265);
-  color*=mix(vec3(1.),mask*dotMask*1.22,u_retro.y*.72);
+  color*=mix(vec3(1.),mask*dotMask*1.28,u_retro.y*.88);
   float grain=fract(sin(dot(floor(pixel),vec2(12.9898,78.233))+floor(u_world.x*12.))*43758.5453)-.5;
-  color+=grain*u_retro.x*.012;
+  color+=grain*u_retro.x*.019;
   float border=(1.-smoothstep(.985,.997,max(abs(uv.x*2.-1.),abs(uv.y*2.-1.))));
   color*=mix(1.,border,amount);
  }else{

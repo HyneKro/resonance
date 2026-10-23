@@ -28,6 +28,8 @@ app.whenReady().then(async()=>{
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
  const report={};
+ report.bowl=await run(fs.readFileSync(path.join(root,'tests/afterglow-surface-probe.js'),'utf8'));
+ if(report.bowl.ratio>.35||report.bowl.distant<3||report.bowl.mirror>.00001)throw Error('Foreground hides the musical echoes: '+JSON.stringify(report.bowl));
  await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{
   let x=0;for(const [band,speed]of [[6,.8],[16,-.4],[29,.6],[40,-.7]])x+=(.3+.35*Math.sin(t*speed+band)**2)*Math.exp(-Math.pow((k-band-Math.sin(t*speed)*2)/2.6,2));return Math.min(.9,x);
  });gpu.roadHistory.reset();gpu.roadHistoryTrack=d.trackId;for(let i=0;i<128;i++)gpu.roadHistory.update(i/30,sampleSpectrum(i/30));
@@ -40,10 +42,32 @@ app.whenReady().then(async()=>{
  Object.assign(report,{fixedCamera:true,pausedStable:true,reducedHistoryHeld:true});
  const shot=async name=>{await new Promise(r=>setTimeout(r,90));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());};
  await shot('default');
+ const atlas=await run(`import('/afterglow-palms.js').then(({createAfterglowPalms})=>createAfterglowPalms().toDataURL().split(',')[1])`);fs.writeFileSync(path.join(out,'palm-atlas.png'),Buffer.from(atlas,'base64'));
+ report.neon=await run(`(()=>{const sum=p=>p.reduce((s,v,i)=>i%4===3?s:s+v,0);renderStyle(2);const on=sum(pixels()),saved=d.appearance.bloom;d.appearance.bloom=0;renderStyle(2);const off=sum(pixels());d.appearance.bloom=saved;renderStyle(2);return {on,off,ratio:on/off};})()`);
+ if(report.neon.ratio<1.08)throw Error('Afterglow neon spill is too weak: '+JSON.stringify(report.neon));
+ report.city=await run(`(()=>{
+  const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadBackground,world=d.artMotion.slice(),zero=new Float32Array(48),loud=new Float32Array(48).fill(1);
+  const draw=(clock,spectrum,lights)=>{gpu.bind(t);gpu.use(program,{u_world:[clock,world[1],world[2],world[3]],u_spectrum:spectrum,u_spectrumLight:lights});gpu.quadDraw(program);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p;};
+  const a=draw(world[0],zero,zero),b=draw(world[0]+.05,zero,zero),c=draw(world[0]+30,zero,zero),s=draw(world[0],loud,loud);let near=0,long=0,sound=0,count=0;
+  for(let y=Math.floor(t.h*.52);y<t.h*.68;y++)for(let x=0;x<t.w;x++){if(Math.abs(x/t.w-.5)<.20)continue;for(let k=0;k<3;k++){const i=(y*t.w+x)*4+k;near+=Math.abs(a[i]-b[i]);long+=Math.abs(a[i]-c[i]);sound+=Math.abs(a[i]-s[i]);count++;}}
+  renderStyle(2);return {shortChange:near/count,slowChange:long/count,spectrumChange:sound/count};
+ })()`);
+ if(report.city.slowChange<.0002||report.city.slowChange<report.city.shortChange*20||report.city.spectrumChange<.0003)throw Error('City windows do not evolve slowly and follow frequencies: '+JSON.stringify(report.city));
+ report.wind=await run(`(()=>{
+  const gl=gpu.gl,t=gpu.targets[0],program=gpu.roadDust;
+  const draw=(tail,light)=>{gpu.bind(t);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gpu.use(program,{u_tail:tail,u_spectrumLight:new Float32Array(48).fill(light)});gpu.points(program,520);const p=new Float32Array(t.w*t.h*4);gl.readPixels(0,0,t.w,t.h,gl.RGBA,gl.FLOAT,p);return p.reduce((s,v,i)=>i%4===3?s:s+v,0);};
+  const quiet=draw(0,0),active=draw(0,1),tail=draw(3,1);renderStyle(2);return {quiet,active,tail};
+ })()`);
+ if(report.wind.active<report.wind.quiet*2||report.wind.tail<=0)throw Error('Pixel wind is not reactive or has no trailing pixels');
  for(const [name,scan,phosphor]of [['clean',0,0],['scanlines',1,0],['phosphor',0,1]]){
   const delta=await run(`d.appearance.retroScan=${scan};d.appearance.retroPhosphor=${phosphor};renderStyle(2);difference(fixed,pixels());`);
   if(delta<.2)throw Error('CRT control does not change the rendered image: '+name);report[name]=delta;await shot(name);
  }
+ report.crtAnimation=await run(`(()=>{
+  const vary=enabled=>{d.appearance.retroScan=enabled?.65:0;d.appearance.retroPhosphor=enabled?.25:0;renderStyle(2);const before=pixels();gpu.bind(null);gpu.use(gpu.finish,{u_world:[d.artMotion[0]+2,...d.artMotion.slice(1)]});gpu.quadDraw(gpu.finish);return difference(before,pixels());};
+  const on=vary(true),off=vary(false);return {on,off};
+ })()`);
+ if(report.crtAnimation.on<.2||report.crtAnimation.off>.001)throw Error('CRT does not animate independently or clean mode still has effects');
  await run(`d.appearance.retroScan=.45;d.appearance.retroPhosphor=.25;d.appearance.retroColor=0;renderStyle(2);window.classic=pixels();window.palette=d.colors;d.colors=[[.02,.8,.3],[.9,.35,.02],[.2,.1,.8]];renderStyle(2);if(difference(classic,pixels())>.001)throw Error('Classic palette changes with song');d.appearance.retroColor=1;renderStyle(2);if(difference(classic,pixels())<3)throw Error('Music colour setting ignored');`);
  await shot('music-colours');report.paletteControl=true;
  await run(`d.colors=palette;d.appearance.retroColor=.45;renderStyle(2);window.withEcho=pixels();gpu.roadHistory.reset();renderStyle(2);if(difference(withEcho,pixels())<.2)throw Error('Terrain ignores earlier music');
@@ -62,6 +86,7 @@ app.whenReady().then(async()=>{
   const timings=await run(`(async()=>{const times=[];for(let i=0;i<35;i++){input.time+=1/60;d.spectrumClock+=1/60;input.features={...input.features,spectrum:sampleSpectrum(d.spectrumClock)};const start=performance.now();renderStyle(2);gpu.gl.finish();if(i>5)times.push(performance.now()-start);await new Promise(r=>setTimeout(r,3));}times.sort((a,b)=>a-b);return {medianMs:times[14],p95Ms:times[27],dimensions:[gpu.canvas.width,gpu.canvas.height]};})()`);
   report.performance.push({name,...timings});await shot(name);
  }
+ win.setSize(1280,800);await run(`gpu.canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';gpu.mobile=false;input.width=1280;input.height=800;input.quality='high';d.portraitScene=false;d.roles={bass:1,lead:.6,drums:.8,texture:.5};input.features={...input.features,spectrum:new Float32Array(48).fill(1)};d.appearance.motionAmount=3.5;renderStyle(2);`);await shot('heavy-bass');
  if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));log('Afterglow render checks passed');
 }).catch(e=>{log(e.stack);exitCode=1;}).finally(async()=>{win?.destroy();if(service){await new Promise(r=>service.server.close(r));service.lib.close();}app.exit(exitCode);});
 setTimeout(()=>{app.exit(2);},180000).unref();

@@ -37,6 +37,7 @@ test('a fresh installation serves the entire frontend module graph, including up
     assert.ok(visited.has('/app-update-ui.js'), 'The updater must be part of the startup graph check');
     assert.ok(visited.has('/lyric-highlight.js'), 'Word highlighting must be served, including nested timing imports');
     assert.ok(visited.has('/music-edition.js'), 'Music only composition must be available on first launch');
+    assert.ok(visited.has('/afterglow-palms.js'), 'The generated palm atlas dependency must be served on first launch');
     assert.equal((await fetch(service.url+'/music-edition.css')).status,200);
     assert.ok(visited.size > 40, 'The complete scene and interface dependencies must be followed');
     for (const forbidden of ['/config.json', '/server.mjs', '/package.json', '/data/library.sqlite']) {
@@ -71,5 +72,6 @@ test('Android includes every startup module in its merged web assets', async () 
   assert.ok(visited.has('/app-update-ui.js'));
   assert.ok(visited.has('/lyric-highlight.js'));
   assert.ok(visited.has('/music-edition.js'));
+  assert.ok(visited.has('/afterglow-palms.js'));
   assert.ok(visited.size > 40);
 });
