@@ -16,3 +16,27 @@ export class SpectrumHistory {
     if(changed)this.version++;return changed;
   }
 }
+
+// Playback changes targets, not the lifetime of the existing Flux field.
+export class FluxMotion {
+  constructor(){this.clock=null;this.time=0;this.phase=0;this.historyClock=0;this.activity=0;this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.lights=new Float32Array(48);this.palette=new Float32Array(18);this.initialized=false;this.transition=2;}
+  suspend(){this.clock=null;}
+  beginTrack(){this.transition=0;}
+  update(clock,{active=true,hold=false,reduced=false,movement=1,spectrum,lights,roles={},palette}={}){
+    this.dt=0;
+    if(!Number.isFinite(clock))return this;
+    const dt=this.clock===null?0:clock-this.clock;this.clock=clock;
+    if(!this.initialized){if(palette?.length===18)this.palette.set(palette);this.initialized=true;}
+    if(hold||reduced||dt<=0||dt>.25)return this;
+    this.dt=dt;this.time+=dt;this.transition+=dt;
+    const ease=(a,b,t)=>a+(b-a)*(1-Math.exp(-dt/t)),level=x=>Math.max(0,Math.min(1,Number(x)||0));
+    this.activity=ease(this.activity,active?1:0,active?.65:1.1);
+    const smoothing=active?(this.transition<1.4?.65:.075):.75;
+    for(let i=0;i<48;i++){this.spectrum[i]=ease(this.spectrum[i],active?level(spectrum?.[i]):0,smoothing);this.lights[i]=ease(this.lights[i],active?level(lights?.[i]):0,smoothing);}
+    for(const [i,key]of ['bass','drums','lead','texture'].entries())this.roles[i]=ease(this.roles[i],active?level(roles[key]):0,active?.16:.9);
+    if(palette?.length===18)for(let i=0;i<18;i++)this.palette[i]=ease(this.palette[i],Math.max(0,Math.min(2,Number(palette[i])||0)),1.5);
+    this.historyClock+=dt*this.activity;
+    this.phase+=dt*(.045+this.activity*.55+this.roles[0]*.25+this.roles[1]*.20)*Math.max(0,Math.min(4,movement));
+    return this;
+  }
+}

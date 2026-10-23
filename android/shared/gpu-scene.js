@@ -10,12 +10,12 @@ import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curv
 import {artDirection,ART_DIRECTIONS} from './art-directions.js';
 import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
 import {SYNAPSE_THREAD_VERTEX,SYNAPSE_THREAD_FRAGMENT,SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT,SYNAPSE_BACKGROUND,SYNAPSE_FACET_VERTEX,SYNAPSE_FACET_FRAGMENT} from './synapse-shaders.js';
-import {SpectrumHistory} from './spectrum-history.js';
+import {SpectrumHistory,FluxMotion} from './spectrum-history.js';
 import {AFTERGLOW_BACKGROUND,AFTERGLOW_TERRAIN_VERTEX,AFTERGLOW_TERRAIN_FRAGMENT,AFTERGLOW_PALM_VERTEX,AFTERGLOW_PALM_FRAGMENT,AFTERGLOW_DUST_VERTEX,AFTERGLOW_DUST_FRAGMENT} from './afterglow-shaders.js';
 import {FLUX_VERTEX,FLUX_FRAGMENT,FLUX_BACKGROUND,FLUX_TRACE_VERTEX,FLUX_TRACE_FRAGMENT,FLUX_DUST_VERTEX} from './flux-shaders.js';
 import {FishSchool} from './fish-school.js';
 import {compileSceneProgram} from './shader-loader.js';
-import {cameraUniform} from './scene-camera.js';
+import {cameraUniform,fluxCameraDistance} from './scene-camera.js';
 import {ScenePreparation} from './scene-preparation.js';
 import {KALEIDOSCOPE_MODES,kaleidoscopeIndex} from './kaleidoscope.js';
 import {HDROutput} from './hdr-output.js';
@@ -80,7 +80,7 @@ export class GPUScene {
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,this.school.count,2,0,gl.RGBA,gl.FLOAT,this.school.texture);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-    this.spectrumHistory??=new SpectrumHistory(256);this.spectrumHistory.suspend();
+    this.spectrumHistory??=new SpectrumHistory(512);this.spectrumHistory.suspend();this.fluxMotion??=new FluxMotion();this.fluxMotion.suspend();
     this.roadHistory??=new SpectrumHistory();this.roadHistory.suspend();this.roadHistoryVersion=-1;
     this.roadHistoryTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadHistoryTexture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,48,128,0,gl.RED,gl.UNSIGNED_BYTE,this.roadHistory.data);
@@ -229,7 +229,7 @@ export class GPUScene {
       const style=d.artStyle||{index:artDirection(d.artDirection).index,opacity:1};
       if(style.index!==4)this.contour.suspend();
       if(style.index!==1)this.school.suspend();
-      if(style.index!==5)this.spectrumHistory.suspend();
+      if(style.index!==5){this.spectrumHistory.suspend();this.fluxMotion.suspend();}
       if(style.index!==2)this.roadHistory.suspend();
       if(style.index!==6)this.aerial.suspend();
       if(style.index!==7)this.synapse.suspend();
@@ -369,21 +369,22 @@ export class GPUScene {
         const beads=Math.round((this.mobile?64:180)*Math.min(1.5,a.filigree*.7)*Math.min(1.1,a.orbit));
         this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,24*6,beads*6);yield;
       }else if(style.index===5){
-        const history=this.spectrumHistory;
-        if(this.historyTrack!==d.trackId){history.reset();this.historyTrack=d.trackId;}
-        if(reduced)history.suspend();else history.update(d.spectrumClock??time,features.spectrum);
+        const history=this.spectrumHistory,motion=this.fluxMotion;
+        if(this.historyTrack!==d.trackId){motion.beginTrack();this.historyTrack=d.trackId;}
+        motion.update(d.fluxClock??d.spectrumClock??time,{active:d.fluxActive!==false,hold:d.fluxHold===true,reduced,movement:a.motionAmount,spectrum:features.spectrum,lights:d.spectrumLight,roles,palette:uniforms.u_palette});
+        if(motion.dt)history.update(motion.historyClock,motion.spectrum);
         if(this.historyVersion!==history.version){
           gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,this.historyTexture);
           gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,48,history.height,gl.RED,gl.UNSIGNED_BYTE,history.data);this.historyVersion=history.version;
         }
-        uniforms.u_light=[a.bloom*(1.45+(roles.bass||0)*.55+(roles.drums||0)*.35),a.glow,reduced?0:a.flash,a.contrast];
-        const flux={...uniforms,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_fluxClock:reduced?0:(d.artMotion?.[0]??time*.45),u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        uniforms.u_light=[a.bloom*(1.45+motion.roles[0]*.55+motion.roles[1]*.35),a.glow,reduced?0:a.flash,a.contrast];
+        const flux={...uniforms,u_roles:motion.roles,u_palette:motion.palette,u_fluxDistance:fluxCameraDistance(uniforms.u_camera,{aspect:w/h,scale:a.particleSpread,movement:a.motionAmount,explore:d.fluxZoom||0}),u_fluxZoom:d.fluxZoom||0,u_historyHead:history.head,u_historyPhase:history.accumulator*30,u_fluxClock:motion.phase,u_spectrumLight:motion.lights};
         this.bind(nebula);this.use(this.fluxBackground,{...backUniforms,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.fluxBackground);
         gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         this.use(this.fluxDust,{...flux,u_resolution:[nebula.w,nebula.h],u_pixel:density*.7});this.points(this.fluxDust,warmup?32:Math.round((this.mobile?420:1300)*Math.min(1.5,a.orbit)));yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
         for(const cross of [0,1]){
-          const rows=cross?(this.mobile?14:28):(this.mobile?40:80);
+          const rows=cross?(this.mobile?14:28):(this.mobile?80:160);
           this.use(this.fluxTrace,{...flux,u_traceRows:rows,u_crossTrace:cross});
           this.texture(this.fluxTrace,'u_history',this.historyTexture,5);gl.drawArrays(gl.TRIANGLES,0,rows*256*6);
         }yield;

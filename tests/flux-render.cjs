@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.fluxClock;delete d.fluxActive;delete d.fluxHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -28,6 +28,16 @@ app.whenReady().then(async()=>{
   window.renderStyle=(index,shape=8)=>{d.artMotion=[input.time*.45,input.time*1.4,input.time*.15,input.time*.16];d.artStyle={index,opacity:1};d.identity.sculpture=[shape,shape,1,1];gpu.draw(input);if(gpu.gl.getError())throw Error('WebGL draw error');};
  })()`);
  const report=[],detail={};
+ detail.plane=await run(fs.readFileSync(path.join(root,'tests/flux-surface-probe.js'),'utf8'));
+ if(Math.abs(detail.plane.baselineHeight+.48)>1e-6||detail.plane.baselineRange>1e-6||detail.plane.pairedDepthError>1e-6||detail.plane.mirrorError>1e-6)throw Error('Flux echo separates from the common plane: '+JSON.stringify(detail.plane));
+ detail.controls=await run(`(async()=>{
+  const {SceneCamera,installFluxExploreControls}=await import('/scene-camera.js');const room=document.body,controls=document.createElement('div');controls.hidden=true;controls.innerHTML='<input type="range" min="0" max="1" step=".01" data-flux-zoom><button data-flux-fit>Fit view</button>';room.append(controls);
+  const controller={camera:new SceneCamera(),artDirection:'flux',rollercoaster:true,cameraZoom:true};let fitted=0;installFluxExploreControls({room,reactor:controller,onFit:()=>fitted++});
+  const slider=controls.querySelector('input');slider.value='.6';slider.dispatchEvent(new Event('input',{bubbles:true}));const sliderWorks=controller.camera.exploreTarget===.6;
+  const wheel=new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true});gpu.canvas.dispatchEvent(wheel);const wheelWorks=wheel.defaultPrevented&&controller.camera.exploreTarget>.69;
+  controls.querySelector('button').click();const fitWorks=controller.camera.exploreTarget===0&&!controller.rollercoaster&&!controller.cameraZoom&&fitted===1;controller.artDirection='astra';gpu.canvas.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));const isolated=controller.camera.exploreTarget===0;controls.remove();return {sliderWorks,wheelWorks,fitWorks,isolated};
+ })()`);
+ if(Object.values(detail.controls).some(x=>!x))throw Error('Flux exploration controls failed: '+JSON.stringify(detail.controls));
  await run(`window.sampleSpectrum=t=>Float32Array.from({length:48},(_,k)=>{
   let x=0;for(const [band,speed]of [[7,.8],[18,-.4],[30,.6],[41,-.7]])x+=(.30+.30*Math.sin(t*speed+band)**2)*Math.exp(-Math.pow((k-band-Math.sin(t*speed)*2)/2.6,2));
   return Math.min(.9,x);
@@ -41,6 +51,16 @@ app.whenReady().then(async()=>{
   await new Promise(r=>setTimeout(r,65));fs.writeFileSync(path.join(out,name+'.png'),(await win.webContents.capturePage()).toPNG());
  }
  await run(`d.camera=[.6,.38,0,0];d.appearance.particleSpread=1.15;d.cameraFocalLength=1.9;renderStyle(5);window.fixed=measure();window.fixedHistory=gpu.spectrumHistory.data.slice();window.fixedHead=gpu.spectrumHistory.head;input.time+=300;gpu.draw(input);if(Math.abs(measure().sum-fixed.sum)>.01||fixedHistory.some((v,i)=>v!==gpu.spectrumHistory.data[i])||fixedHead!==gpu.spectrumHistory.head)throw Error('Flux reads wall time while paused');`);
+ detail.transitions=await run(`(()=>{
+  const advance=(seconds,active)=>{d.fluxActive=active;for(let i=0;i<seconds*60;i++){d.spectrumClock+=1/60;renderStyle(5);}};
+  advance(2,true);const m=gpu.fluxMotion,start=m.activity,phase=m.phase;advance(1,false);const afterOne=m.activity;advance(5,false);const settled=m.activity,idle=m.phase;advance(1,false);const idleTravel=m.phase-idle;
+  const h=gpu.spectrumHistory,history=h.data.slice(),head=h.head,palette=m.palette.slice();d.trackId='flux-transition-track';renderStyle(5);const trackRetained=head===h.head&&history.every((x,i)=>x===h.data[i]);
+  d.colors=[[.9,.15,.03],[.8,.02,.3],[.8,.3,.05]];advance(.1,true);let colorStep=0;for(let i=0;i<18;i++)colorStep=Math.max(colorStep,Math.abs(m.palette[i]-palette[i]));
+  delete d.fluxActive;return {start,afterOne,settled,idleTravel,phaseAdvanced:m.phase>phase,trackRetained,colorStep};
+ })()`);
+ if(detail.transitions.afterOne<=.1||detail.transitions.settled>.01||detail.transitions.idleTravel<=.04||!detail.transitions.trackRetained||detail.transitions.colorStep>.15)throw Error('Flux playback transition is abrupt: '+JSON.stringify(detail.transitions));
+ await run('d.fluxZoom=.88;renderStyle(5)');await new Promise(r=>setTimeout(r,65));fs.writeFileSync(path.join(out,'inside.png'),(await win.webContents.capturePage()).toPNG());
+ detail.explore=await run('measure()');if(detail.explore.lit<100)throw Error('Flux particle exploration is blank');await run('d.fluxZoom=0;renderStyle(5)');
  detail.debris=await run(`(()=>{
   const gl=gpu.gl,h=gpu.spectrumHistory,stored=h.data.slice(),head=h.head,draw=gl.drawArrays.bind(gl);
   gl.drawArrays=(mode,first,count)=>{const program=gl.getParameter(gl.CURRENT_PROGRAM);if(program===gpu.fluxTrace.program)return;if(program===gpu.fluxPoints.program&&gl.getUniform(program,gpu.location(gpu.fluxPoints,'u_layer'))!==1)return;draw(mode,first,count);};
@@ -58,9 +78,9 @@ app.whenReady().then(async()=>{
  detail.blackBackground=await run('backgroundEnergy()');if(detail.blackBackground!==0)throw Error('Flux background is tinted');
  detail.oldHistory=await run(`(()=>{
   const h=gpu.spectrumHistory,tone=new Float32Array(48).fill(.8),zero=new Float32Array(48);h.reset();h.update(0,tone);
-  for(let i=1;i<=180;i++)h.update(i/30,i<15?tone:zero);d.spectrumClock=6;input.features={...input.features,spectrum:zero};renderStyle(5);return {seconds:6,height:h.height,...measure()};
+  for(let i=1;i<=390;i++)h.update(i/30,i<15?tone:zero);d.spectrumClock=13;input.features={...input.features,spectrum:zero};renderStyle(5);return {seconds:13,height:h.height,...measure()};
  })()`);
- if(detail.oldHistory.height!==256||detail.oldHistory.lit<150)throw Error('Older frequency trail disappears: '+JSON.stringify(detail.oldHistory));
+ if(detail.oldHistory.height!==512||detail.oldHistory.lit<150)throw Error('Older frequency trail disappears: '+JSON.stringify(detail.oldHistory));
  await run(`input.features={...input.features,spectrum:new Float32Array(48)};gpu.spectrumHistory.reset();d.spectrumClock=0;renderStyle(5);if(measure().sum>.001)throw Error('Flux invents sound');`);
  // Portrait keeps its existing landscape composition; audit the real rotated canvas.
  win.setSize(412,915);await run(`gpu.mobile=true;input.width=412;input.height=915;input.quality='auto';d.portraitScene=true;d.appearance.orbit=2;gpu.spectrumHistory.reset();for(let i=0;i<gpu.spectrumHistory.height;i++)gpu.spectrumHistory.update(i/30,sampleSpectrum(i/30));d.spectrumClock=(gpu.spectrumHistory.height-1)/30;input.features={...input.features,spectrum:sampleSpectrum((gpu.spectrumHistory.height-1)/30)};renderStyle(5);`);

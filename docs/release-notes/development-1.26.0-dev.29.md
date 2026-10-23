@@ -1,0 +1,15 @@
+# Flux: a flat echo, longer trail and room to explore
+
+Development test builds: Windows **1.26.0-dev.29** and Android **0.26.0-dev.29** (versionCode 95). These use the isolated development channel; approved releases and the public download buttons are unchanged.
+
+Open **Visuals → Style → Art direction → Flux**.
+
+- Removed the opposing age-dependent slopes and depth offset from the upper wave and lower echo. Both now share a flat seam and the same frequency/depth coordinates. The smaller lower echo meets the upper surface at that plane.
+- Doubled the history again to approximately **17 seconds**, and doubled its actual 3D depth. Older measured notes remain visible farther back. The bounded history buffer is 24 KB; Afterglow retains its separate original buffer.
+- Added a fitted overview that keeps the whole wave visible while orbiting. **Explore zoom** moves the camera into the particle field; desktop scrolling also adjusts it. **Fit view** smoothly returns to the full overview and turns off the rail/audio zoom. Android uses the same slider and Fit view button, preserving its existing two-finger transport gestures.
+- Added small square digital motes drifting slowly in black space, controlled by **Orbiting dust**. Stronger glow, fine filaments and delayed debris remain.
+- Flux now has its own continuous motion and history clock. Pause eases activity and history travel down while gentle idle motion continues; play eases back in. Song changes preserve the existing trail and phase, with smoothed incoming frequencies and colours. Freeze/reduced motion still hold the simulation, and hidden or inactive scene gaps do not create catch-up jumps.
+
+Verification: **549 shared tests** and **134 Android JVM tests** passed. Android lint reports zero errors and nine existing warnings. Shared tests cover pause decay/idle, track continuity, hidden/frozen clocks, longer history and camera exploration. All eight visualizers pass GPU checks and graphics-context recovery. The Flux GPU audit checks the actual shader seam, seven fitted camera angles, inside views, slider/wheel/Fit behaviour, isolation from other scenes, pause/track colour transitions, delayed debris, black background, a thirteen-second-old note and phone rendering. Both extracted startup module graphs pass, shared visual and control files match both distributables byte-for-byte, and the clean Windows build reaches its empty-library welcome screen in approximately 10.1 seconds. Android retains package `music.resonance.mobile` and its existing signing certificate. No physical Android device test was available; browser phone checks are not device performance measurements.
+
+Use **Settings → App updates → Check for updates** in an existing development installation. Windows applies the update on your restart action. Android updates the existing app with system confirmation; do not uninstall. Ordinary installations do not receive these test builds. The first development installation requires the one-time development ZIP/APK installation.
