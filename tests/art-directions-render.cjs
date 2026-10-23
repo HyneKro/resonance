@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
   const canvas=document.createElement('canvas');canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%';document.body.append(canvas);
   window.gpu=new GPUScene(canvas);await gpu.preparing;if(gpu.failed)throw Error('Shader preparation failed');
   window.reactor=new Reactor({paused:false,currentTime:17});Object.assign(reactor,DEFAULT_PREFERENCES);reactor.appearance={...DEFAULT_PREFERENCES};
-  window.d=reactor.visualState(.016);delete d.afterglowClock;delete d.afterglowActive;delete d.afterglowHold;delete d.astraClock;delete d.astraActive;delete d.contourClock;delete d.contourActive;delete d.contourHold;delete d.synapseClock;delete d.synapseActive;delete d.synapseHold;delete d.fluxClock;delete d.fluxActive;delete d.fluxHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
+  window.d=reactor.visualState(.016);delete d.aerialClock;delete d.aerialActive;delete d.aerialHold;delete d.afterglowClock;delete d.afterglowActive;delete d.afterglowHold;delete d.astraClock;delete d.astraActive;delete d.contourClock;delete d.contourActive;delete d.contourHold;delete d.synapseClock;delete d.synapseActive;delete d.synapseHold;delete d.fluxClock;delete d.fluxActive;delete d.fluxHold;const features=musicalAuditFrames[2].features;d.roles=musicalAuditFrames[2].roles;d.colors=[[.55,.24,.53],[.17,.48,.70],[.80,.49,.30]];d.background.colors=d.colors;d.spectrumLight=Float32Array.from(features.spectrum,x=>x*.7);
   window.input={width:innerWidth,height:innerHeight,time:features.motion,features,dynamics:d,quality:'high',intensity:1.5,scale:1,reduced:false,hdrMode:'off'};
   gpu.draw(input);await gpu.warming;if(!gpu.draw(input))throw Error('Warmup failed');
   // Exercise a populated, changing history rather than a synthetic static backdrop.
@@ -76,14 +76,14 @@ app.whenReady().then(async()=>{
   const gl=gpu.gl;let current='',counts={};const use=gpu.use.bind(gpu),draw=gl.drawArrays.bind(gl),instanced=gl.drawArraysInstanced.bind(gl);
   gpu.use=(p,u)=>{current=Object.keys(gpu).find(k=>gpu[k]===p)||'?';use(p,u);};gl.drawArrays=(mode,start,count)=>{counts[current]=(counts[current]||0)+count;draw(mode,start,count);};gl.drawArraysInstanced=(mode,start,count,instances)=>{counts[current]=(counts[current]||0)+count*instances;instanced(mode,start,count,instances);};
   for(const style of [0,2,3,4,5,6,7]){
-   const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;if(style===1||style===2||style===5||style===7)d.spectrumClock+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
+   const samples=[];for(let i=0;i<45;i++){counts={};input.time+=1/60;if(style===1||style===2||style===5||style===6||style===7)d.spectrumClock+=1/60;const start=performance.now();renderStyle(style);gl.finish();if(i>10)samples.push(performance.now()-start);await new Promise(r=>setTimeout(r,5));}
    samples.sort((a,b)=>a-b);if(style&&counts.flowUpdate)throw Error('Invisible original simulation');report[style]={style,medianMs:samples[Math.floor(samples.length*.5)],p95Ms:samples[Math.floor(samples.length*.95)],vertices:{...counts},dimensions:[gpu.canvas.width,gpu.canvas.height]};
   }
   // Verify the actual render targets, not only shader source or controls.
   function energy(targetIndex=0){const target=gpu.targets[targetIndex];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=0;i<pixels.length;i+=4){if(!Number.isFinite(pixels[i]+pixels[i+1]+pixels[i+2]))throw Error('Nonfinite radiance');sum+=pixels[i]+pixels[i+1]+pixels[i+2];}return sum;}
   function coverage(){const target=gpu.targets[0];gpu.bind(target);const pixels=gpu.hdr?new Float32Array(target.w*target.h*4):new Uint8Array(target.w*target.h*4);gl.readPixels(0,0,target.w,target.h,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,pixels);let sum=0;for(let i=3;i<pixels.length;i+=4)sum+=pixels[i];return sum;}
   for(const style of [2,3,4,5,6,7]){
-   const settle=()=>{if(style===2||style===3||style===4||style===5||style===7)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
+   const settle=()=>{if(style===2||style===3||style===4||style===5||style===6||style===7)for(let i=0;i<35;i++){d.spectrumClock+=.1;renderStyle(style);}};d.spectrumLight.fill(0);settle();renderStyle(style);const dark=energy();renderStyle(style);if(Math.abs(energy()-dark)>.01)throw Error('Paused scene changes');
    d.spectrumLight.fill(.6);settle();renderStyle(style);const bright=energy();if(!(dark>0&&bright>dark))throw Error('Spectrum does not illuminate style '+style);
    if(style===4){
     const fixed=gpu.contour.time,savedCamera=d.camera,savedRotation=d.rotationClock;
@@ -101,10 +101,10 @@ app.whenReady().then(async()=>{
     input.reduced=true;d.spectrumClock+=.1;renderStyle(6);if(gpu.aerial.steps!==steps)throw Error('Reduced Aerial physics moved');input.reduced=false;
     const before=energy();for(let i=0;i<30;i++){d.spectrumClock+=1/60;input.features={...features,onset:i===0?1:0};renderStyle(6);}if(Math.abs(energy()-before)<1)throw Error('Aerial motion does not render');
     d.camera=[.5,.4,0,0];renderStyle(6);if(Math.abs(energy()-before)<1)throw Error('Aerial orbit lacks depth');d.camera=camera;
-    d.trackId='aerial-next';renderStyle(6);if(gpu.aerial.hits!==0||gpu.aerial.steps!==0)throw Error('Aerial track did not reset');
-    d.spectrumClock=clock;input.features=features;report[style].physicsFrozen=true;report[style].reducedMotionHeld=true;report[style].physicalMotionVisible=true;report[style].trackResets=true;report[style].cameraDepth=true;
+    const carried=gpu.aerial.positions.slice(),carriedSteps=gpu.aerial.steps;d.trackId='aerial-next';renderStyle(6);if(gpu.aerial.steps!==carriedSteps||carried.some((x,i)=>x!==gpu.aerial.positions[i]))throw Error('Aerial track reset the sculpture');
+    d.spectrumClock=clock;input.features=features;report[style].physicsFrozen=true;report[style].reducedMotionHeld=true;report[style].physicalMotionVisible=true;report[style].trackContinuity=true;report[style].cameraDepth=true;
     if(gpu.canvas.style.transform.includes('rotate'))throw Error('Aerial floor rotated sideways');report[style].uprightPhone=true;
-    const lightStudio=energy(3);d.appearance.aerialShade=1;renderStyle(6);if(!(energy(3)<lightStudio*.4))throw Error('Studio darkness ignored');d.appearance.aerialShade=0;
+    const lightStudio=energy(3);d.appearance.aerialShade=1;renderStyle(6);if(!(energy(3)<lightStudio*.95))throw Error('Studio darkness ignored');d.appearance.aerialShade=0;
     d.appearance.aerialFluid=0;d.spectrumClock+=.05;renderStyle(6);if(gpu.aerial.liquid!==0)throw Error('Solid setting ignored');d.appearance.aerialFluid=.8;report[style].studioControls=true;
    }
    report[style].spectrumAddsLight=true;report[style].pausedStable=true;

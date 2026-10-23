@@ -1,7 +1,7 @@
 import {Inertia} from './inertia.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CAMERA_SPEED={min:.2,max:20,default:2.22};
-export const AERIAL_CAMERA=Object.freeze({min:-.08,max:1.25});
+export const AERIAL_CAMERA=Object.freeze({min:-.46,max:1.25});
 export const CAMERA_ZOOM=Object.freeze({max:3,focalLength:1.9});
 // Keep a fixed orbit radius. Reframing for each angle felt like a constrained
 // orbit and moved the viewer during a drag. Exploration remains an explicit dolly.

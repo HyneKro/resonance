@@ -1,7 +1,34 @@
 // Fixed-step studio. Four liquid lobes share a surface; remaining bodies exchange
 // mass-weighted impulses. The GPU adds small, bounded satellite beads.
+import {FluxMotion} from './spectrum-history.js';
 const STEP=1/120,FLOOR=-1.8;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,Number.isFinite(Number(x))?Number(x):0));
+// Music changes the targets of the sculpture, never its lifetime. Burst slots
+// expire invisibly before reuse; their origins stay in world space as bodies move.
+export class AerialMotion extends FluxMotion{
+ constructor(){super();this.simulationClock=0;this.energy=0;this.hit=0;this.cooldown=0;this.armed=true;this.bursts=new Float32Array(48);this.powers=new Float32Array(12);this.emitted=0;for(let i=0;i<12;i++)this.bursts[i*4+3]=-1;}
+ update(clock,options={}){
+  super.update(clock,options);if(!this.dt)return this;
+  const dt=this.dt,active=options.active!==false;
+  this.energy+=(clamp(active?options.energy:0,0,1)-this.energy)*(1-Math.exp(-dt/(active?.18:.9)));
+  this.simulationClock+=dt*(.12+this.activity*.88);this.hit*=Math.exp(-dt*4.5);this.cooldown=Math.max(0,this.cooldown-dt);
+  for(let i=0;i<12;i++){const k=i*4+3;if(this.bursts[k]>=0){this.bursts[k]+=dt;if(this.bursts[k]>4.5)this.bursts[k]=-1;}}
+  const attack=active?Math.max(clamp(options.onset,0,1),clamp(options.roles?.drums,0,1)):0;
+  if(attack<.22)this.armed=true;
+  const strike=this.armed&&attack>.5&&this.cooldown===0;
+  // A continuous bass passage can also release a slow stream, without claiming
+  // every frame is a new percussion hit.
+  if(options.spheres&&(strike||(active&&this.roles[0]>.62&&this.cooldown===0))){
+   const slots=options.mobile?8:12;let index=-1;
+   for(let i=0;i<slots;i++){const slot=(this.emitted+i)%slots;if(this.bursts[slot*4+3]<0){index=slot;break;}}
+   if(index<0)return this;
+   const k=index*4,source=(this.emitted*5+3)%Math.min(12,options.count||24),s=options.spheres,j=source*4;
+   this.bursts.set([s[j],s[j+1]+s[j+3]*.6,s[j+2],0],k);this.powers[index]=clamp(.25+attack*.4+this.energy*.45,0,1);
+   this.emitted++;this.hit=Math.max(this.hit,attack,this.energy*.65);this.cooldown=strike?.24:.85;if(strike)this.armed=false;
+  }
+  return this;
+ }
+}
 export class AerialPhysics{
  constructor(count=24){
   this.count=Math.round(clamp(count,8,24));this.positions=new Float32Array(96);this.previous=new Float32Array(96);this.rendered=new Float32Array(96);

@@ -2,8 +2,8 @@ import {AstraMotion} from './astra-motion.js';
 import {ASTRA_PATH_VERTEX,ASTRA_PATH_FRAGMENT,ASTRA_BODY_VERTEX,ASTRA_BODY_FRAGMENT,ASTRA_DEBRIS_VERTEX,ASTRA_DEBRIS_FRAGMENT,ASTRA_DUST_VERTEX,ASTRA_DUST_FRAGMENT,ASTRA_BACKGROUND} from './astra-shaders.js';
 import {ContourMotion,contourLettering,CONTOUR_INK_WIDTH} from './contour-motion.js';
 import {CONTOUR_VERTEX,CONTOUR_FRAGMENT,CONTOUR_DROPS_VERTEX,CONTOUR_DROPS_FRAGMENT,CONTOUR_SHADOW_VERTEX,CONTOUR_SHADOW_FRAGMENT,CONTOUR_PAPER} from './contour-shaders.js';
-import {AerialPhysics} from './aerial-physics.js';
-import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND} from './aerial-shaders.js';
+import {AerialPhysics,AerialMotion} from './aerial-physics.js';
+import {AERIAL_VERTEX,AERIAL_FRAGMENT,AERIAL_BACKGROUND,AERIAL_CURRENT_VERTEX,AERIAL_CURRENT_FRAGMENT} from './aerial-shaders.js';
 import {attractorCurves,ATTRACTOR_SAMPLES,ATTRACTOR_ROWS} from './attractor-curves.js';
 import {artDirection,ART_DIRECTIONS} from './art-directions.js';
 import {createSynapseNetwork,SynapseSignals} from './synapse-network.js';
@@ -72,7 +72,8 @@ export class GPUScene {
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,CONTOUR_INK_WIDTH,4,0,gl.RGBA,gl.FLOAT,this.contour.data);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-    this.aerial??=new AerialPhysics(this.mobile?16:24);this.aerial.suspend();
+    this.aerial??=new AerialPhysics(this.mobile?16:24);this.aerial.suspend();this.aerialMotion??=new AerialMotion();this.aerialMotion.suspend();
+    this.aerialCurrents=await compileSceneProgram(gl,AERIAL_CURRENT_VERTEX,AERIAL_CURRENT_FRAGMENT,undefined,{cancelled:()=>generation!==this.generation||this.failed||this.lost,yieldWork:()=>work.checkpoint()});
     this.spectrumHistory??=new SpectrumHistory(512);this.spectrumHistory.suspend();this.fluxMotion??=new FluxMotion();this.fluxMotion.suspend();
     this.roadPalmAtlas=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.roadPalmAtlas);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,createAfterglowPalms(this.mobile?128:256));
@@ -98,7 +99,7 @@ export class GPUScene {
     await this.setupFlow(work);await work.drain(gl);
   }
   location(p,name){if(!p.uniforms.has(name))p.uniforms.set(name,this.gl.getUniformLocation(p.program,name));return p.uniforms.get(name);}
-  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_signals'||name==='u_neuralBands'||name==='u_origins'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
+  uniform(p,name,value){const gl=this.gl,loc=this.location(p,name);if(loc===null)return;if(Array.isArray(value)||ArrayBuffer.isView(value)){if(name==='u_harmonic'||name==='u_percussive'||name==='u_spheres'||name==='u_bursts'||name==='u_signals'||name==='u_neuralBands'||name==='u_origins'||name==='u_orbitBands'||name==='u_astraEvents'||name==='u_orbitMotion'||name==='u_cometTrail')gl.uniform4fv(loc,value);else if(name==='u_spectrum'||name==='u_burstPower'||name==='u_ringEcho'||name==='u_spectrumLight'||name==='u_birthCDF'||name==='u_themes'||name==='u_kaleidoWeights')gl.uniform1fv(loc,value);else if(name==='u_palette')gl.uniform3fv(loc,value);else if(value.length===4)gl.uniform4fv(loc,value);else if(value.length===3)gl.uniform3fv(loc,value);else gl.uniform2fv(loc,value);}else gl.uniform1f(loc,value);}
   use(p,uniforms={}){this.gl.useProgram(p.program);if(this.attractors&&this.location(p,'u_attractors')!==null)this.texture(p,'u_attractors',this.attractors,3);for(const [name,value]of Object.entries(uniforms))this.uniform(p,name,value);}
   texture(p,name,texture,unit=0){const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,texture);gl.uniform1i(this.location(p,name),unit);}
   quadDraw(p){const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.quad);const a=gl.getAttribLocation(p.program,'a_position');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,6);gl.disableVertexAttribArray(a);}
@@ -232,7 +233,7 @@ export class GPUScene {
       if(style.index!==4)this.contour.suspend();
       if(style.index!==5){this.spectrumHistory.suspend();this.fluxMotion.suspend();}
       if(style.index!==2){this.roadHistory.suspend();this.roadMotion.suspend();}
-      if(style.index!==6)this.aerial.suspend();
+      if(style.index!==6){this.aerial.suspend();this.aerialMotion.suspend();}
       if(style.index!==7)this.synapse.suspend();
       if(style.index!==3)this.astra.suspend();
       const sculpture=identity.sculpture||[0,0,1,0],precise=(sculpture[0]>=24?1-sculpture[2]:0)+(sculpture[1]>=24?sculpture[2]:0);
@@ -344,15 +345,20 @@ export class GPUScene {
       }else if(style.index===6){
         const count=this.mobile?16:24;
         if(this.aerial.count!==count)this.aerial=new AerialPhysics(count);
-        if(this.aerialTrack!==d.trackId){this.aerial.reset();this.aerialTrack=d.trackId;}
-        const spheres=this.aerial.update(d.spectrumClock??time,{...roles,onset:features.onset},{reduced,movement:a.motionAmount,beat:a.beatMotion,liquid:a.aerialFluid});
-        const studio={...uniforms,u_spheres:spheres,u_sphereCount:count,u_fluidPass:0,u_aerial:[a.aerialFluid,a.aerialShade],u_studio:[this.aerial.time,this.aerial.hit,reduced?0:a.motionAmount,this.mobile?1:0],u_spectrumLight:d.spectrumLight||this.emptySpectrum};
+        const motion=this.aerialMotion;
+        if(this.aerialTrack!==d.trackId){motion.beginTrack();this.aerialTrack=d.trackId;}
+        motion.update(d.aerialClock??d.spectrumClock??time,{active:d.aerialActive!==false,hold:d.aerialHold===true,reduced,movement:a.motionAmount,spectrum:features.spectrum,lights:d.spectrumLight,roles,palette:uniforms.u_palette,energy:features.loudness,onset:features.onset,spheres:this.aerial.rendered,count,mobile:this.mobile});
+        const spheres=this.aerial.update(motion.simulationClock,{bass:motion.roles[0],drums:motion.roles[1],lead:motion.roles[2],onset:motion.hit},{reduced:reduced||d.aerialHold===true,movement:a.motionAmount,beat:a.beatMotion,liquid:a.aerialFluid});
+        uniforms.u_light=[a.bloom*(1.25+motion.energy*.65),a.glow,reduced?0:a.flash,a.contrast];
+        const beads=this.mobile?64:180,burstSlots=this.mobile?8:12;
+        const studio={...uniforms,u_roles:motion.roles,u_spectrum:motion.spectrum,u_energy:motion.energy,u_colorA:motion.palette.subarray(0,3),u_colorB:motion.palette.subarray(3,6),u_colorC:motion.palette.subarray(6,9),u_spheres:spheres,u_sphereCount:count,u_fluidPass:0,u_aerial:[a.aerialFluid,a.aerialShade],u_studio:[motion.phase,motion.hit,reduced?0:a.motionAmount,this.mobile?1:0],u_bursts:motion.bursts,u_burstPower:motion.powers,u_beadCount:beads,u_beadDensity:Math.min(1.1,a.filigree*.7)*Math.min(1.1,a.orbit),u_spectrumLight:motion.lights};
         this.bind(nebula);this.use(this.aerialBackground,studio);this.quadDraw(this.aerialBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,a.aerialFluid>.03?24:0,(count-(a.aerialFluid>.03?4:0))*6);yield;
         if(a.aerialFluid>.03){this.use(this.aerialSurface,{...studio,u_fluidPass:1});gl.drawArrays(gl.TRIANGLES,0,6);}yield;
-        const beads=Math.round((this.mobile?64:180)*Math.min(1.5,a.filigree*.7)*Math.min(1.1,a.orbit));
-        this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,24*6,beads*6);yield;
+        gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+        this.use(this.aerialSurface,studio);gl.drawArrays(gl.TRIANGLES,24*6,(beads+burstSlots*8)*6);yield;
+        gl.blendFunc(gl.ONE,gl.ONE);this.use(this.aerialCurrents,{...studio,u_currentSegments:this.mobile?64:96});gl.drawArrays(gl.TRIANGLES,0,(this.mobile?3:6)*(this.mobile?64:96)*6);yield;
       }else if(style.index===5){
         const history=this.spectrumHistory,motion=this.fluxMotion;
         if(this.historyTrack!==d.trackId){motion.beginTrack();this.historyTrack=d.trackId;}
@@ -407,8 +413,8 @@ export class GPUScene {
       yield;
       // Astra's stronger light needs a smooth broad halo, not widely spaced
       // blur samples that repeat bright ring edges as ghost bands.
-      const glowRadius=style.index===7?Math.min(4.5,1.3+a.glow*1.8+this.synapse.activity*.7):style.index===5?Math.min(4,1.4+a.glow*1.8):style.index===2?Math.min(4,1.5+a.glow*1.7):style.index===3||style.index===4?Math.min(4,1+a.glow*1.5):1+a.glow*4;
-      for(let pass=0;pass<(style.index===2||style.index===3||style.index===4||style.index===5||style.index===7?2:1);pass++){
+      const glowRadius=style.index===7?Math.min(4.5,1.3+a.glow*1.8+this.synapse.activity*.7):style.index===6?Math.min(1.6,.8+a.glow*.4):style.index===5?Math.min(4,1.4+a.glow*1.8):style.index===2?Math.min(4,1.5+a.glow*1.7):style.index===3||style.index===4?Math.min(4,1+a.glow*1.5):1+a.glow*4;
+      for(let pass=0;pass<(style.index===6?3:style.index>=2?2:1);pass++){
         this.bind(bloomB);this.use(this.blur,{u_direction:[glowRadius/bloomA.w,0],u_extract:0});this.texture(this.blur,'u_image',bloomA.texture);this.quadDraw(this.blur);
         this.bind(bloomA);this.use(this.blur,{u_direction:[0,glowRadius/bloomA.h],u_extract:0});this.texture(this.blur,'u_image',bloomB.texture);this.quadDraw(this.blur);
       }

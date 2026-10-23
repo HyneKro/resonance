@@ -11,3 +11,8 @@ test('Aerial clamps drag, rail and inertia above its floor, without accumulated 
 test('entering Aerial normalizes an existing unrestricted orbit, including while frozen',()=>{
  const c=new SceneCamera();c.drag(0,-9000);c.update(.1,{reduced:true});const pose=c.update(.1,{grounded:true,frozen:true});assert.ok(pose[1]>=AERIAL_CAMERA.min);c.update(.1);c.drag(0,9000);assert.ok(c.pitch>Math.PI*2);
 });
+
+test('the new low view approaches the floor without crossing it at either dolly limit',()=>{
+ assert.ok(AERIAL_CAMERA.min<-.4);
+ for(const depth of [-4,0,.4]){const height=Math.sin(AERIAL_CAMERA.min+.25)*(7.2+depth*.19);assert.ok(height>-1.8+.25);assert.ok(height<-.9);}
+});

@@ -378,7 +378,7 @@ if(u_artDirection>1.5&&u_artDirection<2.5){
  vec3 hue=pow(max(vec3(0.),radiance/max(.0001,peak)),vec3(.65));
  return mix(mapped,mapped*hue,smoothstep(.65,2.4,peak)*.42)+highlights;
 }
-if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);return pow(film(mix(cloud,surface.rgb,surface.a)+texture(u_bloom,uv).rgb*u_light.x*.015),vec3(.454545));}
+if(u_artDirection>5.5&&u_artDirection<6.5){vec4 surface=texture(u_image,uv);vec3 light=surface.rgb+cloud*(1.-clamp(surface.a,0.,1.))+texture(u_bloom,uv).rgb*u_light.x*1.1;float peak=max(light.r,max(light.g,light.b));vec3 mapped=pow(film(light),vec3(.454545)),hue=pow(max(vec3(0.),light/max(.0001,peak)),vec3(.65));return mix(mapped,mapped*hue,smoothstep(.8,3.,peak)*.28)+highlights;}
 if(u_artDirection>3.5&&u_artDirection<4.5){
  vec4 ink=texture(u_image,uv);vec3 paper=cloud*exp(-ink.rgb*3.4);
  // Only the colored ink writes emission. Black brushwork and typography
