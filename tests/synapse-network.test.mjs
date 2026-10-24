@@ -231,3 +231,26 @@ test('Synapse repeated bass transients remain physical when broad onset envelope
  }
  assert.ok(peaks>=6,'Repeated kicks need their own detector, not a held global onset');assert.ok(n.burstsSpawned>=18&&n.burstsSpawned<=80);
 });
+
+test('Synapse quieter treble drives stronger local motion while floor noise stays still',async()=>{
+ const current=await createSynapseNetwork(680),unbalanced=await createSynapseNetwork(680),rest=await createSynapseNetwork(680);
+ const s=new SynapseSignals(),q=new SynapseSignals();s.update(0);q.update(0);
+ for(let frame=1;frame<=180;frame++){
+  const spectrum=Float32Array.from({length:48},(_,k)=>.006*Math.exp(-Math.pow((k-41)/4,2)));
+  s.update(frame/60,{energy:.65,spectrum,harmonic:spectrum});q.update(frame/60,{energy:.65});
+  current.update(s);unbalanced.update({...s,motionBands:s.detail});rest.update(q);
+ }
+ let high=0,oldHigh=0,low=0,count=0;
+ for(let i=0;i<current.count;i++){
+  const travel=n=>Math.hypot(...[0,1,2].map(j=>n.audioMotion[i*6+j]-rest.audioMotion[i*6+j]));
+  if(current.frequencies[i]>.76){high+=travel(current);oldHigh+=travel(unbalanced);count++;}
+  if(current.frequencies[i]<.3)low=Math.max(low,travel(current));
+ }
+ assert.ok(high/count>.055,'Quiet high notes must visibly bend their part of the web');
+ assert.ok(high>oldHigh*1.35,'Treble should not remain buried under the low-frequency response');assert.ok(low<.003,'Treble must stay local');
+ const noise=new SynapseSignals();noise.update(0);
+ for(let frame=1;frame<=120;frame++)noise.update(frame/60,{energy:.6,spectrum:new Float32Array(48).fill(.0001)});
+ assert.ok(noise.motionBands.every(x=>x===0),'The treble lift must not amplify the noise floor');
+ const before=s.motionBands.slice();s.beginTrack();assert.deepEqual(s.motionBands,before,'Changing songs must retain the eased response');
+ for(let frame=1;frame<=480;frame++)s.update(3+frame/60,{active:false});assert.ok(s.motionBands.every(x=>x<.0001));
+});

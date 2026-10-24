@@ -36,14 +36,24 @@ app.whenReady().then(async()=>{
  d.roles={bass:active?.7:0,drums:hit,lead:active?.65:0,texture:active?.5:0,shimmer:active?.5:0};input.features={...input.features,onset:hit,loudness:active?.8:0};d.synapseActive=active;renderStyle(7);}};
  d.camera=[0,0,0,0];gpu.synapse.reset();d.spectrumClock=0;renderStyle(7);advance(3);void 0;`);
  await shot('active');
+ // Render equal junctions directly into the scene target, without bloom. A
+ // distant junction must retain a small sharp footprint instead of bokeh.
+ report.focus=await run(`(()=>{const gl=gpu.gl,n=gpu.synapseNetworks[1700],saved=n.nodes.slice(),target=gpu.target(512,256);
+  const upload=()=>{gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,gpu.synapseTextures[1700][0]);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1700,3,gl.RGBA,gl.FLOAT,n.nodes);};
+  n.nodes.set([-4.4,0,-2.4,.4,0,0,0,.4,2,0,2.4,.4]);for(let i=0;i<3;i++)n.nodes.set([1,0,.6,0],1700*8+i*4);upload();gpu.bind(target);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.BLEND);
+  gpu.use(gpu.synapseNodes,{u_resolution:[512,256],u_camera:[0,0,0,0],u_focalLength:2,u_pixel:1,u_particle:[1,1,1,1],u_movement:0,u_nodeLayer:0,u_roles:[0,0,0,0],u_shimmer:0,u_neuralTone:[.5,0,0,1],u_neural:[0,0,0,0],u_light:[0,0,0,1]});gl.drawArrays(gl.POINTS,0,3);
+  const data=gpu.hdr?new Float32Array(512*256*4):new Uint8Array(512*256*4);gl.readPixels(0,0,512,256,gl.RGBA,gpu.hdr?gl.FLOAT:gl.UNSIGNED_BYTE,data);
+  const widths=[];for(let point=0;point<3;point++){let lo=512,hi=-1;const center=128+point*128;for(let y=0;y<256;y++)for(let x=center-48;x<center+48;x++){const k=(y*512+x)*4;if(Math.max(data[k],data[k+1],data[k+2])>(gpu.hdr?.00001:0)){lo=Math.min(lo,x);hi=Math.max(hi,x);}}widths.push(hi-lo+1);}
+  n.nodes.set(saved);upload();gl.deleteFramebuffer(target.frame);gl.deleteTexture(target.texture);gpu.draw(input);return {far:widths[0],middle:widths[1],near:widths[2]};})()`);
+ if(Object.values(report.focus).some(x=>x<=0||x>14)||report.focus.far>report.focus.near)throw Error('Junctions are still defocused: '+JSON.stringify(report.focus));
  report.reactivity=await run(`(()=>{
-  const s=gpu.synapse,arrays=['roles','spectrum','detail','events','accents'],scalars=['energy','activity','shimmer','flux','beat','tension'];
+  const s=gpu.synapse,arrays=['roles','spectrum','detail','motionBands','events','accents'],scalars=['energy','activity','shimmer','flux','beat','tension'];
   const saved=Object.fromEntries([...arrays.map(k=>[k,s[k].slice()]),...scalars.map(k=>[k,s[k]])]);
   const energy=index=>{const a=pixels(index);let total=0,hot=0;for(let i=0;i<a.length;i+=4){total+=a[i]+a[i+1]+a[i+2];if(Math.max(a[i],a[i+1],a[i+2])>1)hot++;}return {total:total/(a.length/4),hot};};
   const network=gpu.synapseNetworks[1700],toneStart=1700*8,tones=network.nodes.slice(toneStart);const upload=()=>{gpu.gl.activeTexture(gpu.gl.TEXTURE7);gpu.gl.bindTexture(gpu.gl.TEXTURE_2D,gpu.synapseTextures[1700][0]);gpu.gl.texSubImage2D(gpu.gl.TEXTURE_2D,0,0,0,1700,3,gpu.gl.RGBA,gpu.gl.FLOAT,network.nodes);};network.nodes.fill(0,toneStart);upload();
   for(const k of arrays)s[k].fill(0);for(const k of scalars)s[k]=0;gpu.draw(input);const quiet=energy(0),quietBloom=energy(1);
   network.nodes.set(tones,toneStart);upload();s.roles.set([.8,.8,.8,.5]);s.energy=.8;s.activity=.8;s.shimmer=.8;s.flux=.5;s.beat=.8;s.spectrum.fill(.7);s.accents.set([.8,.6,.7]);
-  for(let i=0;i<48;i++)s.detail.set([.8,.7,.6,.25],i*4);gpu.draw(input);const music=energy(0),musicBloom=energy(1),bloomOn=rgb().reduce((a,b)=>a+b,0);
+  for(let i=0;i<48;i++){s.detail.set([.8,.7,.6,.25],i*4);s.motionBands.set([.8,.7,.6,.25],i*4);}gpu.draw(input);const music=energy(0),musicBloom=energy(1),bloomOn=rgb().reduce((a,b)=>a+b,0);
   const bloom=d.appearance.bloom;d.appearance.bloom=0;gpu.draw(input);const bloomOff=rgb().reduce((a,b)=>a+b,0);d.appearance.bloom=bloom;
   const gl=gpu.gl,native=gl.drawArrays.bind(gl);gl.drawArrays=(mode,first,count)=>{if(gl.getParameter(gl.CURRENT_PROGRAM)===gpu.synapseThreads.program&&gl.getUniform(gpu.synapseThreads.program,gpu.location(gpu.synapseThreads,'u_threadLayer'))>1.5)return;native(mode,first,count);};
   gpu.draw(input);const withoutStreams=energy(0);gl.drawArrays=native;

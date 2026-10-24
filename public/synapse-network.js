@@ -79,18 +79,19 @@ export class SynapseNetwork{
  }
  moveAudio(signals,beat,force){
   const dt=signals.dt;if(signals.time<(this.audioTime??0))this.audioMotion.fill(0);this.audioTime=signals.time;
+  const bands=signals.motionBands??signals.detail;
   for(let i=0;i<this.count;i++){
    const k=i*6,at=i*3,frequency=this.frequencies[i],lane=Math.min(47,Math.floor(frequency*48))*4;
-   const band=clamp(signals.detail[lane]),harmonic=clamp(signals.detail[lane+1]),percussive=clamp(signals.detail[lane+2]);
+   const band=clamp(bands[lane]),harmonic=clamp(bands[lane+1]),percussive=clamp(bands[lane+2]);
    const x=this.anchors[at],y=this.anchors[at+1],z=this.anchors[at+2],seed=this.seeds[i*4+3]*Math.PI*2;
    let phase=0;for(let j=0;j<4;j++)phase+=this.localPhases[this.regions[i*4+j]]*this.regionWeights[i*4+j];
    // Loudness changes the shape directly. Its lobes differ across all three
    // axes, rather than making the entire network expand uniformly.
    const bandDrive=Math.sqrt(band),harmonicDrive=Math.sqrt(harmonic);
-   const amplitude=Math.min(.85,signals.energy*(.30+bandDrive*.95+harmonicDrive*.45)*force);
+   const amplitude=Math.min(.90,signals.energy*(.27+bandDrive*1.05+harmonicDrive*.50)*force);
    const tx=Math.sin(y*1.7+z*1.25+phase*.7)*amplitude,ty=Math.sin(z*1.8+x*1.15-phase*.45)*amplitude*.90,tz=Math.cos(x*1.5-y*1.4+phase*.55)*amplitude;
    const low=Math.max(0,1-frequency/.58),mid=Math.exp(-Math.pow((frequency-.50)/.22,2));
-   const kick=(signals.attacks?.[0]||0)*low*(.35+bandDrive*.65),strike=(signals.attacks?.[1]||0)*mid*(.30+Math.sqrt(percussive)*.70),hat=(signals.attacks?.[2]||0)*frequency*frequency*.3;
+   const kick=(signals.attacks?.[0]||0)*low*(.35+bandDrive*.65),strike=(signals.attacks?.[1]||0)*mid*(.30+Math.sqrt(percussive)*.70),hat=(signals.attacks?.[2]||0)*frequency*frequency*.55;
    const impulse=(kick*4.5+strike*2.4+hat)*clamp(beat,0,2)*force;
    const dx=Math.sin(seed+z*.7),dy=Math.cos(seed*.71+x*.5),dz=Math.sin(seed*.53-y*.8),length=Math.hypot(dx,dy,dz);
    for(let j=0;j<3;j++)this.audioMotion[k+3+j]+=(j===0?dx:j===1?dy:dz)/length*impulse;
@@ -184,7 +185,7 @@ export class SynapseNetwork{
   this.signalTime=signals.time;
   for(let i=0;i<n;i++){
    const k=base+i*4,lane=Math.min(47,Math.floor(this.frequencies[i]*48))*4;
-   const raw=signals.detail[lane],harmonic=signals.detail[lane+1],texture=signals.roles[3];
+   const bands=signals.motionBands??signals.detail,raw=bands[lane],harmonic=bands[lane+1],texture=signals.roles[3];
    const target=raw*(.40+harmonic*.42);
    p[k]+=(target-p[k])*(1-Math.exp(-dt/(target>p[k]?.16:.62)));
    p[k+1]*=Math.exp(-dt/.38);
@@ -220,11 +221,12 @@ export class SynapseNetwork{
  }
  update(signals,{movement=1,beat=.55,turbulence=1}={}){
   const dt=signals.dt;if(!dt)return this;
+  const bands=signals.motionBands??signals.detail;
   if(movement>0)for(let j=0;j<this.domains.length;j++){
    const d=this.domains[j],k=d.band*4;
-   this.localPhases[j]+=dt*clamp(movement,0,2)*d.tempo*(.045+clamp(signals.detail[k])*.48+clamp(signals.detail[k+1])*.22+signals.activity*.035);
+   this.localPhases[j]+=dt*clamp(movement,0,2)*d.tempo*(.045+clamp(bands[k])*.48+clamp(bands[k+1])*.22+signals.activity*.035);
   }
-  if(movement>0){this.moveAudio(signals,beat,clamp(turbulence,.25,2)*clamp(movement,0,2));this.place(0,this.count,signals.phase*clamp(movement,0,2),signals.activity*(1+signals.phrase*.15),dt,signals.roles,signals.spectrum,signals.detail,clamp(turbulence,.25,2),signals.beat*clamp(beat,0,2),signals.tension);}
+  if(movement>0){this.moveAudio(signals,beat,clamp(turbulence,.25,2)*clamp(movement,0,2));this.place(0,this.count,signals.phase*clamp(movement,0,2),signals.activity*(1+signals.phrase*.15),dt,signals.roles,signals.spectrum,bands,clamp(turbulence,.25,2),signals.beat*clamp(beat,0,2),signals.tension);}
   this.updateBursts(signals,beat);
   this.rewireAt+=dt;if(this.rewireAt>=(this.count>1000?.14:.18)){this.rewireAt%=this.count>1000?.14:.18;this.reconnect();}
   for(const [id,link]of this.links){
@@ -242,8 +244,8 @@ export class SynapseNetwork{
 }
 
 export class SynapseSignals{
- constructor(){this.events=new Float32Array(32);this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.detail=new Float32Array(48*4);this.previous=new Float32Array(48);this.accents=new Float32Array(3);this.attacks=new Float32Array(3);this.palette=new Float32Array(18);this.reset();}
- reset(){this.time=0;this.phase=0;this.clock=null;this.dt=0;this.activity=0;this.energy=0;this.shimmer=0;this.flux=0;this.centroid=.5;this.tension=0;this.beat=0;this.phrase=0;this.lastBassPerc=0;this.bassPercPeak=0;this.lastRhythmPulse=0;this.initialized=false;this.clearEvents();this.roles.fill(0);this.spectrum.fill(0);this.detail.fill(0);this.previous.fill(0);this.accents.fill(0);this.attacks.fill(0);}
+ constructor(){this.events=new Float32Array(32);this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.detail=new Float32Array(48*4);this.motionBands=new Float32Array(48*4);this.bandPeaks=new Float32Array(48);this.previous=new Float32Array(48);this.accents=new Float32Array(3);this.attacks=new Float32Array(3);this.palette=new Float32Array(18);this.reset();}
+ reset(){this.time=0;this.phase=0;this.clock=null;this.dt=0;this.activity=0;this.energy=0;this.shimmer=0;this.flux=0;this.centroid=.5;this.tension=0;this.beat=0;this.phrase=0;this.lastBassPerc=0;this.bassPercPeak=0;this.lastRhythmPulse=0;this.initialized=false;this.clearEvents();this.roles.fill(0);this.spectrum.fill(0);this.detail.fill(0);this.motionBands.fill(0);this.bandPeaks.fill(0);this.previous.fill(0);this.accents.fill(0);this.attacks.fill(0);}
  clearEvents(){this.envelope=0;this.laneEnvelopes=[0,0,0];this.next=0;this.emitted=0;this.lastHit=-10;this.events.fill(0);}
  beginTrack(){
   // Keep in-flight graph signals and the material phase through a song change.
@@ -268,6 +270,16 @@ export class SynapseSignals{
    const h=active?clamp(harmonic?.[i]??raw*.65):0,p=active?clamp(percussive?.[i]??raw*.35):0;
    const rise=active?clamp((raw-this.previous[i])*3.5):0;this.previous[i]=raw;
    const values=[raw,h,p,rise];for(let j=0;j<4;j++)this.detail[k+j]=mix(this.detail[k+j],values[j],active?(j===3?.12:values[j]>this.detail[k+j]?.11:.34):.65);
+   // A bounded high shelf and a local peak reference reveal quieter treble.
+   // Relative contrast sits behind a fixed noise floor and never feeds back
+   // into raw note analysis or the bass transient detector.
+   const f=i/47,gain=1.08+f*f*1.12;
+   this.bandPeaks[i]=Math.max(raw,h,p,this.bandPeaks[i]*Math.exp(-dt/3));
+   const reference=Math.max(.09-f*.055,this.bandPeaks[i]);
+   for(let j=0;j<4;j++){
+    const value=values[j],gate=clamp(((j===3?raw:value)-.00025)/.0015),target=active?gate*clamp(clamp(value*gain)*.82+Math.pow(clamp(value/reference),1.4)*.18):0;
+    this.motionBands[k+j]=mix(this.motionBands[k+j],target,active?(target>this.motionBands[k+j]?.075:.24):.65);
+   }
    this.spectrum[i]=mix(this.spectrum[i],active?clamp(lights?.[i]):0,.065);
    sum+=raw;weighted+=raw*i/47;fluxSum+=rise;harmonicSum+=h;if(i<16)bassPerc+=p/16;
   }
