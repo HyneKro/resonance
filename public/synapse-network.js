@@ -11,7 +11,10 @@ export async function createSynapseNetwork(count=1700,yieldWork=async()=>{}){
 export class SynapseNetwork{
  constructor(count=1700){
   this.count=Math.max(128,Math.min(2048,Math.floor(count)||1700));this.capacity=this.count*5;
-  this.nodes=new Float32Array(this.count*8);this.seeds=new Float32Array(this.count*4);
+  // Position, spring velocity, then local musical energy / charge / harmonic / texture.
+  this.nodes=new Float32Array(this.count*12);this.seeds=new Float32Array(this.count*4);
+  this.currentCapacity=this.count>1000?36:16;this.currents=new Float32Array(this.currentCapacity*4);
+  this.routes=[];this.neighbours=Array.from({length:this.count},()=>[]);this.lastDischarge=-1;
   this.edgeRows=Math.ceil(this.capacity/1024);this.edges=new Float32Array(this.edgeRows*4096);
   this.links=new Map();this.free=Array.from({length:this.capacity},(_,i)=>this.capacity-i-1);
   this.facetCapacity=this.count*2;this.facetRows=Math.ceil(this.facetCapacity/1024);this.facets=new Float32Array(this.facetRows*4096);
@@ -24,20 +27,20 @@ export class SynapseNetwork{
   for(let i=from;i<to;i++){
    const k=i*4,t=s[k],v=s[k+1]*2-1,depth=s[k+2]*2-1;
    const lane=Math.floor(s[k+3]*47),band=clamp(detail[lane*4]??spectrum[lane]),harmonic=clamp(detail[lane*4+1]),percussive=clamp(detail[lane*4+2]),flux=clamp(detail[lane*4+3]);
-   const bass=roles[0],lead=roles[2],texture=roles[3],swell=(bass*.60+beat*.65)*force;
+   const bass=roles[0],lead=roles[2],texture=roles[3],swell=(bass*.10+beat*.035)*force;
    // A spacious folded field, rather than a narrow branching tube. Independent
    // drift moves neighbours through each other without pinning a rigid lattice.
-   let x=(t-.5)*10.6+Math.sin(v*4+phase*.31+s[k+3]*3)*(.16+drive*.70+harmonic*.23);
-   let y=v*1.75+(t-.5)*1.9+Math.sin(t*6.1+phase*.16)*(.45+drive*.58);
-   let z=depth*2.55+Math.sin(t*5.6+v*2.1-phase*.13)*(.44+drive*.62);
-   y+=Math.sin(t*15+depth*3+phase*.58)*(.12+drive*.52)+band*Math.sin(v*3+phase*.9)*.70*force;
-   y+=Math.sin(t*7.4+phase*.65)*swell+Math.cos(depth*2.2-phase*.7)*harmonic*lead*.45*force;
-   z+=Math.cos(v*4.2+t*9-phase*.48)*(.12+drive*.62)+band*Math.cos(t*8-phase*.8)*.68*force;
-   z+=Math.cos(t*9.2-phase*.72)*swell+Math.sin(v*6+phase*1.4)*(percussive*.30+flux*.55)*force;
-   const angle=Math.sin(t*4+phase*.12)*(.12+lead*.40+texture*.30+tension*.15),c=Math.cos(angle),sn=Math.sin(angle);
+   let x=(t-.5)*10.6+Math.sin(v*4+phase*.31+s[k+3]*3)*(.16+drive*.22+harmonic*.13);
+   let y=v*1.75+(t-.5)*1.9+Math.sin(t*6.1+phase*.16)*(.45+drive*.20);
+   let z=depth*2.55+Math.sin(t*5.6+v*2.1-phase*.13)*(.44+drive*.22);
+   y+=Math.sin(t*15+depth*3+phase*.58)*(.12+drive*.16)+band*Math.sin(v*3+phase*.9)*.24*force;
+   y+=Math.sin(t*7.4+phase*.65)*swell+Math.cos(depth*2.2-phase*.7)*harmonic*lead*.20*force;
+   z+=Math.cos(v*4.2+t*9-phase*.48)*(.12+drive*.18)+band*Math.cos(t*8-phase*.8)*.24*force;
+   z+=Math.cos(t*9.2-phase*.72)*swell+Math.sin(v*6+phase*1.4)*(percussive*.045+flux*.035)*force;
+   const angle=Math.sin(t*4+phase*.12)*(.12+lead*.12+texture*.09+tension*.06),c=Math.cos(angle),sn=Math.sin(angle);
    [y,z]=[y*c-z*sn,z*c+y*sn];
    if(!dt){p.set([x,y,z,s[k+3]],k);continue;}
-   const velocity=n*4+k,omega=5.5+drive*2.5,decay=Math.exp(-omega*dt);
+   const velocity=n*4+k,omega=3.8+drive*1.2,decay=Math.exp(-omega*dt);
    // Exact damped spring integration keeps strong attacks smooth on slow frames.
    for(let j=0;j<3;j++){
     const target=j===0?x:j===1?y:z,error=p[k+j]-target,travel=p[velocity+j]+omega*error;
@@ -86,7 +89,57 @@ export class SynapseNetwork{
     }
    }
   }
+  for(const neighbours of this.neighbours)neighbours.length=0;
+  for(const link of this.links.values())if(link.wanted){const k=link.slot*4,a=this.edges[k],b=this.edges[k+1];this.neighbours[a].push(b);this.neighbours[b].push(a);}
   this.rewires++;
+ }
+ nextNode(node,previous,band,seed,visited=[]){
+  let best=-1,score=-Infinity;const p=this.nodes,k=node*4;
+  for(const other of this.neighbours[node]){
+   if(other===previous||visited.includes(other))continue;
+   const at=other*4,dx=p[at]-p[k],dy=p[at+1]-p[k+1],dz=p[at+2]-p[k+2],length=Math.hypot(dx,dy,dz);
+   let alignment=0;if(previous>=0){const before=previous*4;alignment=(dx*(p[k]-p[before])+dy*(p[k+1]-p[before+1])+dz*(p[k+2]-p[before+2]))/Math.max(.01,length*Math.hypot(p[k]-p[before],p[k+1]-p[before+1],p[k+2]-p[before+2]));}
+   const value=alignment*.35-Math.abs(p[at+3]-band)*.65+noise(other+seed*31)*.30;
+   if(value>score){score=value;best=other;}
+  }return best;
+ }
+ conduct(signals){
+  const dt=signals.dt,p=this.nodes,n=this.count,base=n*8;
+  if(signals.time<(this.signalTime??0)){this.routes.length=0;this.lastDischarge=-1;p.fill(0,base);}
+  this.signalTime=signals.time;
+  for(let i=0;i<n;i++){
+   const k=base+i*4,lane=Math.min(47,Math.floor(p[i*4+3]*48))*4;
+   const raw=signals.detail[lane],harmonic=signals.detail[lane+1],texture=signals.roles[3];
+   const target=raw*(.40+harmonic*.42);
+   p[k]+=(target-p[k])*(1-Math.exp(-dt/(target>p[k]?.16:.62)));
+   p[k+1]*=Math.exp(-dt/.38);
+   p[k+2]+=(harmonic-p[k+2])*(1-Math.exp(-dt/.28));
+   p[k+3]+=(texture*(.25+raw*.75)-p[k+3])*(1-Math.exp(-dt/.65));
+  }
+  // One small signal chooses a route through real neighbours. No expanding shell,
+  // radial displacement or all-node flash is involved in an attack.
+  for(let e=0;e<8;e++){
+   const k=e*4,time=signals.events[k];if(signals.events[k+1]<=0||time<=this.lastDischarge)continue;
+   const a=Math.floor(signals.events[k+2])%n,band=signals.events[k+3],b=this.nextNode(a,-1,band,time);
+   if(b>=0&&this.routes.length<this.currentCapacity)this.routes.push({a,b,t:0,power:signals.events[k+1],band,age:0,hops:0,seed:time,visited:[a]});
+  }
+  this.lastDischarge=Math.max(this.lastDischarge,...Array.from({length:8},(_,e)=>signals.events[e*4+1]>0?signals.events[e*4]:-1));
+  this.currents.fill(0);
+  const living=[];
+  for(const route of this.routes){
+   route.age+=dt;const a=route.a*4,b=route.b*4,length=Math.max(.08,Math.hypot(p[a]-p[b],p[a+1]-p[b+1],p[a+2]-p[b+2]));
+   route.t+=dt*(1.05+signals.energy*.65)/length;
+   if(route.t>=1){
+    p[base+route.b*4+1]=Math.min(1,p[base+route.b*4+1]+route.power*.55);
+    route.visited.push(route.b);const next=this.nextNode(route.b,route.a,route.band,route.seed+route.hops,route.visited);
+    if(next<0||++route.hops>=7||route.age>3.5)continue;
+    route.a=route.b;route.b=next;route.t=0;route.power*=.82;
+   }
+   const envelope=Math.min(1,route.age/.12)*Math.exp(-route.age*.22),power=route.power*envelope;
+   const ka=base+route.a*4+1,kb=base+route.b*4+1;
+   p[ka]=Math.max(p[ka],power*(1-route.t)*.65);p[kb]=Math.max(p[kb],power*route.t*.65);
+   this.currents.set([route.a,route.b,route.t,power],living.length*4);living.push(route);
+  }this.routes=living;
  }
  update(signals,{movement=1,beat=.55,turbulence=1}={}){
   const dt=signals.dt;if(!dt)return this;
@@ -102,16 +155,16 @@ export class SynapseNetwork{
    this.facets[k]+=(target-this.facets[k])*(1-Math.exp(-dt/(target?.40:.28)));
    if(!face.wanted&&this.facets[k]<.009){this.facets.fill(0,k-3,k+1);this.faces.delete(id);this.faceFree.push(face.slot);}
   }
-  this.steps++;this.version++;return this;
+  this.conduct(signals);this.steps++;this.version++;return this;
  }
 }
 
 export class SynapseSignals{
- constructor(){this.events=new Float32Array(32);this.origins=new Float32Array(32);this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.detail=new Float32Array(48*4);this.previous=new Float32Array(48);this.accents=new Float32Array(3);this.palette=new Float32Array(18);this.reset();}
+ constructor(){this.events=new Float32Array(32);this.roles=new Float32Array(4);this.spectrum=new Float32Array(48);this.detail=new Float32Array(48*4);this.previous=new Float32Array(48);this.accents=new Float32Array(3);this.palette=new Float32Array(18);this.reset();}
  reset(){this.time=0;this.phase=0;this.clock=null;this.dt=0;this.activity=0;this.energy=0;this.shimmer=0;this.flux=0;this.centroid=.5;this.tension=0;this.beat=0;this.phrase=0;this.initialized=false;this.clearEvents();this.roles.fill(0);this.spectrum.fill(0);this.detail.fill(0);this.previous.fill(0);this.accents.fill(0);}
- clearEvents(){this.envelope=0;this.laneEnvelopes=[0,0,0];this.next=0;this.emitted=0;this.lastHit=-10;this.events.fill(0);this.origins.fill(0);}
+ clearEvents(){this.envelope=0;this.laneEnvelopes=[0,0,0];this.next=0;this.emitted=0;this.lastHit=-10;this.events.fill(0);}
  beginTrack(){
-  // Keep in-flight light and pressure waves continuous through a song change.
+  // Keep in-flight graph signals and the material phase through a song change.
   this.envelope=0;this.laneEnvelopes=[0,0,0];this.emitted=0;this.lastHit=this.time;
  }
  suspend(){this.clock=null;this.dt=0;}
@@ -132,7 +185,7 @@ export class SynapseSignals{
    const raw=active?clamp(spectrum?.[i]??lights?.[i]):0,k=i*4;
    const h=active?clamp(harmonic?.[i]??raw*.65):0,p=active?clamp(percussive?.[i]??raw*.35):0;
    const rise=active?clamp((raw-this.previous[i])*3.5):0;this.previous[i]=raw;
-   const values=[raw,h,p,rise];for(let j=0;j<4;j++)this.detail[k+j]=mix(this.detail[k+j],values[j],active?(j===3?.07:.045):.55);
+   const values=[raw,h,p,rise];for(let j=0;j<4;j++)this.detail[k+j]=mix(this.detail[k+j],values[j],active?(j===3?.12:values[j]>this.detail[k+j]?.11:.34):.65);
    this.spectrum[i]=mix(this.spectrum[i],active?clamp(lights?.[i]):0,.065);
    sum+=raw;weighted+=raw*i/47;fluxSum+=rise;harmonicSum+=h;
   }
@@ -149,13 +202,13 @@ export class SynapseSignals{
   }
   this.beat=mix(this.beat,active?Math.max(trusted,this.accents[0]):0,.065);
   this.phrase=mix(this.phrase,active?clamp((direction?.energy||0)*(direction?.mix||0)):0,.75);
-  this.phase+=dt*(.075+this.activity*(1.75+this.flux)+this.roles[1]*.70+this.roles[2]*.20);
+  this.phase+=dt*(.075+this.activity*.30+this.roles[0]*.055+this.roles[2]*.07);
   if(palette?.length===18)for(let i=0;i<18;i++)this.palette[i]=mix(this.palette[i],clamp(palette[i],0,2),1.3);
-  if(active&&energy>.015&&this.time-this.lastHit>.16&&((level>.25&&level-this.envelope>.065)||strongest>.12)){
-   const source=count?Math.floor(noise(this.emitted+311)*count):this.emitted%4,k=this.next*4;
-   const strength=clamp(.15+Math.max(level,strongest)*.95+energy*.30,0,1.5);
-   this.events.set([this.time,strength,source,lane<0?this.centroid:lane*.5],k);
-   this.origins.set(nodes&&count?[nodes[source*4],nodes[source*4+1],nodes[source*4+2],1]:[-3+(source%4)*2,0,0,1],k);
+  if(active&&energy>.015&&this.time-this.lastHit>.24&&((level>.25&&level-this.envelope>.065)||strongest>.12)){
+   const band=lane<0?this.centroid:[.12,.5,.86][lane];let source=count?Math.floor(noise(this.emitted+311)*count):this.emitted%4,best=Infinity;
+   if(nodes&&count)for(let j=0;j<24;j++){const candidate=Math.floor(noise(this.emitted*29+j+311)*count),score=Math.abs(nodes[candidate*4+3]-band)+noise(candidate+this.emitted)*.20;if(score<best){best=score;source=candidate;}}
+   const k=this.next*4,strength=clamp(.16+Math.max(level,strongest)*.50+energy*.20,0,.85);
+   this.events.set([this.time,strength,source,band],k);
    this.next=(this.next+1)%8;this.emitted++;this.lastHit=this.time;
   }
   this.envelope=level>this.envelope?level:mix(this.envelope,level,.12);return this;

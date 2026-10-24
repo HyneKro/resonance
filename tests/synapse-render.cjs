@@ -37,11 +37,12 @@ app.whenReady().then(async()=>{
  d.camera=[0,0,0,0];gpu.synapse.reset();d.spectrumClock=0;renderStyle(7);advance(3);void 0;`);
  await shot('active');
  report.reactivity=await run(`(()=>{
-  const s=gpu.synapse,arrays=['roles','spectrum','detail','events','origins','accents'],scalars=['energy','activity','shimmer','flux','beat','tension'];
+  const s=gpu.synapse,arrays=['roles','spectrum','detail','events','accents'],scalars=['energy','activity','shimmer','flux','beat','tension'];
   const saved=Object.fromEntries([...arrays.map(k=>[k,s[k].slice()]),...scalars.map(k=>[k,s[k]])]);
   const energy=index=>{const a=pixels(index);let total=0,hot=0;for(let i=0;i<a.length;i+=4){total+=a[i]+a[i+1]+a[i+2];if(Math.max(a[i],a[i+1],a[i+2])>1)hot++;}return {total:total/(a.length/4),hot};};
+  const network=gpu.synapseNetworks[1700],toneStart=1700*8,tones=network.nodes.slice(toneStart);const upload=()=>{gpu.gl.activeTexture(gpu.gl.TEXTURE7);gpu.gl.bindTexture(gpu.gl.TEXTURE_2D,gpu.synapseTextures[1700][0]);gpu.gl.texSubImage2D(gpu.gl.TEXTURE_2D,0,0,0,1700,3,gpu.gl.RGBA,gpu.gl.FLOAT,network.nodes);};network.nodes.fill(0,toneStart);upload();
   for(const k of arrays)s[k].fill(0);for(const k of scalars)s[k]=0;gpu.draw(input);const quiet=energy(0),quietBloom=energy(1);
-  s.roles.set([.8,.8,.8,.5]);s.energy=.8;s.activity=.8;s.shimmer=.8;s.flux=.5;s.beat=.8;s.spectrum.fill(.7);s.accents.set([.8,.6,.7]);
+  network.nodes.set(tones,toneStart);upload();s.roles.set([.8,.8,.8,.5]);s.energy=.8;s.activity=.8;s.shimmer=.8;s.flux=.5;s.beat=.8;s.spectrum.fill(.7);s.accents.set([.8,.6,.7]);
   for(let i=0;i<48;i++)s.detail.set([.8,.7,.6,.25],i*4);gpu.draw(input);const music=energy(0),musicBloom=energy(1),bloomOn=rgb().reduce((a,b)=>a+b,0);
   const bloom=d.appearance.bloom;d.appearance.bloom=0;gpu.draw(input);const bloomOff=rgb().reduce((a,b)=>a+b,0);d.appearance.bloom=bloom;
   const gl=gpu.gl,native=gl.drawArrays.bind(gl);gl.drawArrays=(mode,first,count)=>{if(gl.getParameter(gl.CURRENT_PROGRAM)===gpu.synapseThreads.program&&gl.getUniform(gpu.synapseThreads.program,gpu.location(gpu.synapseThreads,'u_threadLayer'))>1.5)return;native(mode,first,count);};
@@ -49,26 +50,17 @@ app.whenReady().then(async()=>{
   for(const k of arrays)s[k].set(saved[k]);for(const k of scalars)s[k]=saved[k];gpu.draw(input);
   return {quiet,music,quietBloom,musicBloom,lightRatio:music.total/quiet.total,bloomRatio:musicBloom.total/Math.max(.000001,quietBloom.total),bloomOn,bloomOff,streamEnergy:music.total-withoutStreams.total};
  })()`);
- if(report.reactivity.lightRatio<8||report.reactivity.bloomRatio<8||report.reactivity.bloomOn<report.reactivity.bloomOff*1.1||report.reactivity.streamEnergy<.0001)throw Error('Synapse response is too restrained: '+JSON.stringify(report.reactivity));
+ if(report.reactivity.lightRatio<1.5||report.reactivity.bloomRatio<1.5||report.reactivity.bloomOn<report.reactivity.bloomOff+.01||report.reactivity.streamEnergy<.000001)throw Error('Synapse musical light, bloom or currents are missing: '+JSON.stringify(report.reactivity));
 
  report.fabric=await run(`(()=>{const n=gpu.synapseNetworks[1700],count=n.facetCount,before=pixels(0);n.facetCount=0;gpu.draw(input);const without=pixels(0);n.facetCount=count;gpu.draw(input);return {facets:n.faces.size,vertices:count*3,delta:distance(before,without)};})()`);
  if(report.fabric.facets<80||report.fabric.delta<.00001)throw Error('Translucent facets and woven detail do not render');
 
  report.motion=await run(`(()=>{const n=gpu.synapseNetworks[1700],before=n.nodes.slice(),pairs=new Set(n.links.keys()),image=pixels();advance(2);const delta=distance(image,pixels());return {movingNodes:Array.from({length:n.count},(_,i)=>Math.hypot(...[0,1,2].map(k=>n.nodes[i*4+k]-before[i*4+k]))).filter(x=>x>.025).length,newConnections:[...n.links.keys()].filter(k=>!pairs.has(k)).length,pixelDelta:delta,links:n.links.size,capacity:n.capacity};})()`);
- if(report.motion.movingNodes<1683||report.motion.newConnections<100||report.motion.pixelDelta<.5)throw Error('Network does not organically rearrange: '+JSON.stringify(report.motion));
+ if(report.motion.movingNodes<1400||report.motion.newConnections<100||report.motion.pixelDelta<.5)throw Error('Network does not organically rearrange: '+JSON.stringify(report.motion));
  report.hold=await run(`(()=>{const before=pixels();input.time+=90;renderStyle(7);const clockHeld=distance(before,pixels());const time=gpu.synapse.time;input.reduced=true;d.spectrumClock+=.1;renderStyle(7);const reducedHeld=gpu.synapse.time===time?0:1;input.reduced=false;d.synapseHold=true;d.spectrumClock+=.1;renderStyle(7);const frozenHeld=distance(before,pixels());d.synapseHold=false;return {clockHeld,reducedHeld,frozenHeld};})()`);
  if(Object.values(report.hold).some(x=>x>.001))throw Error('Held network changes: '+JSON.stringify(report.hold));
- report.shockwave=await run(`(async()=>{
-  const {SYNAPSE_NODE_VERTEX,SYNAPSE_NODE_FRAGMENT}=await import('/synapse-shaders.js'),{compileSceneProgram}=await import('/shader-loader.js'),gl=gpu.gl,n=gpu.synapseNetworks[1700];
-  const source=SYNAPSE_NODE_VERTEX.replace('out vec3 v_color;','out vec4 v_probe;out vec3 v_color;').replace('gl_Position=projectWeb(p);v_seed=data.w;','v_probe=vec4(p,impulse(p));gl_Position=projectWeb(p);v_seed=data.w;');
-  const p=await compileSceneProgram(gl,source,SYNAPSE_NODE_FRAGMENT,['v_probe']),buffer=gl.createBuffer(),feedback=gl.createTransformFeedback();
-  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,feedback);gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER,buffer);gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER,n.count*16,gl.DYNAMIC_READ);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,buffer);gl.enable(gl.RASTERIZER_DISCARD);
-  const events=new Float32Array(32),origins=new Float32Array(32);events.set([0,1,0,0]);
-  gpu.use(p,{u_nodeLayer:0,u_signalTime:0,u_signals:events,u_origins:origins,u_light:[1,1,.2,1],u_movement:1,u_particle:[1,1,1,1],u_resolution:[1280,800],u_focalLength:1.9,u_pixel:1,u_neural:[0,1,1,1],u_camera:[0,0,0,0]});gpu.texture(p,'u_nodes',gpu.synapseTextures[1700][0],7);
-  const sample=age=>{gpu.uniform(p,'u_signalTime',age);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,n.count);gl.endTransformFeedback();const a=new Float32Array(n.count*4);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,a);let weight=0,radius=0;for(let i=0;i<a.length;i+=4){const w=a[i+3];weight+=w;radius+=w*Math.hypot(a[i],a[i+1],a[i+2]);}return {radius:radius/weight,weight};};
-  const near=sample(.35),far=sample(1.1);gl.disable(gl.RASTERIZER_DISCARD);gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER,0,null);gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK,null);gl.deleteBuffer(buffer);gl.deleteTransformFeedback(feedback);gl.deleteProgram(p.program);gpu.draw(input);return {near,far};
- })()`);
- if(report.shockwave.far.radius-report.shockwave.near.radius<1.1||report.shockwave.near.weight<1||report.shockwave.far.weight<1)throw Error('Single-point impulse did not expand in 3D: '+JSON.stringify(report.shockwave));
+ report.currents=await run(`(()=>{const n=gpu.synapseNetworks[1700];return {routes:n.routes.length,capacity:n.currentCapacity,charged:n.nodes.slice(1700*8).filter((v,k)=>k%4===1&&v>.03).length,hasRadialUniform:gpu.location(gpu.synapseNodes,'u_signals[0]')!==null};})()`);
+ if(report.currents.routes<1||report.currents.routes>report.currents.capacity||report.currents.charged>170||report.currents.hasRadialUniform)throw Error('Graph currents became a global shockwave: '+JSON.stringify(report.currents));
  report.colours={};
  for(const [name,colors]of [['warm',[[.95,.025,.06],[.8,.02,.04],[1,.09,.02]]],['cool',[[.02,.1,.9],[.025,.2,.95],[.03,.08,1]]]]){
   await run(`d.colors=${JSON.stringify(colors)};advance(4);`);report.colours[name]=await run('rgb()');await shot(name);

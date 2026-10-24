@@ -119,12 +119,12 @@ app.whenReady().then(async()=>{
     gpu.synapse.reset();d.spectrumClock=0;input.features={...features,onset:0,loudness:.7};gpu.draw(input);
     d.spectrumClock=.02;input.features={...input.features,onset:1};gpu.draw(input);if(gpu.synapse.emitted!==1)throw Error('Synapse missed the attack');
     input.features={...input.features,onset:0};for(let i=0;i<20;i++){d.spectrumClock+=.02;gpu.draw(input);}const near=pixels();
-    for(let i=0;i<30;i++){d.spectrumClock+=.02;gpu.draw(input);}if(difference(near,pixels())<10)throw Error('Impulse does not travel');
+    for(let i=0;i<30;i++){d.spectrumClock+=.02;gpu.draw(input);}if(difference(near,pixels())<10)throw Error('Graph current does not travel');
     const flash=d.appearance.flash;const flashed=energy();d.appearance.flash=0;gpu.draw(input);if(!(energy()<flashed))throw Error('Musical flashes control is ignored');d.appearance.flash=flash;gpu.draw(input);
     const held=pixels();input.time+=300;gpu.draw(input);if(difference(held,pixels())>.01)throw Error('Synapse reads wall clock');
     const time=gpu.synapse.time;input.reduced=true;d.spectrumClock+=.1;gpu.draw(input);if(gpu.synapse.time!==time)throw Error('Reduced signals advance');input.reduced=false;
     d.camera=[.6,.3,0,0];gpu.draw(input);if(difference(held,pixels())<10)throw Error('Synapse lacks camera depth');
-    const travelling=gpu.synapse.events.slice();d.trackId='synapse-new-track';gpu.draw(input);if(gpu.synapse.emitted!==0||travelling.some((x,i)=>x!==gpu.synapse.events[i]))throw Error('New track broke wave continuity');
+    const travelling=gpu.synapse.events.slice();d.trackId='synapse-new-track';gpu.draw(input);if(gpu.synapse.emitted!==0||travelling.some((x,i)=>x!==gpu.synapse.events[i]))throw Error('New track broke current continuity');
     input.features=features;input.time=originalTime;d.artMotion=originalMotion;d.camera=camera;d.spectrumClock=clock;gpu.synapse.reset();renderStyle(7);
     report[style].flashControl=true;report[style].impulsesTravel=true;report[style].frozenClockStable=true;report[style].reducedSignalsHeld=true;report[style].trackCountersReset=true;report[style].trackPreservesContinuity=true;report[style].cameraDepth=true;
    }
