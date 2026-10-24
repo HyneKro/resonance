@@ -2,15 +2,16 @@
 // are rebuilt at a bounded cadence and crossfade instead of snapping on/off.
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,Number(x)||0));
 const noise=n=>{const x=Math.sin(n*127.1)*43758.5453;return x-Math.floor(x);};
-export async function createSynapseNetwork(count=1700,yieldWork=async()=>{}){
- const network=new SynapseNetwork(count);
+export async function createSynapseNetwork(count=3200,yieldWork=async()=>{},extent=1){
+ const network=new SynapseNetwork(count,extent);
  for(let i=0;i<network.count;i+=128){network.place(i,Math.min(network.count,i+128),0,0);await yieldWork();}
  network.reconnect(true);await yieldWork();return network;
 }
 
 export class SynapseNetwork{
- constructor(count=1700){
-  this.count=Math.max(128,Math.min(2048,Math.floor(count)||1700));this.capacity=this.count*5;
+ constructor(count=3200,extent=1){
+  this.count=Math.max(128,Math.min(4096,Math.floor(count)||3200));this.capacity=this.count*5;
+  this.extent=clamp(extent,1,2.5);this.linkDistance=1.65*this.extent;
   // Position, spring velocity, then local musical energy / charge / harmonic / texture.
   this.nodes=new Float32Array(this.count*12);this.seeds=new Float32Array(this.count*4);
   this.anchors=new Float32Array(this.count*3);this.regions=new Uint8Array(this.count*4);this.regionWeights=new Float32Array(this.count*4);
@@ -19,7 +20,7 @@ export class SynapseNetwork{
   this.domains=Array.from({length:24},(_,i)=>{
    const x=(i%4-1.5)*2.8,y=(Math.floor(i/4)%2-.5)*2.6+x*.18,z=(Math.floor(i/8)-1)*2.2;
    const axis=[noise(i+823)*2-1,noise(i+1291)*2-1,noise(i+2143)*2-1],length=Math.hypot(...axis);
-   return {center:[x,y,z],axis:axis.map(v=>v/length),tempo:.55+noise(i+4127)*.95,offset:noise(i+1181)*Math.PI*2,band:Math.floor(noise(i+3413)*47)};
+   return {center:[x,y,z].map(v=>v*this.extent),axis:axis.map(v=>v/length),tempo:.55+noise(i+4127)*.95,offset:noise(i+1181)*Math.PI*2,band:Math.floor(noise(i+3413)*47)};
   });
   this.localPhases=new Float64Array(24);this.localForces=new Float64Array(48);
   this.currentCapacity=this.count>1000?36:16;this.currents=new Float32Array(this.currentCapacity*4);
@@ -37,7 +38,8 @@ export class SynapseNetwork{
    const z=depth*2.55+Math.sin(t*5.6+v*2.1)*.44+Math.cos(v*4.2+t*9)*.12,angle=Math.sin(t*4)*.12;
    this.anchors.set([x,y*Math.cos(angle)-z*Math.sin(angle),z*Math.cos(angle)+y*Math.sin(angle)],i*3);
    this.frequencies[i]=clamp(.5+this.anchors[i*3]*.052+this.anchors[i*3+1]*.068+this.anchors[i*3+2]*.055);
-   const nearest=this.domains.map((d,id)=>({id,distance:Math.hypot(x-d.center[0],y-d.center[1],z-d.center[2])})).sort((a,b)=>a.distance-b.distance).slice(0,4);
+   for(let j=0;j<3;j++)this.anchors[i*3+j]*=this.extent;
+   const nearest=this.domains.map((d,id)=>({id,distance:Math.hypot(this.anchors[i*3]-d.center[0],this.anchors[i*3+1]-d.center[1],this.anchors[i*3+2]-d.center[2])/this.extent})).sort((a,b)=>a.distance-b.distance).slice(0,4);
    const weights=nearest.map(d=>1/(.35+d.distance*d.distance)),total=weights.reduce((a,b)=>a+b,0);
    for(let j=0;j<4;j++){this.regions[i*4+j]=nearest[j].id;this.regionWeights[i*4+j]=weights[j]/total;}
   }
@@ -126,7 +128,7 @@ export class SynapseNetwork{
   }
  }
  reconnect(initial=false){
-  const p=this.nodes,n=this.count,cell=1.65,grid=new Map(),key=(x,y,z)=>`${x},${y},${z}`;
+  const p=this.nodes,n=this.count,cell=this.linkDistance,grid=new Map(),key=(x,y,z)=>`${x},${y},${z}`;
   for(let i=0;i<n;i++){
    const k=i*4,id=key(Math.floor(p[k]/cell),Math.floor(p[k+1]/cell),Math.floor(p[k+2]/cell));
    if(!grid.has(id))grid.set(id,[]);grid.get(id).push(i);
@@ -139,7 +141,7 @@ export class SynapseNetwork{
    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
     for(const j of grid.get(key(gx+dx,gy+dy,gz+dz))||[]){
      if(j===i)continue;const at=j*4,d=(p[k]-p[at])**2+(p[k+1]-p[at+1])**2+(p[k+2]-p[at+2])**2;
-     if(d>1.65**2||d>=distances[2])continue;
+     if(d>cell**2||d>=distances[2])continue;
      let slot=2;while(slot>0&&d<distances[slot-1]){distances[slot]=distances[slot-1];nearest[slot]=nearest[slot-1];slot--;}
      distances[slot]=d;nearest[slot]=j;
     }
@@ -158,7 +160,7 @@ export class SynapseNetwork{
    if(i%3===0&&nearest[1]>=0){
     const ids=[i,nearest[0],nearest[1]].sort((a,b)=>a-b),[a,b,c]=ids;
     const bc=Math.hypot(p[b*4]-p[c*4],p[b*4+1]-p[c*4+1],p[b*4+2]-p[c*4+2]);
-    if(bc<1.5){
+    if(bc<1.5*this.extent){
      const id=a*n*n+b*n+c;let face=this.faces.get(id);
      if(!face&&this.faceFree.length){const slot=this.faceFree.pop();face={slot,wanted:true};this.faces.set(id,face);this.facets.set([a,b,c,initial?1:0],slot*4);this.facetCount=Math.max(this.facetCount,slot+1);}
      if(face)face.wanted=true;

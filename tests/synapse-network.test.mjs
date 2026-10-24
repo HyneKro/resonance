@@ -19,6 +19,23 @@ test('Synapse prepares deterministic volumetric nodes with bounded nearest conne
  for(const axis of [0,1,2]){const values=Array.from({length:a.count},(_,i)=>a.nodes[i*4+axis]);assert.ok(Math.max(...values)-Math.min(...values)>2,'Not a flat billboard');}
 });
 
+test('Synapse expanded matrix fills a larger volume with bounded live connections',async()=>{
+ const normal=await createSynapseNetwork(1000),large=await createSynapseNetwork(1000,async()=>{},2),desktop=await createSynapseNetwork(3200,async()=>{},2);
+ for(const axis of [0,1,2]){
+  const span=n=>{const p=Array.from({length:n.count},(_,i)=>n.nodes[i*4+axis]);return Math.max(...p)-Math.min(...p);};
+  assert.ok(span(large)>span(normal)*1.8,'Expansion must change the actual three-dimensional matrix');
+ }
+ assert.equal(desktop.count,3200);assert.equal(large.burstCapacity,48);assert.equal(large.currentCapacity,16);
+ for(const n of [large,desktop]){
+  assert.ok(n.links.size>n.count);assert.ok(n.neighbours.every(x=>x.length>=3));
+  for(const link of n.links.values()){
+   const k=link.slot*4,a=n.edges[k],b=n.edges[k+1];assert.ok(Math.hypot(...[0,1,2].map(j=>n.nodes[a*4+j]-n.nodes[b*4+j]))<=n.linkDistance+.00001);
+  }
+  assert.ok(n.nodes.every(Number.isFinite));assert.ok(n.facets.every(Number.isFinite));
+ }
+ assert.deepEqual(normal.frequencies,large.frequencies,'Frequency identity must span the expanded volume');
+});
+
 test('Synapse all nodes travel and nearest links genuinely rearrange while remaining bounded',async()=>{
  const n=await createSynapseNetwork(680),s=new SynapseSignals(),before=n.nodes.slice(),pairs=new Set(n.links.keys());s.update(0);advance(n,s,12);
  let changed=0;for(let i=0;i<n.count;i++)if(Math.hypot(...[0,1,2].map(j=>n.nodes[i*4+j]-before[i*4+j]))>.025)changed++;

@@ -53,8 +53,8 @@ export class GPUScene {
     this.synapse??=new SynapseSignals();this.synapse.suspend();
     this.synapseNetworks??={};this.synapseTextures={};
     // Prepare both sizes once; phone quality never uploads the desktop mesh.
-    for(const count of (this.mobile?[680]:[680,1700])){
-      const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint());
+    for(const count of (this.mobile?[1000]:[1000,3200])){
+      const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint(),2);
       const textures=[];const edgeRows=network.edgeRows,edgeData=network.edges;
       for(const [width,height,data]of [[count,3,network.nodes],[1024,edgeRows,edgeData],[1024,network.facetRows,network.facets],[network.currentCapacity,1,network.currents],[network.burstCapacity,2,network.bursts]]){
         const tex=gl.createTexture();textures.push(tex);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,width,height,0,gl.RGBA,gl.FLOAT,data);
@@ -270,7 +270,7 @@ export class GPUScene {
       }yield;
 
       }else if(style.index===7){
-        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges,facets,currents,bursts]=this.synapseTextures[count];
+        const count=this.mobile?1000:3200,network=this.synapseNetworks[count],[nodes,edges,facets,currents,bursts]=this.synapseTextures[count];
         // Track changes keep position, velocity, palette and in-flight currents.
         // Only attack detector counters reset; playback is not the clock.
         if(this.synapseTrack!==d.trackId){this.synapse.beginTrack();this.synapseTrack=d.trackId;}
@@ -285,7 +285,7 @@ export class GPUScene {
         }
         uniforms.u_light=[a.bloom*(1.25+signals.energy*.70+signals.tension*.25),a.glow,reduced?0:a.flash,a.contrast];
         const copies=this.mobile?1:2;
-        const web={...uniforms,u_movement:reduced?0:uniforms.u_movement,u_roles:signals.roles,u_shimmer:signals.shimmer,u_palette:signals.palette,u_neural:[signals.phase,signals.activity,signals.energy,signals.shimmer],u_neuralBands:signals.motionBands,u_neuralAccents:signals.accents,u_neuralDrive:[signals.roles[0],signals.shimmer,signals.beat,signals.tension],u_neuralTone:[signals.centroid,signals.flux,signals.phrase,Math.max(.3,Math.min(1.7,.65+intensity*.45))],u_neuralStyle:[a.turbulence,a.textureDetail,a.beatMotion,a.orbit],u_chargeCopies:copies,u_spectrumLight:signals.spectrum};
+        const web={...uniforms,u_webExtent:network.extent,u_movement:reduced?0:uniforms.u_movement,u_roles:signals.roles,u_shimmer:signals.shimmer,u_palette:signals.palette,u_neural:[signals.phase,signals.activity,signals.energy,signals.shimmer],u_neuralBands:signals.motionBands,u_neuralAccents:signals.accents,u_neuralDrive:[signals.roles[0],signals.shimmer,signals.beat,signals.tension],u_neuralTone:[signals.centroid,signals.flux,signals.phrase,Math.max(.3,Math.min(1.7,.65+intensity*.45))],u_neuralStyle:[a.turbulence,a.textureDetail,a.beatMotion,a.orbit],u_chargeCopies:copies,u_spectrumLight:signals.spectrum};
         this.bind(nebula);this.use(this.synapseBackground,{...web,u_resolution:[nebula.w,nebula.h]});this.quadDraw(this.synapseBackground);yield;
         this.bind(scene);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
         this.use(this.synapseFacets,web);this.texture(this.synapseFacets,'u_nodes',nodes,7);this.texture(this.synapseFacets,'u_facets',facets,10);gl.drawArrays(gl.TRIANGLES,0,network.facetCount*3);
@@ -295,7 +295,7 @@ export class GPUScene {
         this.use(this.synapseThreads,{u_segments:4,u_threadLayer:2});this.texture(this.synapseThreads,'u_currents',currents,11);gl.drawArrays(gl.TRIANGLES,0,network.currentCapacity*4*6);yield;
         this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);this.texture(this.synapseNodes,'u_currents',currents,11);this.texture(this.synapseNodes,'u_bursts',bursts,12);gl.drawArrays(gl.POINTS,0,count);
         this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount*copies);
-        this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,Math.round((this.mobile?160:650)*Math.min(1.5,a.orbit)));
+        this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,Math.round((this.mobile?320:1200)*Math.min(1.5,a.orbit)));
         this.uniform(this.synapseNodes,'u_nodeLayer',3);this.texture(this.synapseNodes,'u_currents',currents,11);gl.drawArrays(gl.POINTS,0,network.currentCapacity);
         this.uniform(this.synapseNodes,'u_nodeLayer',4);gl.drawArrays(gl.POINTS,0,network.burstCapacity);yield;
       }else if(style.index===3){
