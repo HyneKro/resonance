@@ -9,7 +9,7 @@ test('temporary restrictions take precedence over unavailable messages',()=>{
 });
 async function fixture(t){
  const parent=path.resolve('test-output/release-work');await fs.mkdir(parent,{recursive:true});const dir=await fs.mkdtemp(path.join(parent,'recording-fallback-')),settings=new Map(),tracks=new Map();
- const lib={root:dir,dataDir:dir,config:{sources:[{id:'s',playlist:'playlist',path:dir}]},scanJob:{running:false},getSetting:k=>settings.get(k),setSetting:(k,v)=>settings.set(k,structuredClone(v)),list:()=>[...tracks.values()],tracks,save:v=>tracks.set(v.id,v),applyPlaylistOrder:()=>{},scan:async()=>{}};
+ const lib={root:dir,dataDir:dir,config:{sources:[{id:'s',playlist:'playlist',path:dir}]},scanJob:{running:false},getSetting:k=>settings.get(k),setSetting:(k,v)=>settings.set(k,structuredClone(v)),list:()=>[...tracks.values()],tracks,save:v=>tracks.set(v.id,v),applyPlaylistOrder:()=>{},scan:async()=>{},importDownloaded:async()=>{await lib.scan();return lib.list()[0]||{id:"local",sourceId:"s",youtubeId:"BBBBBBBBBBB"};}};
  const sync=new PlaylistSync(lib);sync.preview={entries:[{id:'AAAAAAAAAAA',title:'Moonlight',channel:'Mira',duration:210,sourceId:'s',playlistIndex:18,status:'new'}]};t.after(()=>fs.rm(dir,{recursive:true,force:true}));return {lib,sync,settings};
 }
 test('one unavailable recording finds a close alternative, keeps its playlist identity and avoids another download on refresh',async t=>{

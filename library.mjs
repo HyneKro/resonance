@@ -76,6 +76,29 @@ export class Library {
     }
     this.setSetting('config',this.config);
   }
+  async importDownloaded(source,file) {
+    if(!source?.playlist||!this.config.sources.some(s=>s.id===source.id))throw Error('The download source is no longer connected.');
+    if(typeof file!=='string'||!path.isAbsolute(file))throw Error('The downloader did not report a finished audio file. Rescan the source to recover saved music.');
+    const [folder,completed]=await Promise.all([fsp.realpath(source.path),fsp.realpath(file)]),relative=path.relative(folder,completed);
+    if(relative==='..'||relative.startsWith('..'+path.sep)||path.isAbsolute(relative)||!audioExtensions.has(path.extname(completed).toLowerCase())||/\.(?:part|temp|f\d+)\.[^.]+$/i.test(completed))throw Error('The downloader did not return a finished audio file in this source.');
+    const stat=await fsp.stat(completed);if(!stat.isFile()||!stat.size)throw Error('The downloaded audio file is empty or unavailable.');
+    return this.importFile(source,path.resolve(file));
+  }
+  async importFile(source,p) {
+    const id=createHash('sha256').update(path.resolve(p).toLowerCase()).digest('hex').slice(0,24);
+    const st=await fsp.stat(p);let old=this.tracks.get(id);
+    const owner=old&&this.config.sources.some(s=>s.id===old.sourceId)?old.sourceId:source.id,kind=owner===source.id?source.kind:old.kind;
+    if(old && old.mtime===st.mtimeMs && old.size===st.size && old.importVersion===2 && old.duration>0){if(!old.available||old.sourceId!==owner||old.kind!==kind)this.save({...old,available:true,sourceId:owner,kind});return this.tracks.get(id);}
+    const guessed=inferName(p);let meta={common:{},format:{}};let parseError='';
+    try{meta=await parseFile(p,{duration:true,skipCovers:false});}catch(e){parseError=e.message;}
+    const c=meta.common,f=meta.format;
+    const side=await fsp.readFile(p.replace(/\.[^.]+$/,'.info.json'),'utf8').then(JSON.parse).catch(()=>null);
+    let artwork=old?.artwork||'';
+    if(!artwork && c.picture?.[0]){const pic=c.picture[0];const ext=pic.format.includes('png')?'png':pic.format.includes('webp')?'webp':'jpg';artwork=`${id}.${ext}`;await fsp.writeFile(path.join(this.dataDir,'artwork',artwork),pic.data);}
+    if(!artwork){for(const ext of ['.jpg','.png','.webp']){const cover=p.replace(/\.[^.]+$/,ext);try{await fsp.copyFile(cover,path.join(this.dataDir,'artwork',id+ext));artwork=id+ext;break;}catch{}}}
+    const base={id,path:p,sourceId:source.id,kind:source.kind,...guessed,title:c.title||side?.track||guessed.title,artist:side?.artist||c.artist||guessed.artist,recordingArtists:side?.artists||(side?.artist?[side.artist]:c.artists)||[],album:c.album||side?.album||'',genre:c.genre?.join(', ')||guessed.genre,date:c.date||String(c.year||side?.release_date||''),sourceTags:(side?.tags||[]).slice(0,100),description:(side?.description||'').slice(0,20000),uploadDate:side?.upload_date||'',channel:side?.channel||side?.uploader||'',youtubeId:side?.id||p.match(/\[([\w-]{11})\]\.[^.]+$/)?.[1]||'',sourceUrl:side?.webpage_url||'',views:side?.view_count||null,metadataSource:c.title?'Embedded tags':'Filename',metadataStatus:c.title?'embedded':'unmatched',plays:0,listenedSeconds:0,position:0,favorite:false,addedAt:Date.now(),lastPlayed:0};
+    return this.save({...base,...old,sourceId:owner,kind,rawTitle:guessed.rawTitle,artwork,available:true,mtime:st.mtimeMs,size:st.size,importVersion:2,duration:f.duration||side?.duration||old?.duration||0,sampleRate:f.sampleRate||0,bits:f.bitsPerSample||0,bitrate:f.bitrate||0,codec:f.codec||path.extname(p).slice(1).toUpperCase(),channels:f.numberOfChannels||2,parseError});
+  }
   async scan() {
     if(this.scanJob.running)return;
     this.scanJob={running:true,done:0,total:0,errors:[]};
@@ -85,18 +108,7 @@ export class Library {
         const {files:found,complete}=result;this.scanJob.errors.push(...result.errors);this.scanJob.total+=found.length;
         const seen=new Set();let index=0;
         const worker=async()=>{while(index<found.length){const p=found[index++]; const id=createHash('sha256').update(path.resolve(p).toLowerCase()).digest('hex').slice(0,24);seen.add(id);
-          try{const st=await fsp.stat(p);let old=this.tracks.get(id);
-            const owner=old&&this.config.sources.some(s=>s.id===old.sourceId)?old.sourceId:source.id,kind=owner===source.id?source.kind:old.kind;
-            if(old && old.mtime===st.mtimeMs && old.size===st.size && old.importVersion===2 && old.duration>0){if(!old.available||old.sourceId!==owner||old.kind!==kind)this.save({...old,available:true,sourceId:owner,kind});this.scanJob.done++;continue;}
-            const guessed=inferName(p);let meta={common:{},format:{}};let parseError='';
-            try{meta=await parseFile(p,{duration:true,skipCovers:false});}catch(e){parseError=e.message;}
-            const c=meta.common,f=meta.format;
-            const side=await fsp.readFile(p.replace(/\.[^.]+$/,'.info.json'),'utf8').then(JSON.parse).catch(()=>null);
-            let artwork=old?.artwork||'';
-            if(!artwork && c.picture?.[0]){const pic=c.picture[0];const ext=pic.format.includes('png')?'png':pic.format.includes('webp')?'webp':'jpg';artwork=`${id}.${ext}`;await fsp.writeFile(path.join(this.dataDir,'artwork',artwork),pic.data);}
-            if(!artwork){for(const ext of ['.jpg','.png','.webp']){const cover=p.replace(/\.[^.]+$/,ext);try{await fsp.copyFile(cover,path.join(this.dataDir,'artwork',id+ext));artwork=id+ext;break;}catch{}}}
-            const base={id,path:p,sourceId:source.id,kind:source.kind,...guessed,title:c.title||side?.track||guessed.title,artist:side?.artist||c.artist||guessed.artist,recordingArtists:side?.artists||(side?.artist?[side.artist]:c.artists)||[],album:c.album||side?.album||'',genre:c.genre?.join(', ')||guessed.genre,date:c.date||String(c.year||side?.release_date||''),sourceTags:(side?.tags||[]).slice(0,100),description:(side?.description||'').slice(0,20000),uploadDate:side?.upload_date||'',channel:side?.channel||side?.uploader||'',youtubeId:side?.id||p.match(/\[([\w-]{11})\]\.[^.]+$/)?.[1]||'',sourceUrl:side?.webpage_url||'',views:side?.view_count||null,metadataSource:c.title?'Embedded tags':'Filename',metadataStatus:c.title?'embedded':'unmatched',plays:0,listenedSeconds:0,position:0,favorite:false,addedAt:Date.now(),lastPlayed:0};
-            this.save({...base,...old,sourceId:owner,kind,rawTitle:guessed.rawTitle,artwork,available:true,mtime:st.mtimeMs,size:st.size,importVersion:2,duration:f.duration||side?.duration||old?.duration||0,sampleRate:f.sampleRate||0,bits:f.bitsPerSample||0,bitrate:f.bitrate||0,codec:f.codec||path.extname(p).slice(1).toUpperCase(),channels:f.numberOfChannels||2,parseError});
+          try{await this.importFile(source,p);
           }catch(e){if(source.type==='m3u'&&e.code==='ENOENT'&&this.tracks.has(id))this.save({...this.tracks.get(id),available:false});this.scanJob.errors.push(`${path.basename(p)}: ${e.message}`);}this.scanJob.done++;
         }};
         await Promise.all([worker(),worker(),worker(),worker()]);

@@ -76,6 +76,9 @@ test('local server imports audio, streams ranges, enforces write auth, and prese
     const p=await (await request('/api/playlists',{name:'Test mood',tracks:[t.id,t.id,'missing']})).json();assert.equal(p.tracks.length,1);
     assert.equal((await request('/audio/../../config.json')).status,404);
     app.lib.config.sources[0].path=path.join(dir,'missing');await app.lib.scan();assert.equal(app.lib.tracks.get(t.id).available,true,'unavailable drive retains tracks');assert.equal(app.lib.scanJob.errors.length,1);
+    // Config updates enable the real background audio analyzer. Let it close
+    // the fixture before simulating a move (Windows locks an active input).
+    for(let i=0;i<200&&(await(await request('/api/status')).json()).analysis.running;i++)await new Promise(r=>setTimeout(r,25));
     app.lib.config.sources[0].path=music;await fs.rename(path.join(music,'Test Artist - Test Song.wav'),path.join(dir,'moved.wav'));await app.lib.scan();assert.equal(app.lib.tracks.get(t.id).available,false,'missing files marked offline only after completed scan');
   }finally{await new Promise(r=>app.server.close(r));app.lib.close();}
 });

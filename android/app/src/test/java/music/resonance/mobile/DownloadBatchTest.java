@@ -7,6 +7,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.*;
 
 public class DownloadBatchTest {
+    @Test public void eachSavedSongIsPublishedBeforeTheNextTransferStarts() throws Exception {
+        DownloadBatch batch=new DownloadBatch();Work work=new Work(){
+            public void download(JSONObject item) throws Exception {
+                if(item.optString("title").equals("second")){assertEquals(List.of("first"),saved);assertEquals(1,batch.saved);assertEquals(1,batch.processed);}
+                super.download(item);
+            }
+        };
+        batch.run(songs("first","second"),()->false,work);assertEquals(List.of("first","second"),work.saved);
+    }
     private JSONArray songs(String... names){JSONArray a=new JSONArray();for(String name:names)a.put(Json.object("youtubeId",name,"title",name));return a;}
     private static class Work implements DownloadBatch.Work {
         final List<String> attempted=new ArrayList<>(),saved=new ArrayList<>(),skipped=new ArrayList<>();

@@ -57,7 +57,7 @@ export async function sourceFiles(source){
   }else{
     const walk=async dir=>{let entries;try{entries=await fs.readdir(dir,{withFileTypes:true});}catch(e){complete=false;errors.push(`${source.name}: ${e.message}`);return;}
       entries.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
-      for(const ent of entries){if(ent.isSymbolicLink())continue;const file=path.join(dir,ent.name);if(ent.isDirectory())await walk(file);else if(AUDIO_EXTENSIONS.has(path.extname(file).toLowerCase()))files.push(file);}
+      for(const ent of entries){if(ent.isSymbolicLink())continue;const file=path.join(dir,ent.name);if(ent.isDirectory())await walk(file);else if(AUDIO_EXTENSIONS.has(path.extname(file).toLowerCase())&&!(source.playlist&&/\[[\w-]{11}\]\.(?:temp|f\d+)\.[^.]+$/i.test(file)))files.push(file);}
     };await walk(source.path);
   }
   const unique=new Map(files.map(file=>[canonical(path.resolve(file)),file]));return {files:[...unique.values()],errors,complete};
