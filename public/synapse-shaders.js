@@ -19,10 +19,10 @@ float frequency(float t){float x=clamp(t,0.,1.)*47.;int i=int(x);return mix(u_sp
 vec4 nodeTone(int id){return texelFetch(u_nodes,ivec2(id,2),0);}
 vec3 junction(int id){
  vec4 data=texelFetch(u_nodes,ivec2(id,0),0);vec3 p=data.xyz;
- vec4 note=nodeTone(id);float time=u_neural.x;
+ vec4 note=nodeTone(id);float time=u_neural.x*(.55+hash(float(id)+71.)*1.1)+hash(float(id)+311.)*18.;
  vec3 normal=normalize(vec3(.18,sin(p.x*.65+p.z*.3+time*.28),cos(p.x*.5-p.y*.35-time*.23)));
  // Small, band-specific motion stays attached to the same junctions and camera.
- p+=normal*(sin(p.x*1.3+time*1.4)*note.x*.085+sin(p.z*2.-time*1.8)*note.z*.10+note.y*.035)*u_movement*u_neuralStyle.x;
+ p+=normal*(sin(p.x*1.3+time*1.4)*note.x*.085+sin(p.z*2.-time*1.8)*note.z*.10+note.y*.035*clamp(u_neuralStyle.z,0.,2.))*u_movement*u_neuralStyle.x;
  return p*clamp(u_particle.x,.65,1.5);
 }
 vec4 projectWeb(vec3 p){

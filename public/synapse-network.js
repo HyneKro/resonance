@@ -13,6 +13,13 @@ export class SynapseNetwork{
   this.count=Math.max(128,Math.min(2048,Math.floor(count)||1700));this.capacity=this.count*5;
   // Position, spring velocity, then local musical energy / charge / harmonic / texture.
   this.nodes=new Float32Array(this.count*12);this.seeds=new Float32Array(this.count*4);
+  this.anchors=new Float32Array(this.count*3);this.regions=new Uint8Array(this.count*4);this.regionWeights=new Float32Array(this.count*4);
+  this.domains=Array.from({length:24},(_,i)=>{
+   const x=(i%4-1.5)*2.8,y=(Math.floor(i/4)%2-.5)*2.6+x*.18,z=(Math.floor(i/8)-1)*2.2;
+   const axis=[noise(i+823)*2-1,noise(i+1291)*2-1,noise(i+2143)*2-1],length=Math.hypot(...axis);
+   return {center:[x,y,z],axis:axis.map(v=>v/length),tempo:.55+noise(i+4127)*.95,offset:noise(i+1181)*Math.PI*2,band:Math.floor(noise(i+3413)*47)};
+  });
+  this.localPhases=new Float64Array(24);this.localForces=new Float64Array(48);
   this.currentCapacity=this.count>1000?36:16;this.currents=new Float32Array(this.currentCapacity*4);
   this.routes=[];this.neighbours=Array.from({length:this.count},()=>[]);this.lastDischarge=-1;
   this.edgeRows=Math.ceil(this.capacity/1024);this.edges=new Float32Array(this.edgeRows*4096);
@@ -20,27 +27,45 @@ export class SynapseNetwork{
   this.facetCapacity=this.count*2;this.facetRows=Math.ceil(this.facetCapacity/1024);this.facets=new Float32Array(this.facetRows*4096);
   this.faces=new Map();this.faceFree=Array.from({length:this.facetCapacity},(_,i)=>this.facetCapacity-i-1);this.facetCount=0;
   this.edgeCount=0;this.rewireAt=0;this.rewires=0;this.version=0;this.steps=0;
-  for(let i=0;i<this.count;i++)this.seeds.set([noise(i+19),noise(i+723),noise(i+1731),noise(i+4391)],i*4);
+  for(let i=0;i<this.count;i++){
+   this.seeds.set([noise(i+19),noise(i+723),noise(i+1731),noise(i+4391)],i*4);
+   const t=this.seeds[i*4],v=this.seeds[i*4+1]*2-1,depth=this.seeds[i*4+2]*2-1;
+   const x=(t-.5)*10.6+Math.sin(v*4+this.seeds[i*4+3]*3)*.16;
+   const y=v*1.75+(t-.5)*1.9+Math.sin(t*6.1)*.45+Math.sin(t*15+depth*3)*.12;
+   const z=depth*2.55+Math.sin(t*5.6+v*2.1)*.44+Math.cos(v*4.2+t*9)*.12,angle=Math.sin(t*4)*.12;
+   this.anchors.set([x,y*Math.cos(angle)-z*Math.sin(angle),z*Math.cos(angle)+y*Math.sin(angle)],i*3);
+   const nearest=this.domains.map((d,id)=>({id,distance:Math.hypot(x-d.center[0],y-d.center[1],z-d.center[2])})).sort((a,b)=>a.distance-b.distance).slice(0,4);
+   const weights=nearest.map(d=>1/(.35+d.distance*d.distance)),total=weights.reduce((a,b)=>a+b,0);
+   for(let j=0;j<4;j++){this.regions[i*4+j]=nearest[j].id;this.regionWeights[i*4+j]=weights[j]/total;}
+  }
  }
  place(from,to,phase,drive,dt=0,roles=[0,0,0,0],spectrum=[],detail=[],force=1,beat=0,tension=0){
   const n=this.count,p=this.nodes,s=this.seeds;
+  for(let j=0;j<this.domains.length;j++){
+   const domain=this.domains[j],k=domain.band*4,harmonic=clamp(detail[k+1]);
+   const local=this.localPhases[j]+domain.offset,amplitude=.11+drive*.08+harmonic*.075+roles[3]*.045;
+   this.localForces[j*2]=Math.sin(local)*amplitude;this.localForces[j*2+1]=Math.cos(local*.73+domain.offset)*amplitude*.65;
+  }
   for(let i=from;i<to;i++){
    const k=i*4,t=s[k],v=s[k+1]*2-1,depth=s[k+2]*2-1;
    const lane=Math.floor(s[k+3]*47),band=clamp(detail[lane*4]??spectrum[lane]),harmonic=clamp(detail[lane*4+1]),percussive=clamp(detail[lane*4+2]),flux=clamp(detail[lane*4+3]);
-   const bass=roles[0],lead=roles[2],texture=roles[3],swell=(bass*.10+beat*.035)*force;
-   // A spacious folded field, rather than a narrow branching tube. Independent
-   // drift moves neighbours through each other without pinning a rigid lattice.
-   let x=(t-.5)*10.6+Math.sin(v*4+phase*.31+s[k+3]*3)*(.16+drive*.22+harmonic*.13);
-   let y=v*1.75+(t-.5)*1.9+Math.sin(t*6.1+phase*.16)*(.45+drive*.20);
-   let z=depth*2.55+Math.sin(t*5.6+v*2.1-phase*.13)*(.44+drive*.22);
-   y+=Math.sin(t*15+depth*3+phase*.58)*(.12+drive*.16)+band*Math.sin(v*3+phase*.9)*.24*force;
-   y+=Math.sin(t*7.4+phase*.65)*swell+Math.cos(depth*2.2-phase*.7)*harmonic*lead*.20*force;
-   z+=Math.cos(v*4.2+t*9-phase*.48)*(.12+drive*.18)+band*Math.cos(t*8-phase*.8)*.24*force;
-   z+=Math.cos(t*9.2-phase*.72)*swell+Math.sin(v*6+phase*1.4)*(percussive*.045+flux*.035)*force;
-   const angle=Math.sin(t*4+phase*.12)*(.12+lead*.12+texture*.09+tension*.06),c=Math.cos(angle),sn=Math.sin(angle);
-   [y,z]=[y*c-z*sn,z*c+y*sn];
+   let x=this.anchors[i*3],y=this.anchors[i*3+1],z=this.anchors[i*3+2],ox=0,oy=0,oz=0;
+   // Overlapping local circulations bend neighbouring patches in different
+   // directions. There is no common rotation or swelling of the whole volume.
+   for(let j=0;j<4;j++){
+    const id=this.regions[k+j],domain=this.domains[id],weight=this.regionWeights[k+j],[ax,ay,az]=domain.axis;
+    const dx=x-domain.center[0],dy=y-domain.center[1],dz=z-domain.center[2],falloff=weight/(1+Math.hypot(dx,dy,dz)*.45);
+    const a=this.localForces[id*2],b=this.localForces[id*2+1],bass=(roles[0]*(.025+noise(id+97)*.045)+beat*.018*noise(id+157))*force;
+    ox+=((ay*dz-az*dy)*a+(az*dz+ay*dy)*b+ax*bass)*falloff;
+    oy+=((az*dx-ax*dz)*a+(-ay*dx-ax*dz)*b+ay*bass)*falloff;
+    oz+=((ax*dy-ay*dx)*a+(ax*dy-az*dx)*b+az*bass)*falloff;
+   }
+   const local=phase*(.55+s[k+1]*1.1)+s[k+3]*23,flex=(.035+band*.22+harmonic*.10)*force;
+   x+=ox+Math.sin(local*.71+v*7)*flex*.65;
+   y+=oy+Math.sin(local+depth*5)*flex;
+   z+=oz+Math.cos(local*.83+t*11)*flex+Math.sin(local*1.3)*(percussive*.035+flux*.025)*force;
    if(!dt){p.set([x,y,z,s[k+3]],k);continue;}
-   const velocity=n*4+k,omega=3.8+drive*1.2,decay=Math.exp(-omega*dt);
+   const velocity=n*4+k,omega=2.1+noise(i+574)*2.3+band*.30,decay=Math.exp(-omega*dt);
    // Exact damped spring integration keeps strong attacks smooth on slow frames.
    for(let j=0;j<3;j++){
     const target=j===0?x:j===1?y:z,error=p[k+j]-target,travel=p[velocity+j]+omega*error;
@@ -143,6 +168,10 @@ export class SynapseNetwork{
  }
  update(signals,{movement=1,beat=.55,turbulence=1}={}){
   const dt=signals.dt;if(!dt)return this;
+  if(movement>0)for(let j=0;j<this.domains.length;j++){
+   const d=this.domains[j],k=d.band*4;
+   this.localPhases[j]+=dt*clamp(movement,0,2)*d.tempo*(.045+clamp(signals.detail[k])*.48+clamp(signals.detail[k+1])*.22+signals.activity*.035);
+  }
   if(movement>0)this.place(0,this.count,signals.phase*clamp(movement,0,2),signals.activity*(1+signals.phrase*.15),dt,signals.roles,signals.spectrum,signals.detail,clamp(turbulence,.25,2),signals.beat*clamp(beat,0,2),signals.tension);
   this.rewireAt+=dt;if(this.rewireAt>=(this.count>1000?.14:.18)){this.rewireAt%=this.count>1000?.14:.18;this.reconnect();}
   for(const [id,link]of this.links){

@@ -21,8 +21,8 @@ test('Synapse prepares deterministic volumetric nodes with bounded nearest conne
 
 test('Synapse all nodes travel and nearest links genuinely rearrange while remaining bounded',async()=>{
  const n=await createSynapseNetwork(680),s=new SynapseSignals(),before=n.nodes.slice(),pairs=new Set(n.links.keys());s.update(0);advance(n,s,12);
- let changed=0;for(let i=0;i<n.count;i++)if(Math.hypot(...[0,1,2].map(j=>n.nodes[i*4+j]-before[i*4+j]))>.1)changed++;
- assert.ok(changed>=n.count*.98);assert.ok([...n.links.keys()].filter(x=>!pairs.has(x)).length>pairs.size*.3);
+ let changed=0;for(let i=0;i<n.count;i++)if(Math.hypot(...[0,1,2].map(j=>n.nodes[i*4+j]-before[i*4+j]))>.025)changed++;
+ assert.equal(changed,n.count);assert.ok([...n.links.keys()].filter(x=>!pairs.has(x)).length>pairs.size*.3);
  assert.ok(n.links.size<n.capacity);assert.equal(n.links.size+n.free.length,n.capacity);assert.ok(n.rewires>60);
  assert.ok(n.nodes.every(Number.isFinite));assert.ok(n.edges.every(Number.isFinite));
  for(let i=0;i<n.count;i++)assert.ok(Math.hypot(n.nodes[i*4],n.nodes[i*4+1],n.nodes[i*4+2])<8);
@@ -145,4 +145,34 @@ test('Synapse heavy percussion remains local and all routed energy decays after 
   assert.ok(n.routes.length<=n.currentCapacity);
  }assert.ok(peak>2&&peak<n.count*.15,'Percussion must not flash the entire network');assert.ok(maxStep<.08);
  advance(n,s,8,{active:false});assert.equal(n.routes.length,0);assert.ok(n.currents.every(x=>x===0));assert.ok(n.nodes.slice(n.count*8).every(x=>x<.001));
+});
+
+test('Synapse overlapping regions have independent musical timing without hard motion groups',async()=>{
+ const n=await createSynapseNetwork(680),quiet=await createSynapseNetwork(680),s=new SynapseSignals(),q=new SynapseSignals();s.update(0);q.update(0);
+ const spectrum=Float32Array.from({length:48},(_,i)=>.9*Math.exp(-Math.pow((i-12)/4,2)));
+ advance(n,s,4,{energy:.7,spectrum,harmonic:spectrum});advance(quiet,q,4,{energy:.7,spectrum:new Float32Array(48)});
+ const rates=Array.from(n.localPhases),near=[],far=[];
+ for(let j=0;j<24;j++)(Math.abs(n.domains[j].band-12)<5?near:far).push((n.localPhases[j]-quiet.localPhases[j])/n.domains[j].tempo);
+ assert.ok(Math.max(...rates)>Math.min(...rates)*2,'Regions must not share one tempo');
+ assert.ok(near.reduce((a,b)=>a+b,0)/near.length>far.reduce((a,b)=>a+b,0)/far.length+.5,'The sounding frequency must drive local clocks');
+ for(let i=0;i<n.count;i++){
+  const weights=n.regionWeights.slice(i*4,i*4+4);assert.ok(Math.abs(weights.reduce((a,b)=>a+b,0)-1)<.000001);
+  assert.ok(weights.every(x=>x>0));assert.equal(new Set(n.regions.slice(i*4,i*4+4)).size,4);
+ }
+});
+
+test('Synapse movement is local deformation rather than a shared translation, scale or rotation',async()=>{
+ const n=await createSynapseNetwork(680),s=new SynapseSignals();s.update(0);advance(n,s,11);const before=n.nodes.slice();advance(n,s,1);
+ const positions=[],motion=[];for(let i=0;i<n.count;i++){const k=i*4;positions.push([1,...before.slice(k,k+3)]);motion.push([0,1,2].map(j=>n.nodes[k+j]-before[k+j]));}
+ const normal=Array.from({length:4},(_,i)=>Array.from({length:4},(_,j)=>positions.reduce((sum,p)=>sum+p[i]*p[j],0)));let residual=0,total=0;
+ for(let axis=0;axis<3;axis++){
+  const matrix=normal.map((row,i)=>[...row,positions.reduce((sum,p,k)=>sum+p[i]*motion[k][axis],0)]);
+  for(let i=0;i<4;i++){
+   let pivot=i;for(let j=i+1;j<4;j++)if(Math.abs(matrix[j][i])>Math.abs(matrix[pivot][i]))pivot=j;
+   [matrix[i],matrix[pivot]]=[matrix[pivot],matrix[i]];const scale=matrix[i][i];for(let j=i;j<=4;j++)matrix[i][j]/=scale;
+   for(let row=0;row<4;row++)if(row!==i){const amount=matrix[row][i];for(let j=i;j<=4;j++)matrix[row][j]-=matrix[i][j]*amount;}
+  }
+  const fit=matrix.map(row=>row[4]);for(let i=0;i<n.count;i++){const actual=motion[i][axis],predicted=positions[i].reduce((sum,x,j)=>sum+x*fit[j],0);residual+=(actual-predicted)**2;total+=actual**2;}
+ }
+ assert.ok(Math.sqrt(total/n.count)>.04,'The web must still visibly move');assert.ok(residual/total>.94,'A common transform must not explain the motion');
 });

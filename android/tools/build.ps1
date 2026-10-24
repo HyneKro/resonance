@@ -15,6 +15,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Device checks failed.' }
     }
     New-Item -ItemType Directory -Force -Path releases | Out-Null
-    Copy-Item -LiteralPath app/build/outputs/apk/debug/app-arm64-v8a-debug.apk -Destination releases/Resonance-Android-0.26.2-dev.1.apk
-    Get-FileHash -Algorithm SHA256 -LiteralPath releases/Resonance-Android-0.26.2-dev.1.apk
+    Copy-Item -LiteralPath app/build/outputs/apk/debug/app-arm64-v8a-debug.apk -Destination releases/Resonance-Android-0.26.2-dev.2.apk
+    Get-FileHash -Algorithm SHA256 -LiteralPath releases/Resonance-Android-0.26.2-dev.2.apk
 } finally { Pop-Location }
