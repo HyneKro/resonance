@@ -56,7 +56,7 @@ export class GPUScene {
     for(const count of (this.mobile?[680]:[680,1700])){
       const network=this.synapseNetworks[count]??=await createSynapseNetwork(count,()=>work.checkpoint());
       const textures=[];const edgeRows=network.edgeRows,edgeData=network.edges;
-      for(const [width,height,data]of [[count,3,network.nodes],[1024,edgeRows,edgeData],[1024,network.facetRows,network.facets],[network.currentCapacity,1,network.currents]]){
+      for(const [width,height,data]of [[count,3,network.nodes],[1024,edgeRows,edgeData],[1024,network.facetRows,network.facets],[network.currentCapacity,1,network.currents],[network.burstCapacity,2,network.bursts]]){
         const tex=gl.createTexture();textures.push(tex);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,width,height,0,gl.RGBA,gl.FLOAT,data);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);await work.checkpoint();
@@ -270,7 +270,7 @@ export class GPUScene {
       }yield;
 
       }else if(style.index===7){
-        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges,facets,currents]=this.synapseTextures[count];
+        const count=this.mobile?680:1700,network=this.synapseNetworks[count],[nodes,edges,facets,currents,bursts]=this.synapseTextures[count];
         // Track changes keep position, velocity, palette and in-flight currents.
         // Only attack detector counters reset; playback is not the clock.
         if(this.synapseTrack!==d.trackId){this.synapse.beginTrack();this.synapseTrack=d.trackId;}
@@ -281,6 +281,7 @@ export class GPUScene {
           gl.activeTexture(gl.TEXTURE8);gl.bindTexture(gl.TEXTURE_2D,edges);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1024,network.edgeRows,gl.RGBA,gl.FLOAT,network.edges);
           gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,facets);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,1024,network.facetRows,gl.RGBA,gl.FLOAT,network.facets);
           gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,currents);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,network.currentCapacity,1,gl.RGBA,gl.FLOAT,network.currents);
+          gl.activeTexture(gl.TEXTURE12);gl.bindTexture(gl.TEXTURE_2D,bursts);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,network.burstCapacity,2,gl.RGBA,gl.FLOAT,network.bursts);
         }
         uniforms.u_light=[a.bloom*(1.25+signals.energy*.70+signals.tension*.25),a.glow,reduced?0:a.flash,a.contrast];
         const copies=this.mobile?1:2;
@@ -292,10 +293,11 @@ export class GPUScene {
         const strands=Math.round((this.mobile?5:13)*Math.min(1.4,a.filigree)),segments=this.mobile?3:5;
         this.use(this.synapseThreads,{u_segments:segments,u_weaveCount:Math.max(1,strands),u_threadLayer:1});this.texture(this.synapseThreads,'u_facets',facets,10);gl.drawArrays(gl.TRIANGLES,0,network.facetCount*strands*segments*6);
         this.use(this.synapseThreads,{u_segments:4,u_threadLayer:2});this.texture(this.synapseThreads,'u_currents',currents,11);gl.drawArrays(gl.TRIANGLES,0,network.currentCapacity*4*6);yield;
-        this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);this.texture(this.synapseNodes,'u_currents',currents,11);gl.drawArrays(gl.POINTS,0,count);
+        this.use(this.synapseNodes,{...web,u_nodeLayer:0});this.texture(this.synapseNodes,'u_nodes',nodes,7);this.texture(this.synapseNodes,'u_edges',edges,8);this.texture(this.synapseNodes,'u_currents',currents,11);this.texture(this.synapseNodes,'u_bursts',bursts,12);gl.drawArrays(gl.POINTS,0,count);
         this.uniform(this.synapseNodes,'u_nodeLayer',1);gl.drawArrays(gl.POINTS,0,network.edgeCount*copies);
         this.uniform(this.synapseNodes,'u_nodeLayer',2);gl.drawArrays(gl.POINTS,0,Math.round((this.mobile?160:650)*Math.min(1.5,a.orbit)));
-        this.uniform(this.synapseNodes,'u_nodeLayer',3);this.texture(this.synapseNodes,'u_currents',currents,11);gl.drawArrays(gl.POINTS,0,network.currentCapacity);yield;
+        this.uniform(this.synapseNodes,'u_nodeLayer',3);this.texture(this.synapseNodes,'u_currents',currents,11);gl.drawArrays(gl.POINTS,0,network.currentCapacity);
+        this.uniform(this.synapseNodes,'u_nodeLayer',4);gl.drawArrays(gl.POINTS,0,network.burstCapacity);yield;
       }else if(style.index===3){
         // Track changes only change the targets. The solar system retains phase,
         // existing ejecta and velocity while its sound and colours ease across.

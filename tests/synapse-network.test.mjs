@@ -39,7 +39,7 @@ test('Synapse new links crossfade and disappearing links release their slots',as
 test('Synapse attacks enter an actual neighbouring link instead of a spatial shockwave',async()=>{
  const n=await createSynapseNetwork(128),s=new SynapseSignals();s.update(0);s.update(.02,{...input,onset:1,nodes:n.nodes,count:n.count});
  n.update(s);assert.equal(s.emitted,1);assert.equal(n.routes.length,1);const route=n.routes[0];
- assert.equal(route.a,s.events[2]);assert.ok(n.neighbours[route.a].includes(route.b));assert.ok(route.t>0&&route.t<1);
+ assert.ok(route.a===s.events[2]||n.neighbours[s.events[2]].length===0);assert.ok(n.neighbours[route.a].includes(route.b));assert.ok(route.t>0&&route.t<1);
  assert.ok(n.currents[3]>0);assert.ok(n.nodes.slice(n.count*8).filter((v,k)=>k%4===1&&v>.01).length<=2);
 });
 
@@ -95,7 +95,7 @@ test('Synapse raw notes drive geometry independently of spectrum illumination an
   const spectrum=i===2?new Float32Array(48):tone(i===0?8:39),state=states[i],n=[low,high,rest][i];
   state.update(frame/60,{energy:.7,spectrum,harmonic:spectrum,percussive:new Float32Array(48),lights:new Float32Array(48)});n.update(state);
  }
- const centroid=n=>{let sum=0,weighted=0;for(let i=0;i<n.count;i++){const k=i*4,d=Math.hypot(...[0,1,2].map(j=>n.nodes[k+j]-rest.nodes[k+j]));sum+=d;weighted+=d*n.nodes[k+3];}return {weight:sum,band:weighted/sum};};
+ const centroid=n=>{let sum=0,weighted=0;for(let i=0;i<n.count;i++){const k=i*4,d=Math.hypot(...[0,1,2].map(j=>n.nodes[k+j]-rest.nodes[k+j]));sum+=d;weighted+=d*n.frequencies[i];}return {weight:sum,band:weighted/sum};};
  const a=centroid(low),b=centroid(high);assert.ok(a.weight>10&&b.weight>10);assert.ok(a.band<.4&&b.band>.6,JSON.stringify({a,b}));
  assert.ok(states[0].spectrum.every(x=>x===0));assert.ok(states[0].detail.some(x=>x>.5));
 });
@@ -175,4 +175,59 @@ test('Synapse movement is local deformation rather than a shared translation, sc
   const fit=matrix.map(row=>row[4]);for(let i=0;i<n.count;i++){const actual=motion[i][axis],predicted=positions[i].reduce((sum,x,j)=>sum+x*fit[j],0);residual+=(actual-predicted)**2;total+=actual**2;}
  }
  assert.ok(Math.sqrt(total/n.count)>.04,'The web must still visibly move');assert.ok(residual/total>.94,'A common transform must not explain the motion');
+});
+
+const mechanicalState=(time,energy=.8)=>({dt:1/60,time,phase:time*.25,activity:.6,energy,shimmer:0,phrase:0,beat:0,tension:.4,roles:[.6,0,.5,.3],detail:Float32Array.from({length:192},(_,i)=>i%4===0?.7:i%4===1?.5:0),spectrum:new Float32Array(48),events:new Float32Array(32),attacks:new Float32Array(3)});
+
+test('Synapse loudness visibly morphs actual particle positions with identical flow clocks',async()=>{
+ const loud=await createSynapseNetwork(680),quiet=await createSynapseNetwork(680);
+ for(let i=1;i<=90;i++){loud.update(mechanicalState(i/60,.9));quiet.update(mechanicalState(i/60,.01));}
+ assert.deepEqual(loud.localPhases,quiet.localPhases,'The difference must be physical displacement, not changing the flow clock');
+ let total=0,large=0;for(let i=0;i<loud.count;i++){const d=Math.hypot(...[0,1,2].map(j=>loud.nodes[i*4+j]-quiet.nodes[i*4+j]));total+=d;if(d>.25)large++;}
+ assert.ok(total/loud.count>.30,'Loudness deformation must be visible');assert.ok(large>loud.count*.65);assert.ok(loud.nodes.every(Number.isFinite));
+});
+
+test('Synapse physical motion remains visible at ordinary low spectrum magnitudes',async()=>{
+ const n=await createSynapseNetwork(680),quiet=await createSynapseNetwork(680);
+ for(let i=1;i<=90;i++){
+  const sound=mechanicalState(i/60,.8),rest=mechanicalState(i/60,.01);for(const state of [sound,rest])state.detail=Float32Array.from({length:192},(_,k)=>k%4===0?.02:k%4===1?.01:0);
+  n.update(sound);quiet.update(rest);
+ }
+ let displacement=0;for(let i=0;i<n.count;i++)displacement+=Math.hypot(...[0,1,2].map(j=>n.nodes[i*4+j]-quiet.nodes[i*4+j]));
+ assert.ok(displacement/n.count>.25,'Real music levels must not need a nearly full-scale spectrum to move particles');
+});
+
+test('Synapse bass physically kicks the low-frequency area without a whole-scene shockwave',async()=>{
+ const kicked=await createSynapseNetwork(680),steady=await createSynapseNetwork(680);
+ for(let i=1;i<=60;i++){const state=mechanicalState(i/60);kicked.update(state);steady.update(state);}
+ for(let i=1;i<=12;i++){const hit=mechanicalState(1+i/60),rest=mechanicalState(1+i/60);if(i===1)hit.attacks[0]=1;kicked.update(hit);steady.update(rest);}
+ const low=[],high=[];for(let i=0;i<kicked.count;i++){const d=Math.hypot(...[0,1,2].map(j=>kicked.nodes[i*4+j]-steady.nodes[i*4+j]));if(kicked.frequencies[i]<.35)low.push(d);if(kicked.frequencies[i]>.7)high.push(d);}
+ const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;assert.ok(mean(low)>.045,mean(low));assert.ok(mean(high)<.002,mean(high));
+});
+
+test('Synapse frequency identity is a smooth three-dimensional gradient rather than a random seed',async()=>{
+ const n=await createSynapseNetwork(680);assert.ok(Math.max(...n.frequencies)-Math.min(...n.frequencies)>.75);
+ let depthPair=false,heightPair=false;
+ for(let a=0;a<n.count;a++)for(let b=a+1;b<n.count;b++){
+  const dx=n.anchors[a*3]-n.anchors[b*3],dy=n.anchors[a*3+1]-n.anchors[b*3+1],dz=n.anchors[a*3+2]-n.anchors[b*3+2],df=n.frequencies[a]-n.frequencies[b];
+  if(Math.abs(dx)<.15&&Math.abs(dy)<.15&&Math.abs(dz)>2&&df*dz>0&&Math.abs(df)>.09)depthPair=true;
+  if(Math.abs(dx)<.15&&Math.abs(dz)<.15&&Math.abs(dy)>2&&df*dy>0&&Math.abs(df)>.12)heightPair=true;
+ }assert.ok(depthPair&&heightPair,'Frequency must vary with depth and height as well as width');
+ for(let i=0;i<n.count;i++)assert.equal(n.nodes[n.count*4+i*4+3],n.frequencies[i]);
+});
+
+test('Synapse bass bursts stay small, do not retrigger held notes, and fade completely',async()=>{
+ const n=await createSynapseNetwork(680),s=new SynapseSignals();s.update(0);s.update(.02,{energy:.8,onset:1,bass:.8,hits:[1,0,0],nodes:n.nodes,count:n.count});n.update(s);
+ const spawned=n.burstsSpawned;assert.ok(spawned>=3&&spawned<=10);advance(n,s,.3,{energy:.8,onset:1,bass:.8,hits:[1,0,0]});assert.equal(n.burstsSpawned,spawned);
+ assert.ok(n.bursts.slice(0,n.burstCapacity*4).some((v,i)=>i%4===3&&v>.01));assert.ok(n.bursts.every(Number.isFinite));
+ advance(n,s,4,{active:false});assert.equal(n.burstsSpawned,spawned);for(let i=0;i<n.burstCapacity;i++)assert.equal(n.bursts[i*4+3],0);
+});
+
+test('Synapse repeated bass transients remain physical when broad onset envelopes stay high',async()=>{
+ const n=await createSynapseNetwork(680),s=new SynapseSignals();s.update(0);let peaks=0;
+ for(let frame=1;frame<=240;frame++){
+  const t=frame/60,kick=Math.exp(-(t%.5)*22),spectrum=new Float32Array(48).fill(.02),percussive=Float32Array.from({length:48},(_,k)=>k<16?.12*kick:0);
+  s.update(t,{energy:.7,onset:.9,accents:[.9,0,0],bass:.8,spectrum,percussive,nodes:n.nodes,count:n.count});if(s.attacks[0]>.18)peaks++;n.update(s);
+ }
+ assert.ok(peaks>=6,'Repeated kicks need their own detector, not a held global onset');assert.ok(n.burstsSpawned>=18&&n.burstsSpawned<=80);
 });

@@ -6,7 +6,7 @@ export const ART_DIRECTIONS=Object.freeze([
  {id:'contour',name:'Contour',note:'A living brushstroke on white paper. Moving pigment, gentle rain ripples and soft leaf shadows on white paper.',index:4},
  {id:'flux',name:'Flux',note:'A flowing spectrogram. Luminous frequency ridges leave trails of plasma, dust and digital traces.',index:5},
  {id:'aerial',name:'Aerial',note:'Liquid chrome, marble, gold and luminous glass suspended in a dark studio. Music bends the surfaces and releases bubbles into flowing currents.',index:6},
- {id:'synapse',name:'Synapse',note:'A luminous web with living fibres. Bass gently flexes the network, melody flows along its threads, and small signals find paths between the junctions.',index:7}
+ {id:'synapse',name:'Synapse',note:'A luminous web coloured by frequency. Loudness bends its particles, bass gives them a kick, and small sparks drift away from the connections.',index:7}
 ]);
 export const artDirection=value=>ART_DIRECTIONS.find(x=>x.id===(value==='glasshouse'?'afterglow':value==='orrery'?'astra':value))||ART_DIRECTIONS[0];
 

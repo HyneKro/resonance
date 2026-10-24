@@ -1,7 +1,7 @@
 // Straight polygon links, sparse facets and ruled micro-filaments share the
 // moving graph. Depth-of-field turns distant points into soft photographic bokeh.
 const WEB=`
-uniform sampler2D u_nodes,u_edges,u_facets,u_currents;
+uniform sampler2D u_nodes,u_edges,u_facets,u_currents,u_bursts;
 uniform vec2 u_resolution;
 uniform vec4 u_world,u_camera,u_roles,u_particle,u_light,u_neural,u_neuralDrive,u_neuralTone,u_neuralStyle,u_neuralBands[48];
 uniform vec3 u_neuralAccents;
@@ -12,7 +12,9 @@ float hash(float n){return fract(sin(n*127.1)*43758.5453);}
 vec3 pigment(vec3 c){return pow(max(vec3(0.),c/max(.24,max(c.r,max(c.g,c.b)))),vec3(1.8));}
 vec3 cool(){return mix(vec3(.025,.64,1.),pigment(u_palette[1]),.74);}
 vec3 warm(){return mix(vec3(.64,.075,1.),pigment(u_palette[4]),.74);}
-vec3 webColor(vec3 p,float seed){float blend=clamp(.5+p.x*.09+sin(p.y*.7+p.z*.4)*.18+seed*.16,0.,1.);return mix(cool(),warm(),clamp(blend+(u_neuralTone.x-.5)*.18+sin(p.x*.3-u_neural.x*.08)*u_neuralTone.y*.25,0.,1.));}
+vec3 webColor(float band){return mix(cool(),warm(),clamp(band+(u_neuralTone.x-.5)*.08,0.,1.));}
+float pitch(int id){return texelFetch(u_nodes,ivec2(id,1),0).w;}
+float spatialPitch(vec3 p){return clamp(.5+dot(p,vec3(.052,.068,.055)),0.,1.);}
 vec4 notes(float t){float x=clamp(t,0.,1.)*47.;int i=int(x);return mix(u_neuralBands[i],u_neuralBands[min(47,i+1)],fract(x));}
 float chargeFraction(vec4 edge,float copy){return fract(edge.w+copy*.473+u_neural.x*(.12+u_roles.z*.18));}
 float frequency(float t){float x=clamp(t,0.,1.)*47.;int i=int(x);return mix(u_spectrumLight[i],u_spectrumLight[min(47,i+1)],fract(x));}
@@ -38,11 +40,11 @@ out vec3 v_color;out float v_alpha,v_edge,v_t,v_seed,v_pulse;
 void main(){
  int c=gl_VertexID%6,cell=gl_VertexID/6,segments=int(u_segments),id=cell/segments;
  float t=(float(cell%segments)+float(c==1||c==4||c==5))/u_segments,side=c==0||c==1||c==4?-1.:1.;
- vec3 pa,pb,p;float fade,seed;vec4 tone;
+ vec3 pa,pb,p;float fade,seed,band;vec4 tone;
  if(u_threadLayer>1.5){
   vec4 current=texelFetch(u_currents,ivec2(id,0),0);int a=int(current.x),b=int(current.y);
   pa=junction(a);pb=junction(b);float along=max(0.,current.z-(1.-t)*.24);
-  p=mix(pa,pb,along);fade=current.w*t*t*clamp(u_light.z*9.,0.,1.25);seed=hash(float(a)*3.1+float(b));tone=mix(nodeTone(a),nodeTone(b),along);
+  p=mix(pa,pb,along);fade=current.w*t*t*clamp(u_light.z*9.,0.,1.25);seed=hash(float(a)*3.1+float(b));tone=mix(nodeTone(a),nodeTone(b),along);band=mix(pitch(a),pitch(b),along);
  }else if(u_threadLayer>.5){
   int strand=id%int(u_weaveCount);id/=int(u_weaveCount);
   vec4 face=texelFetch(u_facets,ivec2(id%1024,id/1024),0);
@@ -52,22 +54,22 @@ void main(){
   // woven fans in the reference while leaving the main polygon links straight.
   pa=mix(a,b,f);pb=mix(a,cpos,f);p=mix(pa,pb,t);
   vec3 normal=normalize(cross(b-a,cpos-a)+vec3(.00001));
-  vec4 note=notes(seed);
+  band=(pitch(int(face.x))+pitch(int(face.y))+pitch(int(face.z)))/3.;vec4 note=notes(band);
   p+=normal*sin(t*3.14159)*sin(f*3.14159)*(.025+u_roles.z*.10+u_roles.w*.08+note.y*.12)*sin(f*5.+u_neural.x*1.2+seed*9.);
   tone=(nodeTone(int(face.x))+nodeTone(int(face.y))+nodeTone(int(face.z)))/3.;
   fade=face.w*step(.38,seed);seed+=f*.12;
  }else{
   vec4 edge=texelFetch(u_edges,ivec2(id%1024,id/1024),0);
-  pa=junction(int(edge.x));pb=junction(int(edge.y));p=mix(pa,pb,t);fade=edge.z;seed=edge.w;tone=mix(nodeTone(int(edge.x)),nodeTone(int(edge.y)),t);
+  pa=junction(int(edge.x));pb=junction(int(edge.y));p=mix(pa,pb,t);fade=edge.z;seed=edge.w;tone=mix(nodeTone(int(edge.x)),nodeTone(int(edge.y)),t);band=mix(pitch(int(edge.x)),pitch(int(edge.y)),t);
  }
  vec4 clip=projectWeb(p),ca=projectWeb(pa),cb=projectWeb(pb);
  vec2 tangent=(cb.xy/cb.w-ca.xy/ca.w)*u_resolution,normal=normalize(vec2(-tangent.y,tangent.x)+vec2(.00001));
- float blur=smoothstep(.55,2.6,abs(clip.w-6.6)),pulse=tone.y*clamp(u_light.z*9.,0.,1.25),lit=tone.x+frequency(fract(seed*3.7))*.25;
- vec4 note=notes(fract(seed*3.7));
+ float blur=smoothstep(.55,2.6,abs(clip.w-6.6)),pulse=tone.y*clamp(u_light.z*9.,0.,1.25),lit=tone.x+frequency(band)*.25;
+ vec4 note=notes(band);
  float width=mix(.95,.55,min(1.,u_threadLayer))+blur*1.2+u_neural.y*.22+pulse*.18;
  if(u_threadLayer>1.5)width=1.+u_neuralDrive.z*.7;
  clip.xy+=normal*side*width*max(.7,u_pixel)*2./u_resolution*clip.w;gl_Position=clip;
- v_edge=side;v_t=t;v_seed=seed;v_pulse=pulse;v_color=webColor(p,seed);
+ v_edge=side;v_t=t;v_seed=seed;v_pulse=pulse;v_color=webColor(band);
  v_alpha=(.035+lit*.34+tone.z*.22+tone.w*.10+pulse*.95+u_roles.y*lit*.05)*fade*exp(-blur*3.8);
  v_alpha*=mix(.08,1.,smoothstep(1.5,4.5,clip.w))*(1.-smoothstep(.9,1.8,length(pa-pb))*.80);
  v_alpha*=(u_threadLayer>1.5?14.:mix(1.,.58,u_threadLayer))*u_neuralTone.w;
@@ -94,8 +96,8 @@ void main(){
  int node=int(corner==0?face.x:corner==1?face.y:face.z);vec3 p=junction(node);gl_Position=projectWeb(p);
  float seed=hash(face.x*3.7+face.y*5.1+face.z);vec4 tone=(nodeTone(int(face.x))+nodeTone(int(face.y))+nodeTone(int(face.z)))/3.;float pulse=tone.y*clamp(u_light.z*9.,0.,1.25);
  float blur=smoothstep(.5,2.8,abs(gl_Position.w-6.6));
- v_color=webColor(p,seed);v_charge=pulse;v_seed=seed;
- v_alpha=(.003+tone.x*.012+tone.z*.018+tone.w*.009+pulse*.025+frequency(seed)*.006)*face.w*step(.38,seed)*exp(-blur*3.)*u_neuralTone.w;
+ float band=(pitch(int(face.x))+pitch(int(face.y))+pitch(int(face.z)))/3.;v_color=webColor(band);v_charge=pulse;v_seed=seed;
+ v_alpha=(.003+tone.x*.012+tone.z*.018+tone.w*.009+pulse*.025+frequency(band)*.006)*face.w*step(.38,seed)*exp(-blur*3.)*u_neuralTone.w;
  v_bary=corner==0?vec3(1.,0.,0.):corner==1?vec3(0.,1.,0.):vec3(0.,0.,1.);
 }`;
 export const SYNAPSE_FACET_FRAGMENT=`#version 300 es
@@ -116,30 +118,34 @@ ${WEB}
 uniform float u_nodeLayer,u_chargeCopies;
 out vec3 v_color;out float v_power,v_blur,v_hero,v_seed,v_pulse;
 void main(){
- int id=gl_VertexID;vec4 data;vec3 p;float fade=1.;float seed=hash(float(id)+113.);vec4 tone=vec4(0.);
- if(u_nodeLayer>2.5){
+ int id=gl_VertexID;vec4 data;vec3 p;float fade=1.,band=0.,beadSize=3.;float seed=hash(float(id)+113.);vec4 tone=vec4(0.);
+ if(u_nodeLayer>3.5){
+  vec4 burst=texelFetch(u_bursts,ivec2(id,0),0),meta=texelFetch(u_bursts,ivec2(id,1),0);p=burst.xyz*clamp(u_particle.x,.65,1.5);band=meta.x;beadSize=meta.y;fade=burst.w;data=vec4(p,meta.z);vec4 note=notes(band);tone=vec4(note.x,0.,note.y,0.);
+ }else if(u_nodeLayer>2.5){
   vec4 current=texelFetch(u_currents,ivec2(id,0),0);int a=int(current.x),b=int(current.y);
   p=mix(junction(a),junction(b),current.z);tone=mix(nodeTone(a),nodeTone(b),current.z);fade=current.w*2.5*clamp(u_light.z*9.,0.,1.25);
-  data=vec4(p,hash(float(a)*3.1+float(b)));
+  data=vec4(p,hash(float(a)*3.1+float(b)));band=mix(pitch(a),pitch(b),current.z);
  }else if(u_nodeLayer>1.5){
   p=vec3((hash(float(id)*5.1)-.5)*13.,(hash(float(id)*8.3)-.5)*8.,(hash(float(id)*9.7)-.5)*7.);
   p+=vec3(sin(u_neural.x*.2+seed*17.),cos(u_neural.x*.17+seed*21.),sin(u_neural.x*.15+seed*31.))*.32;
+  band=spatialPitch(p);vec4 note=notes(band);p+=vec3(sin(p.y+seed*8.),cos(p.z+seed*13.),sin(p.x+seed*17.))*(note.x*.22+u_neural.z*.10)*u_movement;
   data=vec4(p,seed);fade=(.025+u_neural.y*.055+u_shimmer*.045)*u_neuralStyle.w;
  }else if(u_nodeLayer>.5){
   int copies=max(1,int(u_chargeCopies)),copy=id%copies;id/=copies;
   vec4 edge=texelFetch(u_edges,ivec2(id%1024,id/1024),0);int a=int(edge.x),b=int(edge.y);
   float t=chargeFraction(edge,float(copy));p=mix(junction(a),junction(b),t);
-  tone=mix(nodeTone(a),nodeTone(b),t);data=vec4(p,edge.w+float(copy)*.17);fade=sin(t*3.14159)*(.035+tone.z*.20)*edge.z;
- }else{data=texelFetch(u_nodes,ivec2(id,0),0);p=junction(id);tone=nodeTone(id);}
+  tone=mix(nodeTone(a),nodeTone(b),t);data=vec4(p,edge.w+float(copy)*.17);fade=sin(t*3.14159)*(.035+tone.z*.20)*edge.z;band=mix(pitch(a),pitch(b),t);
+ }else{data=texelFetch(u_nodes,ivec2(id,0),0);p=junction(id);tone=nodeTone(id);band=pitch(id);}
  gl_Position=projectWeb(p);v_seed=data.w;
- float pulse=tone.y*clamp(u_light.z*9.,0.,1.25),f=tone.x+frequency(fract(data.w))*.30;v_pulse=pulse;
+ float pulse=tone.y*clamp(u_light.z*9.,0.,1.25),f=tone.x+frequency(band)*.30;v_pulse=pulse;
  v_blur=smoothstep(.55,2.6,abs(gl_Position.w-6.6));v_hero=smoothstep(.89,.99,data.w)*step(u_nodeLayer,.5)*(.35+u_shimmer*.65);
  float size=3.4+v_hero*6.+pulse*2.4+f*2.+v_blur*(11.+seed*15.);
  if(u_nodeLayer>1.5)size=3.+seed*3.+v_blur*22.;
+ if(u_nodeLayer>3.5)size=beadSize+v_blur*16.;
  gl_PointSize=clamp(size*u_pixel*clamp(u_particle.y,.6,1.8),2.,70.);
- v_color=webColor(p,seed);
+ v_color=webColor(band);
  v_power=(.14+v_hero*.45+f*.95+tone.z*.55+tone.w*.15+pulse*6.+u_roles.y*f*.1)*mix(1.,.035,v_blur)*fade*u_neuralTone.w;
- if(u_nodeLayer>2.5)v_power*=6.;
+ if(u_nodeLayer>3.5)v_power*=2.;else if(u_nodeLayer>2.5)v_power*=6.;
  if(gl_Position.w<1.)v_power=0.;
 }`;
 export const SYNAPSE_NODE_FRAGMENT=`#version 300 es
