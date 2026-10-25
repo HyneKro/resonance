@@ -1,0 +1,9 @@
+# Resonance 1.26.2 — Synapse and immediate access to downloads
+
+Completed playlist songs now appear in the Windows library and become playable while the rest of the batch continues downloading. Playlist order, recording links, metadata, favorites and listening history are preserved. Cancelled or paused batches keep their completed songs, and temporary extractor files stay out of the library.
+
+Synapse has a much larger connected volume with independent regional motion, stronger frequency-driven particle movement, musical colors, subtle bass bursts and currents routed through nearby connections. An independent layer of drifting particles surrounds the network. The foreground and middle remain sharp, with blur only in the distance. Pause and song transitions retain smooth movement and color changes.
+
+This is the approved promotion of development build 1.26.2-dev.6. Release packaging changes the version and update channel; application behavior is unchanged. Windows installations receive this through Settings → App updates and install after Restart & update. Development installations remain on their own channel; switching to this approved version requires installing its ZIP manually.
+
+Release verification: 575 shared tests and 152 Android JVM tests; both Android ABI builds, device-test compilation and lint (0 errors, 9 existing warnings); isolated Windows playback of a completed song during a pending transfer; actual downloader/FFmpeg final-file signaling with generated local audio; complete nested startup graphs in extracted ZIP/APK; clean empty-library Windows welcome screen; original Android signing identity; frozen legacy updater compatibility; uploaded sizes and SHA-256 hashes; anonymous release discovery/downloads and both live download buttons. Physical Android testing remains outstanding.
