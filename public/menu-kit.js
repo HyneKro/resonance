@@ -1,5 +1,6 @@
 // Shared menu language and navigation for the desktop and phone interfaces.
 export const SETTINGS_SECTIONS = [
+  ['lighting', 'Room lighting', 'Govee lights that follow your music and colors', 'visuals'],
   ['playback', 'Playback & sound', 'Loudness, silent edges, equalizer and audio sync', 'sound'],
   ['library', 'Library & downloads', 'Add music, update playlists and find missing details', 'library'],
   ['accessibility', 'Accessibility', 'Text size, reading contrast and keyboard access', 'help'],

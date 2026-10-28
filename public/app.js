@@ -1,4 +1,5 @@
 import {SkipBurst,LatestStateWriter} from './playback-requests.js';
+import {LightingClient} from './lighting-ui.js';
 import {installLibraryActivity,beginActivity,soundPreparation} from './library-activity.js';
 import {installPortableSettings,browserSettingsFile,downloadSettingsFile} from './portable-settings-ui.js';
 import {installSmartCollections} from './smart-collections-ui.js';
@@ -364,7 +365,8 @@ libraryActivity.configure({
  analysis:()=>({label:prepareLibrarySound.running?'Pause':'Prepare missing',whileRunning:true,run:()=>prepareLibrarySound.toggle()}),
  lyrics:()=>({label:'Check this song',disabled:!state.current,run:async()=>{const result=await api('/api/track-lyrics?id='+encodeURIComponent(state.current.id));return result.instrumental?'Instrumental · no vocals':result.text?'Lyrics are available for this song.':result.message||'No reliable lyrics found for this song.';}})
 });
-const settingsMenu=installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress});
+const lighting=new LightingClient({reactor,toast,request:(action,data={})=>api('/api/lighting',{action,...data})});
+const settingsMenu=installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress,lighting});
 installBrand();installPortableUpdateUI({toast,state,openUpdates:()=>settingsMenu.open('updates')});
 await yieldSceneWork();
 const atmosphere=installAtmosphereUI({state,reactor,api,setPreferences,toast,getNext:()=>getTrack(playQueue.items[playQueue.cursor+1]),getSongProfile:id=>listening.track?.id===id?listening.profile:null});

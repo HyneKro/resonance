@@ -49,7 +49,7 @@ public final class MainActivity extends Activity {
         WebViewCompat.addWebMessageListener(web,"ResonanceNative",Set.of(ORIGIN),(view,message,origin,main,reply)->{
             if(!main||!trusted(origin))return;String text=message.getData();if(text==null||text.length()>9_000_000)return;JSONObject request=Json.parse(text);String id=request.optString("id");
             long requestedAt=SystemClock.elapsedRealtime();
-            ExecutorService executor=request.optString("action").equals("lyricsRequest")?app.lyricRequests:Set.of("library","constellation","loudnessStatus","songProfile","analyzeSong","listeningEdit","transferSnapshot","transferStore","transferApply","settingsFile","storage","lyricsRequest","lyricsCached","lyricsSave","lyricsTimingSave","lyricsFile","researchGenres","research","search","lyricsSearch","syncMatch","updateDownloader","pickFolder","pickDestination","captureStart").contains(request.optString("action"))?app.io:app.bridge;
+            ExecutorService executor=request.optString("action").equals("lyricsRequest")?app.lyricRequests:Set.of("lighting","library","constellation","loudnessStatus","songProfile","analyzeSong","listeningEdit","transferSnapshot","transferStore","transferApply","settingsFile","storage","lyricsRequest","lyricsCached","lyricsSave","lyricsTimingSave","lyricsFile","researchGenres","research","search","lyricsSearch","syncMatch","updateDownloader","pickFolder","pickDestination","captureStart").contains(request.optString("action"))?app.io:app.bridge;
             try{executor.execute(()->{JSONObject result;try{if(SystemClock.elapsedRealtime()-requestedAt>44000)throw new IOException("Request expired. Try again.");result=Json.object("id",id,"value",handle(request.optString("action"),request.optJSONObject("data")==null?new JSONObject():request.optJSONObject("data")));}catch(Exception e){result=Json.object("id",id,"error",Json.error(e));}String response=result.toString();app.main.post(()->{if(!isDestroyed())reply.postMessage(response);});});}catch(RejectedExecutionException busy){if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))reply.postMessage(Json.object("id",id,"error","Lyrics service is busy. Try again shortly.").toString());}
         });
         controller=new MediaController.Builder(this,new SessionToken(this,new ComponentName(this,PlaybackService.class))).buildAsync();
@@ -62,6 +62,14 @@ public final class MainActivity extends Activity {
         LibraryStore lib=app.library;
         if(Set.of("constellationQueue","analysis","visuals","state","play","pause","seek","next","previous","volume","shuffle","repeat","equalizer").contains(action))playback(); // Never await controller binding on Android's main thread.
         switch(action){
+            case "lighting":{
+                if(data.optString("action").equals("scan")){
+                    android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
+                    android.net.wifi.WifiManager.MulticastLock lock=wifi.createMulticastLock("resonance-govee-discovery");lock.acquire();
+                    try{return app.lighting.handle(data);}finally{lock.release();}
+                }
+                return app.lighting.handle(data);
+            }
             case "appUpdate":{
                 switch(data.optString("action")){
                     case "status":break;
