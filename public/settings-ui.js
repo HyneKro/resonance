@@ -1,12 +1,10 @@
 import {accessibilitySettings} from './accessibility.js';
 import {settingsHub,sectionTabs} from './menu-kit.js';
 import {storageCard,mountStorage} from './storage-ui.js';
-import {lightingMarkup} from './lighting-ui.js';
-export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress,lighting}){
+export function installSettingsMenu({state,showDialog,closeDialog,soundDialog,api,updateGenreProgress}){
  const card=(title,body)=>`<section class="settings-card"><h2>${title}</h2>${body}</section>`;
  function open(page='home'){
   if(page==='playback'){soundDialog();return;}
-  if(page==='lighting'){showDialog('Room lighting','Bring Resonance into your room.',lightingMarkup());lighting.mount(document.querySelector('[data-lighting]'));return;}
   if(page==='home'){showDialog('Settings','',settingsHub());return;}
   if(page==='accessibility'){showDialog('Accessibility','Make the interface comfortable to read and navigate.',accessibilitySettings(state.prefs));return;}
   if(page==='library'){

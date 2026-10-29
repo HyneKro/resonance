@@ -38,16 +38,9 @@ export class Reactor {
     this.features=this.visualSync.process(this.rawFeatures,this.audioActive,time,this.wave);
     this.visualWave=this.visualSync.delayMs?this.features.wave:this.wave;
   }
-  setLightingActive(enabled){this.lightingActive=!!enabled;this.eq(this.eqValues||[0,0,0]);}
   updateAudioSignal(dt,time){
-    if(this.lightingActive&&Number.isFinite(this.signalAt)&&time<=this.signalAt)return; // A late render callback must not rewind the shared signal.
-    const analysisDt=this.lightingActive&&Number.isFinite(this.signalAt)?Math.max(.001,Math.min(.1,(time-this.signalAt)/1000)):dt;
-    if(this.analyser){this.analyser.getFloatFrequencyData(this.freq);this.midAnalyser?.getFloatFrequencyData(this.midFreq);this.fastAnalyser?.getFloatFrequencyData(this.fastFreq);(this.fastAnalyser||this.analyser).getFloatTimeDomainData(this.wave);this.rawFeatures.update(this.freq,this.wave,this.context.sampleRate,this.analyser.fftSize,analysisDt,time/1000,this.audioActive,{mid:this.midAnalyser?{frequency:this.midFreq,fftSize:2048}:null,fast:this.fastAnalyser?{frequency:this.fastFreq,fftSize:1024}:null});}
-    this.syncAnalysis(time);this.signalAt=time;
-  }
-  lightingSnapshot(time=performance.now()){
-    if(time-(this.signalAt??-Infinity)>12){const dt=Math.min(.1,(time-(this.signalAt||time-50))/1000);this.updateAudioSignal(dt,time);if(!this.running||this.musicOnly||this.sceneSuspended){this.dynamics.update(this.features,dt,{active:this.reactiveActive,dynamic:true,reduced:false,frozen:false});this.visualState(dt);}}
-    return {colors:this.visualColors||this.coverColors,features:this.features,active:this.reactiveActive&&!this.visualPending};
+    if(this.analyser){this.analyser.getFloatFrequencyData(this.freq);this.midAnalyser?.getFloatFrequencyData(this.midFreq);this.fastAnalyser?.getFloatFrequencyData(this.fastFreq);(this.fastAnalyser||this.analyser).getFloatTimeDomainData(this.wave);this.rawFeatures.update(this.freq,this.wave,this.context.sampleRate,this.analyser.fftSize,dt,time/1000,this.audioActive,{mid:this.midAnalyser?{frequency:this.midFreq,fftSize:2048}:null,fast:this.fastAnalyser?{frequency:this.fastFreq,fftSize:1024}:null});}
+    this.syncAnalysis(time);
   }
   setMicrophoneStream(stream){
     this.microphoneSource?.disconnect();this.microphoneSource=stream&&this.desktopSource?this.context.createMediaStreamSource(stream):null;
@@ -109,13 +102,13 @@ export class Reactor {
     if(values.some(x=>x!==0))this.filters.forEach((f,i)=>{f.gain.setTargetAtTime(values[i],this.context.currentTime,.05);previous.connect(f);previous=f;});
     this.setPlaybackGain(this.playbackDb||0);this.fadeGain??=this.context.createGain();
     if(this.desktopSource){
-      if(this.microphoneSource&&(!this.musicOnly&&!this.sceneSuspended||this.lightingActive))this.microphoneSource.connect(this.analyser);
+      if(this.microphoneSource&&(!this.musicOnly&&!this.sceneSuspended))this.microphoneSource.connect(this.analyser);
       previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);previous=this.desktopSource;
-      if(!this.musicOnly&&!this.sceneSuspended||this.lightingActive)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
+      if(!this.musicOnly&&!this.sceneSuspended)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       this.analysisSink??=this.context.createGain();this.analysisSink.gain.value=0;
       previous.connect(this.analysisSink);this.analysisSink.connect(this.context.destination);
     }else{
-      if(!this.musicOnly&&!this.sceneSuspended||this.lightingActive)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
+      if(!this.musicOnly&&!this.sceneSuspended)for(const analyser of analysers){previous.connect(analyser);previous=analyser;}
       // Analyse the same signal regardless of leveling or crossfade gain.
       previous.connect(this.levelGain);this.levelGain.connect(this.fadeGain);this.fadeGain.connect(this.context.destination);
     }

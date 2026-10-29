@@ -11,7 +11,7 @@ export function syncPreferenceControls(patch){
 
 export function installSettingSliderGestures(){
  let drag=null,nativeGuard=null;
- const range=target=>target.matches?.('input[type="range"][data-pref],input[type="range"][data-lighting-setting]');
+ const range=target=>target.matches?.('input[type="range"][data-pref]');
  document.addEventListener('pointerdown',e=>{
   if(e.pointerType!=='touch'||!range(e.target))return;
   // Avoid the native jump-to-touch before we know whether this is scrolling.
