@@ -28,7 +28,7 @@ export function spectralEnvelope(previous,input,dt,lane=0){
  return input+(previous-input)*2**(-Math.max(0,dt)/halfLife);
 }
 export class AudioFeatures {
-  constructor(){this.layers=new MusicalLayers();this.harmonic=this.layers.harmonic;this.percussive=this.layers.percussive;this.layerInput=new Float32Array(48);this.bands=new Float32Array(8);this.timbreBands=new Float32Array(8);this.bandDb=new Float32Array(8);this.previous=new Float32Array(8);this.fluxAverage=.004;this.onset=0;this.lastOnset=-1;this.rms=0;this.db=-100;this.peakDb=-100;this.loudness=0;this.accents=new Float32Array(3);this.hits=new Float32Array(3);this.transients=[[45,140,.32],[1400,5200,.17],[6500,15000,.09]].map(([low,high,release])=>({low,high,release,previous:0,floor:.003,last:-1}));}
+  constructor(){this.layers=new MusicalLayers();this.harmonic=this.layers.harmonic;this.percussive=this.layers.percussive;this.layerInput=new Float32Array(48);this.lightingSpectrum=this.layerInput;this.bands=new Float32Array(8);this.timbreBands=new Float32Array(8);this.bandDb=new Float32Array(8);this.previous=new Float32Array(8);this.fluxAverage=.004;this.onset=0;this.lastOnset=-1;this.rms=0;this.db=-100;this.peakDb=-100;this.loudness=0;this.accents=new Float32Array(3);this.hits=new Float32Array(3);this.transients=[[45,140,.32],[1400,5200,.17],[6500,15000,.09]].map(([low,high,release])=>({low,high,release,previous:0,floor:.003,last:-1}));}
   update(frequency,wave,sampleRate,fftSize,dt,time,active=true,detail={}){
     dt=clamp(dt,.001,.1);this.hits.fill(0);let flux=0;
     // Long windows resolve neighboring bass notes; short windows locate attacks in time.

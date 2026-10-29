@@ -75,16 +75,16 @@ final class GoveeLights {
         Map<String,byte[]> packets=new HashMap<>();
         // Validate all selected frames before sending any datagram.
         for(int i=0;i<frames.length();i++){JSONObject f=frames.optJSONObject(i);if(f==null||!selected.containsKey(f.optString("id")))continue;JSONArray pixels=f.optJSONArray("pixels");Object raw=f.opt("brightness");double value=raw instanceof Number?((Number)raw).doubleValue():Double.NaN;if(!Double.isFinite(value)||value!=Math.rint(value)||value<1||value>100||pixels==null||pixels.length()!=selected.get(f.optString("id")).optInt("segments"))throw new java.io.IOException("Invalid light pixels or brightness.");packets.put(f.optString("id"),realtimePixels(pixels));}
-        long now=System.currentTimeMillis();latestAt=now;if(now-tickAt<90)return Json.object("ok",true,"enabled",true);tickAt=now;
+        long now=System.currentTimeMillis();latestAt=now;if(now-tickAt<12)return Json.object("ok",true,"enabled",true);tickAt=now;
         for(int i=0;i<frames.length();i++){
             JSONObject f=frames.optJSONObject(i);if(f==null||!packets.containsKey(f.optString("id")))continue;String id=f.optString("id");JSONObject d=devices.get(id),old=last.get(id);
             if(d==null||!d.optBoolean("on")){if(old!=null)release(id);continue;}if(old==null&&now-d.optLong("seen")>=20000)continue;
             int brightness=Math.min(f.optInt("brightness"),(int)Math.round(options.optDouble("brightness")*100));String ip=d.optString("ip");
-            if(old==null){old=Json.object("ip",ip,"at",now,"global",brightness,"original",d.optInt("brightness"),"phase","arm","armed",false,"statusAt",now);last.put(id,old);send(ip,"brightness",Json.object("value",brightness));continue;}
-            if(now-old.optLong("at")<100)continue;Json.put(old,"at",now);
-            if(old.optString("phase").equals("arm")){stream(ip,realtimeMode(true));Json.put(old,"armed",true);Json.put(old,"phase","pixels");continue;}
-            if(brightness!=old.optInt("global")){send(ip,"brightness",Json.object("value",brightness));Json.put(old,"global",brightness);continue;}
-            if(now-old.optLong("statusAt")>5000){send(ip,"devStatus",new JSONObject());Json.put(old,"statusAt",now);continue;}
+            if(old==null){old=Json.object("ip",ip,"at",now,"global",brightness,"original",d.optInt("brightness"),"phase","arm","armed",false,"readyAt",now+100,"statusAt",now);last.put(id,old);send(ip,"brightness",Json.object("value",brightness));continue;}
+            if(now<old.optLong("readyAt")||now-old.optLong("at")<15)continue;Json.put(old,"at",now);
+            if(old.optString("phase").equals("arm")){stream(ip,realtimeMode(true));Json.put(old,"armed",true);Json.put(old,"phase","pixels");Json.put(old,"readyAt",now+100);continue;}
+            if(brightness!=old.optInt("global")){send(ip,"brightness",Json.object("value",brightness));Json.put(old,"global",brightness);Json.put(old,"readyAt",now+100);continue;}
+            if(now-old.optLong("statusAt")>5000){send(ip,"devStatus",new JSONObject());Json.put(old,"statusAt",now);Json.put(old,"readyAt",now+100);continue;}
             String key=Base64.getEncoder().encodeToString(packets.get(id));if(!key.equals(old.optString("key"))||now-old.optLong("paintAt")>1000){send(ip,"razer",Json.object("pt",key));Json.put(old,"key",key);Json.put(old,"paintAt",now);}
         }return Json.object("ok",true,"enabled",true);
     }

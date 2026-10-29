@@ -67,20 +67,20 @@ export class GoveeLAN {
    if(!Number.isInteger(f.brightness)||f.brightness<1||f.brightness>100||f.pixels?.length!==selected.get(f.id).segments)throw Error('Invalid light pixels or brightness.');
    return {...f,bytes:realtimePixels(f.pixels),brightness:Math.min(f.brightness,Math.round(this.options.brightness*100))};
   });
-  this.latestAt=this.now();if(this.now()-this.tickAt<90)return {ok:true,enabled:true};this.tickAt=this.now();
+  this.latestAt=this.now();if(this.now()-this.tickAt<12)return {ok:true,enabled:true};this.tickAt=this.now();
   for(const f of checked){
    const d=this.devices.get(f.id);let old=this.last.get(f.id);
    if(!d||d.on!==true){if(old)this.release(f.id);continue;}
    // Some firmware stops answering status in realtime mode. A stream needs a
    // fresh power-on reply to START, but lack of ACKs must not expire it mid-song.
    if(!old&&this.now()-d.seen>=20000)continue;
-   if(!old){old={ip:d.ip,at:this.now(),global:f.brightness,original:d.brightness,phase:'arm',armed:false,statusAt:this.now()};this.last.set(f.id,old);this.send(d.ip,'brightness',{value:f.brightness});continue;}
-   if(this.now()-old.at<100)continue;
+   if(!old){old={ip:d.ip,at:this.now(),global:f.brightness,original:d.brightness,phase:'arm',armed:false,readyAt:this.now()+100,statusAt:this.now()};this.last.set(f.id,old);this.send(d.ip,'brightness',{value:f.brightness});continue;}
+   if(this.now()<old.readyAt||this.now()-old.at<15)continue;
    old.at=this.now();
-   if(old.phase==='arm'){this.stream(d.ip,realtimeMode(true));old.armed=true;old.phase='pixels';continue;}
-   // One command per device per tick; never race brightness/status against arm.
-   if(f.brightness!==old.global){this.send(d.ip,'brightness',{value:f.brightness});old.global=f.brightness;continue;}
-   if(this.now()-old.statusAt>5000){this.send(d.ip,'devStatus');old.statusAt=this.now();continue;}
+   if(old.phase==='arm'){this.stream(d.ip,realtimeMode(true));old.armed=true;old.phase='pixels';old.readyAt=this.now()+100;continue;}
+   // Stream pixels at 60 Hz; keep settling gaps around control commands only.
+   if(f.brightness!==old.global){this.send(d.ip,'brightness',{value:f.brightness});old.global=f.brightness;old.readyAt=this.now()+100;continue;}
+   if(this.now()-old.statusAt>5000){this.send(d.ip,'devStatus');old.statusAt=this.now();old.readyAt=this.now()+100;continue;}
    const key=Buffer.from(f.bytes).toString('base64');
    if(key!==old.key||this.now()-(old.paintAt||0)>1000){this.send(d.ip,'razer',{pt:key});old.key=key;old.paintAt=this.now();}
   }

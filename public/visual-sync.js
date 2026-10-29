@@ -16,7 +16,7 @@ export function resolveVisualSync(context,prefs={},desktop=false,device={}){
  const offsetMs=desktop?p.desktopVisualSyncOffsetMs:device.id?(profile?.offsetMs||0):p.visualSyncOffsetMs;
  return {desktop,deviceId:device.id||'',deviceLabel:device.label||'',mode,transport,automatic:!desktop&&p.visualSyncAuto,available,estimateMs,offsetMs,delayMs:clamp((p.visualSyncAuto&&!desktop&&transport!=='direct'?estimateMs:0)+offsetMs,0,2000)};
 }
-const arrays={bands:8,timbreBands:8,bandDb:8,spectrum:48,harmonic:48,percussive:48,accents:3,hits:3,wave:128};
+const arrays={bands:8,timbreBands:8,bandDb:8,spectrum:48,lightingSpectrum:48,harmonic:48,percussive:48,accents:3,hits:3,wave:128};
 const scalars=['rms','db','peakDb','loudness','onset'];
 function frame(){const f={time:0,active:false};for(const [key,n]of Object.entries(arrays))f[key]=new Float32Array(n);for(const key of scalars)f[key]=key.endsWith('Db')||key==='db'?-100:0;return f;}
 function copy(to,from,wave){

@@ -25,10 +25,10 @@ test('device compensation includes reported processing latency, supports precise
 test('all frequency, loudness, waveform and playing-state measurements arrive at the requested time without duplicate beats',()=>{
  const b=new VisualSyncBuffer();b.setDelay(137);const f=new AudioFeatures();f.spectrum=new Float32Array(48);const wave=new Float32Array(1024).fill(.4);
  for(let t=0;t<=500;t++){
-  f.bands.fill(t/1000);f.spectrum.fill(t/1000);f.hits[0]=t===200?1:0;f.db=-30;f.loudness=t/1000;
+  f.bands.fill(t/1000);f.spectrum.fill(t/1000);f.lightingSpectrum.fill(t/1000);f.hits[0]=t===200?1:0;f.db=-30;f.loudness=t/1000;
   const out=b.process(f,t<300,t,wave);
   if(t<137){assert.equal(out.loudness,0);assert.equal(b.active,false);}
-  else{assert.ok(Math.abs(out.loudness-(t-137)/1000)<1e-6);assert.ok(Math.abs(out.spectrum[4]-(t-137)/1000)<1e-6);assert.ok(Math.abs(out.wave[77]-.4)<1e-6);assert.equal(b.active,t-137<300);}
+  else{assert.ok(Math.abs(out.loudness-(t-137)/1000)<1e-6);assert.ok(Math.abs(out.spectrum[4]-(t-137)/1000)<1e-6);assert.ok(Math.abs(out.lightingSpectrum[4]-(t-137)/1000)<1e-6);assert.ok(Math.abs(out.wave[77]-.4)<1e-6);assert.equal(b.active,t-137<300);}
   assert.equal(out.hits[0],t===337?1:0);
  }
 });

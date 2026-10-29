@@ -40,11 +40,13 @@ export class Reactor {
   }
   setLightingActive(enabled){this.lightingActive=!!enabled;this.eq(this.eqValues||[0,0,0]);}
   updateAudioSignal(dt,time){
-    if(this.analyser){this.analyser.getFloatFrequencyData(this.freq);this.midAnalyser?.getFloatFrequencyData(this.midFreq);this.fastAnalyser?.getFloatFrequencyData(this.fastFreq);(this.fastAnalyser||this.analyser).getFloatTimeDomainData(this.wave);this.rawFeatures.update(this.freq,this.wave,this.context.sampleRate,this.analyser.fftSize,dt,time/1000,this.audioActive,{mid:this.midAnalyser?{frequency:this.midFreq,fftSize:2048}:null,fast:this.fastAnalyser?{frequency:this.fastFreq,fftSize:1024}:null});}
+    if(this.lightingActive&&Number.isFinite(this.signalAt)&&time<=this.signalAt)return; // A late render callback must not rewind the shared signal.
+    const analysisDt=this.lightingActive&&Number.isFinite(this.signalAt)?Math.max(.001,Math.min(.1,(time-this.signalAt)/1000)):dt;
+    if(this.analyser){this.analyser.getFloatFrequencyData(this.freq);this.midAnalyser?.getFloatFrequencyData(this.midFreq);this.fastAnalyser?.getFloatFrequencyData(this.fastFreq);(this.fastAnalyser||this.analyser).getFloatTimeDomainData(this.wave);this.rawFeatures.update(this.freq,this.wave,this.context.sampleRate,this.analyser.fftSize,analysisDt,time/1000,this.audioActive,{mid:this.midAnalyser?{frequency:this.midFreq,fftSize:2048}:null,fast:this.fastAnalyser?{frequency:this.fastFreq,fftSize:1024}:null});}
     this.syncAnalysis(time);this.signalAt=time;
   }
   lightingSnapshot(time=performance.now()){
-    if(time-(this.signalAt??-Infinity)>65){const dt=Math.min(.1,(time-(this.signalAt||time-50))/1000);this.updateAudioSignal(dt,time);this.dynamics.update(this.features,dt,{active:this.reactiveActive,dynamic:true,reduced:false,frozen:false});this.visualState(dt);}
+    if(time-(this.signalAt??-Infinity)>12){const dt=Math.min(.1,(time-(this.signalAt||time-50))/1000);this.updateAudioSignal(dt,time);if(!this.running||this.musicOnly||this.sceneSuspended){this.dynamics.update(this.features,dt,{active:this.reactiveActive,dynamic:true,reduced:false,frozen:false});this.visualState(dt);}}
     return {colors:this.visualColors||this.coverColors,features:this.features,active:this.reactiveActive&&!this.visualPending};
   }
   setMicrophoneStream(stream){
