@@ -10,7 +10,14 @@ function installPortableUpdate({app,ipcMain,dialog,win,root,url,exitForUpdate=()
  let checkTimer,periodic,cleanupTimer,cleaning=false;
  async function cleanup(){
   if(!canInstall||busy||cleaning)return;cleaning=true;
-  try{const result=await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','cleanup-updates.ps1'),'-Destination',portableRoot,'-Apply'],{windowsHide:true,timeout:600000,maxBuffer:100000});await fs.writeFile(path.join(portableRoot,'.updates','cleanup.json'),result.stdout).catch(()=>{});}catch{/* Locked files are retried on the next launch. Playback never waits for cleanup. */}finally{cleaning=false;}
+  try{const result=await promisify(execFile)('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'electron','cleanup-updates.ps1'),'-Destination',portableRoot,'-Apply'],{windowsHide:true,timeout:600000,maxBuffer:100000});await fs.writeFile(path.join(portableRoot,'.updates','cleanup.json'),result.stdout).catch(()=>{});}catch(error){
+   // Keep helper failures diagnosable without interrupting playback or writing through links.
+   const directory=path.join(portableRoot,'.updates'),report=path.join(directory,'cleanup.json');
+   const [base,folder,file]=await Promise.all([portableRoot,directory,report].map(p=>fs.lstat(p).catch(()=>null)));
+   if(base?.isDirectory()&&!base.isSymbolicLink()&&folder?.isDirectory()&&!folder.isSymbolicLink()&&(!file||file.isFile()&&!file.isSymbolicLink())){
+    await fs.writeFile(report,JSON.stringify({ok:false,at:new Date().toISOString(),error:String(error.stderr||error.message).trim().slice(0,2000)})).catch(()=>{});
+   }
+  }finally{cleaning=false;}
  }
  const check=()=>void updater.check(true).catch(()=>{});
  win.webContents.once('did-finish-load',()=>{checkTimer=setTimeout(check,30000);periodic=setInterval(check,60000);cleanupTimer=setTimeout(()=>void cleanup(),60000);});
